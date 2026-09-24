@@ -1,0 +1,22 @@
+import { Nav } from "@/components/Nav";
+import { requireAdmin } from "@/lib/auth";
+
+const links = [
+  { href: "/admin", label: "대시보드" },
+  { href: "/admin/upload", label: "일정표 업로드" },
+  { href: "/admin/dispatch", label: "배차" },
+  { href: "/admin/vehicles", label: "차량" },
+  { href: "/admin/drivers", label: "기사" },
+  { href: "/admin/settlement", label: "정산·세무" },
+  { href: "/admin/settings", label: "설정" },
+];
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { user } = await requireAdmin();
+  return (
+    <>
+      <Nav links={links} email={user.email ?? ""} title="렌트카 배차" />
+      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+    </>
+  );
+}
