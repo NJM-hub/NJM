@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { submitInquiry, type InquiryState } from "@/app/(site)/contact/actions";
-import { SITE, telHref } from "@/lib/site/config";
+import { REGIONS, telHref, type SiteInfo } from "@/lib/site/config";
 import { PERIODS, SERVICES } from "@/lib/site/services";
 
-export function ContactForm({ service, car }: { service?: string; car?: string }) {
+export function ContactForm({ service, car, message, info }: { service?: string; car?: string; message?: string; info: SiteInfo }) {
   const [state, action, pending] = useActionState<InquiryState, FormData>(submitInquiry, { ok: false });
 
   if (state.ok) {
@@ -13,8 +13,8 @@ export function ContactForm({ service, car }: { service?: string; car?: string }
       <div className="rounded-2xl bg-site-bg px-6 py-16 text-center">
         <p className="text-4xl" aria-hidden>✓</p>
         <h2 className="mt-3 text-2xl font-extrabold">상담 신청이 접수되었습니다</h2>
-        <p className="mt-2 text-site-ink-2">운영시간({SITE.hours}) 안에 담당자가 바로 연락드리겠습니다.</p>
-        <p className="mt-1 text-sm text-site-gray">급하시면 <a href={telHref(SITE.phone)} className="font-bold text-site-ink">{SITE.phone}</a>로 전화 주세요.</p>
+        <p className="mt-2 text-site-ink-2">운영시간({info.hours}) 안에 담당자가 바로 연락드리겠습니다.</p>
+        {info.phone && <p className="mt-1 text-sm text-site-gray">급하시면 <a href={telHref(info.phone)} className="font-bold text-site-ink">{info.phone}</a>로 전화 주세요.</p>}
         <Link href="/" className="site-btn site-btn--line mt-6">홈으로</Link>
       </div>
     );
@@ -46,7 +46,7 @@ export function ContactForm({ service, car }: { service?: string; car?: string }
           <label className="site-label" htmlFor="region">희망 지역</label>
           <select id="region" name="region" defaultValue="" className="site-input">
             <option value="">선택 안 함</option>
-            {SITE.regions.map((r) => <option key={r}>{r}</option>)}
+            {REGIONS.map((r) => <option key={r}>{r}</option>)}
           </select>
         </div>
         <div>
@@ -69,7 +69,7 @@ export function ContactForm({ service, car }: { service?: string; car?: string }
       </div>
       <div>
         <label className="site-label" htmlFor="message">문의 내용</label>
-        <textarea id="message" name="message" rows={4} maxLength={2000} className="site-input h-auto py-3" placeholder="사고 차량 정보, 원하시는 조건 등을 적어 주세요." />
+        <textarea id="message" name="message" rows={4} defaultValue={message} maxLength={2000} className="site-input h-auto py-3" placeholder="사고 차량 정보, 원하시는 조건 등을 적어 주세요." />
       </div>
 
       <div className="rounded-xl bg-site-bg p-4 text-sm">

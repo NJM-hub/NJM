@@ -1,26 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/server";
 import { CAR_CATEGORIES } from "@/lib/site/services";
+import { imageFieldFrom } from "@/lib/site/upload";
 
-const BUCKET = "car-images";
 const RENT_TYPES = ["short", "rent", "long", "accident"];
 const intOrNull = (v: FormDataEntryValue | null) => {
   const n = Number(String(v ?? "").replace(/[^0-9]/g, ""));
   return String(v ?? "").trim() === "" || !Number.isFinite(n) ? null : Math.round(n);
 };
-
-async function uploadImage(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있습니다.");
-  if (file.size > 5 * 1024 * 1024) throw new Error("사진은 5MB 이하로 올려 주세요.");
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const storage = createAdminClient().storage.from(BUCKET);
-  const { error } = await storage.upload(path, file, { contentType: file.type });
-  if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
-  return storage.getPublicUrl(path).data.publicUrl;
-}
 
 export async function saveCar(formData: FormData) {
   const { supabase } = await assertAdmin();
@@ -44,9 +32,8 @@ export async function saveCar(formData: FormData) {
   };
   if (!row.name) throw new Error("차량 이름을 입력하세요.");
 
-  const image = formData.get("image");
-  if (image instanceof File && image.size > 0) row.image_url = await uploadImage(image);
-  else if (formData.get("remove_image") === "on") row.image_url = null;
+  const imageUrl = await imageFieldFrom(formData, "cars");
+  if (imageUrl !== undefined) row.image_url = imageUrl;
 
   const { error } = id
     ? await supabase.from("rental_cars").update(row).eq("id", id)

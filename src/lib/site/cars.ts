@@ -1,44 +1,11 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import type { RentalCar } from "./car-types";
+import { publicClient } from "./db";
+
+export { priceOf, type RentalCar } from "./car-types";
 import type { ServiceKey } from "./services";
 
-export type RentalCar = {
-  id: string;
-  name: string;
-  brand: string | null;
-  category: string;
-  year: number | null;
-  fuel: string | null;
-  seats: number | null;
-  rent_types: string[];
-  daily_price: number | null;
-  monthly_price: number | null;
-  long_price: number | null;
-  image_url: string | null;
-  description: string | null;
-  published: boolean;
-  sort_order: number;
-};
-
 export type CarQuery = { type?: ServiceKey; q?: string; category?: string; brand?: string; max?: number; sort?: string };
-
-/** 비로그인 방문자용 읽기 전용 클라이언트 (RLS: 공개 차량만) */
-function publicClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) return null;
-  return createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
-}
-
-/** 서비스별로 보여 줄 요금 컬럼 */
-export function priceOf(car: RentalCar, type?: ServiceKey): { label: string; value: number | null } {
-  if (type === "short") return { label: "1일", value: car.daily_price };
-  if (type === "long") return { label: "월", value: car.long_price };
-  if (type === "rent") return { label: "월", value: car.monthly_price };
-  if (car.monthly_price) return { label: "월", value: car.monthly_price };
-  if (car.daily_price) return { label: "1일", value: car.daily_price };
-  return { label: "월", value: car.long_price };
-}
 
 const PRICE_COLUMN = { short: "daily_price", rent: "monthly_price", long: "long_price", accident: "monthly_price" } as const;
 
@@ -83,4 +50,13 @@ export async function listBrands(type?: ServiceKey): Promise<string[]> {
   if (type) req = req.contains("rent_types", [type]);
   const { data } = await req;
   return [...new Set((data ?? []).map((r) => r.brand as string))].sort((a, b) => a.localeCompare(b, "ko"));
+}
+
+/** 찜 목록용: id 로 공개 차량 조회 */
+export async function listCarsByIds(ids: string[]): Promise<RentalCar[]> {
+  const valid = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 100);
+  const supabase = publicClient();
+  if (!supabase || !valid.length) return [];
+  const { data } = await supabase.from("rental_cars").select("*").eq("published", true).in("id", valid);
+  return (data ?? []) as RentalCar[];
 }

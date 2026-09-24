@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { won } from "@/lib/format";
-import { priceOf, type RentalCar } from "@/lib/site/cars";
+import { priceOf, type RentalCar } from "@/lib/site/car-types";
 import type { ServiceKey } from "@/lib/site/services";
+import { FavoriteButton } from "./FavoriteButton";
 
 export function CarImage({ car, className = "" }: { car: RentalCar; className?: string }) {
   return car.image_url ? (
@@ -17,28 +18,31 @@ export function CarCard({ car, type, hidePrice }: { car: RentalCar; type?: Servi
   const price = priceOf(car, type);
   const spec = [car.year && `${car.year}년식`, car.fuel, car.seats && `${car.seats}인승`].filter(Boolean).join(" · ");
   return (
-    <Link href={`/cars/${car.id}${type ? `?type=${type}` : ""}`} className="group block overflow-hidden rounded-2xl border border-site-line bg-white transition hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="aspect-[16/10] bg-site-bg p-3">
-        <CarImage car={car} className="transition group-hover:scale-[1.03]" />
-      </div>
-      <div className="p-4">
-        <p className="text-xs font-semibold text-site-gray">{[car.brand, car.category].filter(Boolean).join(" · ")}</p>
-        <h3 className="mt-0.5 truncate text-[17px] font-bold">{car.name}</h3>
-        {spec && <p className="mt-0.5 text-xs text-site-ink-2">{spec}</p>}
-        {!hidePrice && (
-          <p className="mt-3 text-right">
-            {price.value ? (
-              <>
-                <span className="mr-1 text-xs text-site-gray">{price.label}</span>
-                <b className="text-xl font-extrabold text-brand">{won(price.value)}</b>
-                <span className="text-xs text-site-gray">~</span>
-              </>
-            ) : (
-              <b className="text-base font-bold text-site-ink-2">상담 시 안내</b>
-            )}
-          </p>
-        )}
-      </div>
-    </Link>
+    <div className="group relative overflow-hidden rounded-2xl border border-site-line bg-white transition hover:-translate-y-0.5 hover:shadow-lg">
+      <Link href={`/cars/${car.id}${type ? `?type=${type}` : ""}`} className="block">
+        <div className="aspect-[16/10] bg-site-bg p-3">
+          <CarImage car={car} className="transition group-hover:scale-[1.03]" />
+        </div>
+        <div className="p-4">
+          <p className="text-xs font-semibold text-site-gray">{[car.brand, car.category].filter(Boolean).join(" · ")}</p>
+          <h3 className="mt-0.5 truncate pr-6 text-[17px] font-bold">{car.name}</h3>
+          {spec && <p className="mt-0.5 text-xs text-site-ink-2">{spec}</p>}
+          {!hidePrice && (
+            <p className="mt-3 text-right">
+              {price.value ? (
+                <>
+                  <span className="mr-1 text-xs text-site-gray">{price.label}</span>
+                  <b className="text-xl font-extrabold text-brand">{won(price.value)}</b>
+                  <span className="text-xs text-site-gray">~</span>
+                </>
+              ) : (
+                <b className="text-base font-bold text-site-ink-2">상담 시 안내</b>
+              )}
+            </p>
+          )}
+        </div>
+      </Link>
+      <FavoriteButton id={car.id} name={car.name} className="absolute top-2 right-2 h-9 w-9 rounded-full bg-white/90 shadow-sm" />
+    </div>
   );
 }

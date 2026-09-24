@@ -1,7 +1,8 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { SERVICES } from "@/lib/site/services";
-import { SITE } from "@/lib/site/config";
+import { REGIONS } from "@/lib/site/config";
+import { getSiteInfo } from "@/lib/site/info";
 
 export type InquiryState = { ok: boolean; error?: string };
 
@@ -26,7 +27,7 @@ export async function submitInquiry(_prev: InquiryState, formData: FormData): Pr
     service,
     name,
     phone,
-    region: SITE.regions.includes(region) ? region : null,
+    region: REGIONS.includes(region) ? region : null,
     car: text(formData, "car", 100) || null,
     start_date: /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null,
     period: text(formData, "period", 20) || null,
@@ -35,7 +36,8 @@ export async function submitInquiry(_prev: InquiryState, formData: FormData): Pr
   });
   if (error) {
     console.error("상담 신청 저장 실패", error.message);
-    return { ok: false, error: `접수 중 문제가 생겼습니다. 전화(${SITE.phone})로 문의해 주세요.` };
+    const { phone: tel } = await getSiteInfo();
+    return { ok: false, error: `접수 중 문제가 생겼습니다. ${tel ? `전화(${tel})로 문의해 주세요.` : "잠시 후 다시 시도해 주세요."}` };
   }
   return { ok: true };
 }

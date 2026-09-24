@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { SITE } from "@/lib/site/config";
+import { DEFAULT_SITE, DESCRIPTION, TAGLINE } from "@/lib/site/config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: `${SITE.name} | ${SITE.tagline}`, template: `%s | ${SITE.name}` },
-  description: SITE.description,
+  title: { default: `${DEFAULT_SITE.name} | ${TAGLINE}`, template: `%s | ${DEFAULT_SITE.name}` },
+  description: DESCRIPTION,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CarCard } from "@/components/site/CarCard";
-import { SITE, telHref } from "@/lib/site/config";
+import { telHref } from "@/lib/site/config";
+import { getSiteInfo } from "@/lib/site/info";
 import { listCars } from "@/lib/site/cars";
 
 export const metadata: Metadata = {
@@ -30,13 +31,14 @@ const FAQ = [
 ];
 
 export default async function AccidentPage() {
-  const cars = (await listCars({ type: "accident" })).slice(0, 8);
+  const [allCars, info] = await Promise.all([listCars({ type: "accident" }), getSiteInfo()]);
+  const cars = allCars.slice(0, 8);
 
   return (
     <>
       <section className="bg-site-dark text-white">
         <div className="site-container py-16 sm:py-24">
-          <p className="inline-block rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">24시간 사고 접수 · {SITE.phone}</p>
+          <p className="inline-block rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">24시간 사고 접수{info.phone && ` · ${info.phone}`}</p>
           <h1 className="mt-5 text-4xl leading-tight font-extrabold tracking-tight sm:text-6xl">
             사고 수습은<br />저희가 하겠습니다
           </h1>
@@ -44,7 +46,7 @@ export default async function AccidentPage() {
             수리하시는 동안 타실 차를 보험 처리로 가져다 드립니다. 고객님은 연락만 주세요.
           </p>
           <div className="mt-8 flex flex-col gap-2 sm:flex-row">
-            <a href={telHref(SITE.phone)} className="site-btn h-14 px-8 text-base">전화로 접수 {SITE.phone}</a>
+            {info.phone && <a href={telHref(info.phone)} className="site-btn h-14 px-8 text-base">전화로 접수 {info.phone}</a>}
             <Link href="/contact?service=사고대차" className="site-btn site-btn--line h-14 border-white/30 bg-transparent px-8 text-base text-white hover:border-white hover:bg-transparent">온라인 접수</Link>
           </div>
         </div>
@@ -132,9 +134,13 @@ export default async function AccidentPage() {
         <div className="site-container flex flex-col items-start justify-between gap-6 py-12 sm:flex-row sm:items-center">
           <div>
             <p className="text-2xl font-extrabold">지금 바로 접수하세요</p>
-            <p className="mt-1 text-white/80">{SITE.accidentHours}</p>
+            <p className="mt-1 text-white/80">{info.accidentHours}</p>
           </div>
-          <a href={telHref(SITE.phone)} className="site-btn h-14 bg-white px-8 text-base text-brand hover:bg-white/90">{SITE.phone}</a>
+          {info.phone ? (
+            <a href={telHref(info.phone)} className="site-btn h-14 bg-white px-8 text-base text-brand hover:bg-white/90">{info.phone}</a>
+          ) : (
+            <Link href="/contact?service=사고대차" className="site-btn h-14 bg-white px-8 text-base text-brand hover:bg-white/90">온라인 접수</Link>
+          )}
         </div>
       </section>
     </>

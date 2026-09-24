@@ -5,13 +5,15 @@ import { todayKst } from "@/lib/format";
 export default async function AdminHome() {
   const { supabase } = await requireAdmin();
   const today = todayKst();
-  const [bookings, vehicles, pendingDrivers, runs, newInquiries] = await Promise.all([
+  const [bookings, vehicles, pendingDrivers, runs, newInquiries, siteInfo] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", today),
     supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("active", true),
     supabase.from("drivers").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("dispatch_runs").select("id,service_date,status,summary").order("created_at", { ascending: false }).limit(5),
     supabase.from("inquiries").select("id", { count: "exact", head: true }).eq("status", "new"),
+    supabase.from("site_info").select("phone,legal_name,brn").eq("id", 1).maybeSingle(),
   ]);
+  const siteInfoMissing = !siteInfo.data?.phone || !siteInfo.data?.legal_name || !siteInfo.data?.brn;
 
   const stats = [
     { label: "오늘 예약", value: bookings.count ?? 0, href: `/admin/dispatch?date=${today}` },
@@ -22,6 +24,11 @@ export default async function AdminHome() {
 
   return (
     <div className="space-y-6">
+      {siteInfoMissing && (
+        <Link href="/admin/site" className="block rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 hover:border-amber-300">
+          홈페이지에 표시할 회사 정보(대표번호·상호·사업자등록번호 등)를 아직 입력하지 않았습니다. <b>홈페이지 설정에서 입력하기 →</b>
+        </Link>
+      )}
       <h1 className="page-title">대시보드 <span className="text-base font-normal text-gray-500">{today}</span></h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (

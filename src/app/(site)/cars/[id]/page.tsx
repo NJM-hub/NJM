@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CarImage } from "@/components/site/CarCard";
+import { FavoriteButton } from "@/components/site/FavoriteButton";
 import { won } from "@/lib/format";
-import { SITE, telHref } from "@/lib/site/config";
+import { telHref } from "@/lib/site/config";
+import { getSiteInfo } from "@/lib/site/info";
 import { getCar } from "@/lib/site/cars";
 import { SERVICES, serviceByKey } from "@/lib/site/services";
 
@@ -16,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CarDetail({ params, searchParams }: Props) {
   const [{ id }, { type }] = await Promise.all([params, searchParams]);
-  const car = await getCar(id);
+  const [car, info] = await Promise.all([getCar(id), getSiteInfo()]);
   if (!car) notFound();
 
   const service = serviceByKey(type ?? "") ?? SERVICES.find((s) => car.rent_types.includes(s.key));
@@ -42,7 +44,10 @@ export default async function CarDetail({ params, searchParams }: Props) {
         </div>
         <div>
           <p className="text-sm font-semibold text-site-gray">{[car.brand, car.category].filter(Boolean).join(" · ")}</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{car.name}</h1>
+          <div className="mt-1 flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-extrabold tracking-tight">{car.name}</h1>
+            <FavoriteButton id={car.id} name={car.name} withLabel className="mt-1 shrink-0 rounded-full border border-site-line px-3 py-1.5" />
+          </div>
 
           <dl className="mt-6 divide-y divide-site-line border-y border-site-line text-[15px]">
             {specs.map(([k, v]) => (
@@ -60,9 +65,9 @@ export default async function CarDetail({ params, searchParams }: Props) {
             {car.rent_types.includes("accident") && <p className="text-sm text-site-ink-2">사고대차 가능 차량 (보험 처리)</p>}
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-2">
+          <div className={`mt-6 grid gap-2 ${info.phone ? "grid-cols-2" : ""}`}>
             <Link href={contactHref} className="site-btn">이 차로 상담 신청</Link>
-            <a href={telHref(SITE.phone)} className="site-btn site-btn--line">전화 문의</a>
+            {info.phone && <a href={telHref(info.phone)} className="site-btn site-btn--line">전화 문의</a>}
           </div>
 
           {car.description && <p className="mt-8 leading-relaxed whitespace-pre-line text-site-ink-2">{car.description}</p>}

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { SITE, telHref } from "@/lib/site/config";
+import { telHref, type SiteInfo } from "@/lib/site/config";
 import { SERVICES, type Service, type IconName } from "@/lib/site/services";
 import { Icon } from "./Icon";
 
@@ -26,12 +26,12 @@ function Option({ href, icon, title, desc, onClick, tone }: {
   return href ? <Link href={href} className={cls}>{body}</Link> : <button type="button" onClick={onClick} className={cls}>{body}</button>;
 }
 
-export function EntryPicker() {
+export function EntryPicker({ info }: { info: SiteInfo }) {
   const [picked, setPicked] = useState<Service | null>(null);
 
   return (
     <div className="w-full max-w-[480px]">
-      <p className="mb-10 text-center text-3xl font-extrabold tracking-tight">{SITE.name}</p>
+      <p className="mb-10 text-center text-3xl font-extrabold tracking-tight">{info.name}</p>
 
       {!picked ? (
         <section>
@@ -47,7 +47,7 @@ export function EntryPicker() {
                 {...(s.key === "accident" ? { href: s.href } : { onClick: () => setPicked(s) })}
               />
             ))}
-            <Option href="/about" icon="building" title={`${SITE.name}는 어떤 곳인가요?`} desc="저희가 일하는 방식을 소개합니다" tone="muted" />
+            <Option href="/about" icon="building" title={`${info.name}는 어떤 곳인가요?`} desc="저희가 일하는 방식을 소개합니다" tone="muted" />
           </div>
         </section>
       ) : (
@@ -64,10 +64,12 @@ export function EntryPicker() {
         </section>
       )}
 
-      <p className="mt-10 text-center text-sm text-site-ink-2">
-        바로 통화를 원하시면{" "}
-        <a href={telHref(SITE.phone)} className="font-bold text-site-ink underline underline-offset-4">{SITE.phone}</a>
-      </p>
+      {info.phone && (
+        <p className="mt-10 text-center text-sm text-site-ink-2">
+          바로 통화를 원하시면{" "}
+          <a href={telHref(info.phone)} className="font-bold text-site-ink underline underline-offset-4">{info.phone}</a>
+        </p>
+      )}
     </div>
   );
 }
