@@ -4,7 +4,7 @@ export function Nav({ links, email, title }: { links: { href: string; label: str
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/" className="text-lg font-bold text-blue-700">{title}</Link>
+        <Link href="/me" className="text-lg font-bold text-blue-700">{title}</Link>
         <nav className="flex flex-wrap gap-1 text-sm">
           {links.map((l) => (
             <Link key={l.href} href={l.href} className="rounded-md px-3 py-1.5 text-gray-700 hover:bg-gray-100">

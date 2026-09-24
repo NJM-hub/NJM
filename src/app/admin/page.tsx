@@ -5,23 +5,25 @@ import { todayKst } from "@/lib/format";
 export default async function AdminHome() {
   const { supabase } = await requireAdmin();
   const today = todayKst();
-  const [bookings, vehicles, pendingDrivers, runs] = await Promise.all([
+  const [bookings, vehicles, pendingDrivers, runs, newInquiries] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", today),
     supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("active", true),
     supabase.from("drivers").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("dispatch_runs").select("id,service_date,status,summary").order("created_at", { ascending: false }).limit(5),
+    supabase.from("inquiries").select("id", { count: "exact", head: true }).eq("status", "new"),
   ]);
 
   const stats = [
     { label: "오늘 예약", value: bookings.count ?? 0, href: `/admin/dispatch?date=${today}` },
     { label: "운행 가능 차량", value: vehicles.count ?? 0, href: "/admin/vehicles" },
     { label: "승인 대기 기사", value: pendingDrivers.count ?? 0, href: "/admin/drivers" },
+    { label: "신규 상담 신청", value: newInquiries.count ?? 0, href: "/admin/inquiries?status=new" },
   ];
 
   return (
     <div className="space-y-6">
       <h1 className="page-title">대시보드 <span className="text-base font-normal text-gray-500">{today}</span></h1>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="card hover:border-blue-300">
             <div className="text-sm text-gray-500">{s.label}</div>

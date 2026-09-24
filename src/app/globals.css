@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* 홈페이지 색상. 브랜드 색은 --color-brand 하나만 바꾸면 된다. */
+@theme {
+  --color-brand: #1a56db;
+  --color-brand-dark: #1543b0;
+  --color-brand-soft: #ebf1fd;
+  --color-site-ink: #191f28;
+  --color-site-ink-2: #4e5968;
+  --color-site-gray: #8b95a1;
+  --color-site-line: #edeff2;
+  --color-site-bg: #f7f8fa;
+  --color-site-dark: #1b1d21;
+}
+
 :root {
   --bg: #f6f7f9;
   --fg: #111827;
@@ -23,4 +36,16 @@ body {
   .table td { @apply border-b border-gray-100 px-3 py-2 align-top; }
   .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
   .page-title { @apply mb-6 text-2xl font-bold; }
+
+  /* 홈페이지 */
+  .site { @apply bg-white text-site-ink; word-break: keep-all; }
+  .site-container { @apply mx-auto w-full max-w-[1200px] px-5 sm:px-6; }
+  .site-btn { @apply inline-flex h-[52px] items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[15px] font-bold text-white transition hover:bg-brand-dark disabled:opacity-50; }
+  .site-btn--sm { @apply h-10 px-4 text-sm; }
+  .site-btn--line { @apply border border-site-line bg-white text-site-ink hover:border-site-ink hover:bg-white; }
+  .site-btn--dark { @apply bg-site-ink hover:bg-black; }
+  .site-eyebrow { @apply text-sm font-bold tracking-wider text-brand; }
+  .site-h2 { @apply text-[26px] leading-snug font-extrabold tracking-tight sm:text-4xl; }
+  .site-input { @apply h-12 w-full rounded-xl border border-site-line bg-white px-4 text-[15px] outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft; }
+  .site-label { @apply mb-1.5 block text-sm font-semibold text-site-ink-2; }
 }

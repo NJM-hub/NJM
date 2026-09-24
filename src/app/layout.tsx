@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { SITE } from "@/lib/site/config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "렌트카 배차 관리",
-  description: "KKday 일정표 기반 자동 배차 · 기사 관리 · 원천징수 신고 자료",
+  title: { default: `${SITE.name} | ${SITE.tagline}`, template: `%s | ${SITE.name}` },
+  description: SITE.description,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

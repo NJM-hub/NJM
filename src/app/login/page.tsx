@@ -20,14 +20,14 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (error) return setError(error.message === "Invalid login credentials" ? "이메일 또는 비밀번호가 올바르지 않습니다." : error.message);
-    router.replace("/");
+    router.replace("/me");
     router.refresh();
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-bold">렌트카 배차 관리 로그인</h1>
+        <h1 className="text-xl font-bold">우정렌트카 직원 로그인</h1>
         <div>
           <label className="label" htmlFor="email">이메일</label>
           <input id="email" name="email" type="email" required className="input" autoComplete="email" />

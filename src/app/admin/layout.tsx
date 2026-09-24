@@ -9,6 +9,8 @@ const links = [
   { href: "/admin/drivers", label: "기사" },
   { href: "/admin/settlement", label: "정산·세무" },
   { href: "/admin/settings", label: "설정" },
+  { href: "/admin/inquiries", label: "상담 신청" },
+  { href: "/admin/cars", label: "홈페이지 차량" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
