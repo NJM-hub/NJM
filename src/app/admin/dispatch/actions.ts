@@ -9,6 +9,7 @@ import {
   type DispatchVehicle,
   type DispatchOptions,
 } from "@/lib/dispatch/algorithm";
+import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, loadSettings } from "@/lib/settings";
@@ -25,11 +26,16 @@ type BookingRow = {
   dropoff_lng: number | null;
   pax: number;
   fare: number | null;
+  vehicle_class: string | null;
+  wait_min: number | null;
+  pickup_place: string | null;
+  dropoff_place: string | null;
 };
 
 type VehicleRow = {
   id: string;
   seats: number;
+  grade: string | null;
   base_address: string | null;
   base_lat: number | null;
   base_lng: number | null;
@@ -38,7 +44,11 @@ type VehicleRow = {
 const pt = (lat: number | null, lng: number | null) => (lat != null && lng != null ? { lat, lng } : null);
 
 function toDispatchBooking(b: BookingRow): DispatchBooking {
+  const cls = parseVehicleClass(b.vehicle_class);
   return {
+    minSeats: cls.seats,
+    grade: gradeRequired(cls.grade),
+    waitMin: b.wait_min,
     id: b.id,
     pickupAt: b.pickup_at ? new Date(b.pickup_at).getTime() : null,
     durationMin: b.duration_min,
@@ -49,7 +59,7 @@ function toDispatchBooking(b: BookingRow): DispatchBooking {
 }
 
 function toDispatchVehicle(v: VehicleRow): DispatchVehicle {
-  return { id: v.id, seats: v.seats, base: pt(v.base_lat, v.base_lng) };
+  return { id: v.id, seats: v.seats, grade: v.grade, base: pt(v.base_lat, v.base_lng) };
 }
 
 /** 좌표가 비어 있는 예약/차고지 주소를 카카오 API 로 채운다 (키가 있을 때만) */
@@ -60,8 +70,8 @@ async function fillCoordinates(
 ) {
   const addrs: string[] = [];
   for (const b of bookings) {
-    if (b.pickup_lat == null && b.pickup_address) addrs.push(b.pickup_address);
-    if (b.dropoff_lat == null && b.dropoff_address) addrs.push(b.dropoff_address);
+    if (b.pickup_lat == null) addrs.push(...[b.pickup_address, b.pickup_place].filter((x): x is string => !!x));
+    if (b.dropoff_lat == null) addrs.push(...[b.dropoff_address, b.dropoff_place].filter((x): x is string => !!x));
   }
   for (const v of vehicles) if (v.base_lat == null && v.base_address) addrs.push(v.base_address);
   if (!addrs.length) return;
@@ -70,8 +80,9 @@ async function fillCoordinates(
 
   const updates: PromiseLike<unknown>[] = [];
   for (const b of bookings) {
-    const p = b.pickup_lat == null ? lookup(b.pickup_address) : null;
-    const d = b.dropoff_lat == null ? lookup(b.dropoff_address) : null;
+    // 상세 주소로 못 찾으면 장소명(호텔명)으로 검색한 결과를 쓴다
+    const p = b.pickup_lat == null ? lookup(b.pickup_address) ?? lookup(b.pickup_place) : null;
+    const d = b.dropoff_lat == null ? lookup(b.dropoff_address) ?? lookup(b.dropoff_place) : null;
     if (!p && !d) continue;
     if (p) [b.pickup_lat, b.pickup_lng] = [p.lat, p.lng];
     if (d) [b.dropoff_lat, b.dropoff_lng] = [d.lat, d.lng];
@@ -102,9 +113,9 @@ export async function runDispatch(formData: FormData) {
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
       .from("bookings")
-      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare")
+      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place")
       .eq("service_date", date),
-    supabase.from("vehicles").select("id,seats,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
+    supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),
   ]);
   if (bErr || vErr) throw new Error(bErr?.message ?? vErr?.message);
@@ -189,10 +200,10 @@ export async function moveAssignment(formData: FormData) {
 
   const { data: all } = await supabase
     .from("dispatch_assignments")
-    .select("id,vehicle_id,booking_id,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax)")
+    .select("id,vehicle_id,booking_id,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax,vehicle_class,wait_min)")
     .eq("run_id", a.run_id);
   const { data: vehicles } = affected.length
-    ? await supabase.from("vehicles").select("id,seats,base_address,base_lat,base_lng").in("id", affected)
+    ? await supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", affected)
     : { data: [] as VehicleRow[] };
   const { data: drivers } = target
     ? await supabase.from("drivers").select("id").eq("vehicle_id", target).eq("status", "approved")

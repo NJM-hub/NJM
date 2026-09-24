@@ -12,6 +12,7 @@ export async function saveVehicle(formData: FormData) {
     plate_number: String(formData.get("plate_number") || "").trim(),
     model: String(formData.get("model") || "").trim() || null,
     seats: Number(formData.get("seats") || 4),
+    grade: String(formData.get("grade") || "").trim() || null,
     base_address: baseAddress,
     base_lat: numOrNull(formData.get("base_lat")),
     base_lng: numOrNull(formData.get("base_lng")),

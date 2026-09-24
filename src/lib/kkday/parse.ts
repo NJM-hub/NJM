@@ -19,6 +19,7 @@ export const FIELDS = {
   pickupAddress: "픽업장소",
   dropoffAddress: "하차장소",
   flightNo: "항공편",
+  vehicleClass: "차급(차량 모델)",
   memo: "메모",
   fare: "기사 지급액",
   pickupLat: "픽업 위도",
@@ -45,6 +46,7 @@ const ALIASES: Record<FieldKey, string[]> = {
   durationMin: ["소요시간", "소요시간분", "이용시간분", "duration", "durationmin", "hours"],
   pickupAddress: ["픽업장소", "픽업지", "출발지", "픽업주소", "승차장소", "숙소", "호텔", "pickuplocation", "pickupaddress", "pickup", "pickuppoint", "hotel", "meetingpoint", "from", "上車地點", "接送地點"],
   dropoffAddress: ["하차장소", "하차지", "도착지", "목적지", "하차주소", "dropofflocation", "dropoffaddress", "dropoff", "destination", "to", "下車地點"],
+  vehicleClass: ["차량모델명", "차량모델", "차종", "차급", "vehiclemodel", "vehicletype", "cartype"],
   flightNo: ["항공편", "편명", "flight", "flightno", "flightnumber", "航班"],
   memo: ["메모", "비고", "요청사항", "특이사항", "remark", "remarks", "note", "notes", "specialrequest", "comment", "備註"],
   fare: ["기사단가", "기사지급액", "지급액", "운행단가", "driverfare", "fare"],
@@ -114,6 +116,14 @@ export type ParsedBooking = {
   flightNo: string | null;
   memo: string | null;
   fare: number | null;
+  /** 공항 픽업 / 공항 샌딩 등 */
+  tripType: string | null;
+  /** 고객이 예약한 차급 (예: 이코노미 7인승) */
+  vehicleClass: string | null;
+  /** 도착 후 최대 대기 시간 (분) */
+  waitMin: number | null;
+  pickupPlace: string | null;
+  dropoffPlace: string | null;
   pickupLat: number | null;
   pickupLng: number | null;
   dropoffLat: number | null;
@@ -284,6 +294,11 @@ export function parseRows(
       flightNo: str(get(row, "flightNo")),
       memo: str(get(row, "memo")),
       fare: num(get(row, "fare")),
+      tripType: null,
+      vehicleClass: str(get(row, "vehicleClass")),
+      waitMin: null,
+      pickupPlace: null,
+      dropoffPlace: null,
       pickupLat: num(get(row, "pickupLat")),
       pickupLng: num(get(row, "pickupLng")),
       dropoffLat: num(get(row, "dropoffLat")),

@@ -52,6 +52,7 @@ create table public.vehicles (
   plate_number text not null unique,
   model text,
   seats int not null default 4 check (seats > 0),
+  grade text,                    -- 차량 등급 (예: 컴포트). 비우면 기본(이코노미)
   base_address text,
   base_lat double precision,
   base_lng double precision,
@@ -120,6 +121,11 @@ create table public.bookings (
   dropoff_lng double precision,
   flight_no text,
   memo text,
+  trip_type text,                -- 공항 픽업 / 공항 샌딩
+  vehicle_class text,            -- 고객이 예약한 차급 (예: 이코노미 7인승)
+  wait_min int,                  -- 도착 후 최대 대기 시간(분)
+  pickup_place text,             -- 화면 표시용 장소명 (호텔명 등)
+  dropoff_place text,
   fare int,                      -- 건별 기사 지급액 (없으면 기본 단가)
   raw jsonb,
   created_at timestamptz not null default now()

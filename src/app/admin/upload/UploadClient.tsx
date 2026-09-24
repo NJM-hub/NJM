@@ -11,6 +11,7 @@ import {
   type ColumnMapping,
   type FieldKey,
 } from "@/lib/kkday/parse";
+import { isKkdayScm, parseKkdayScm } from "@/lib/kkday/scm";
 import { saveBookings, type SaveResult } from "./actions";
 
 async function readFile(file: File): Promise<Cell[][]> {
@@ -44,9 +45,13 @@ export function UploadClient() {
   const [pending, startTransition] = useTransition();
 
   const headers = useMemo(() => (rows[headerRow] ?? []).map((c) => String(c ?? "").trim()), [rows, headerRow]);
+  const scm = useMemo(() => rows.length > 0 && isKkdayScm(rows[headerRow] ?? []), [rows, headerRow]);
+  const scmResult = useMemo(() => (scm ? parseKkdayScm(rows, headerRow) : null), [scm, rows, headerRow]);
   const parsed = useMemo(
-    () => (rows.length ? parseRows(rows, headerRow, mapping, { fallbackDate: fallbackDate || undefined }) : []),
-    [rows, headerRow, mapping, fallbackDate],
+    () =>
+      scmResult?.bookings ??
+      (rows.length ? parseRows(rows, headerRow, mapping, { fallbackDate: fallbackDate || undefined }) : []),
+    [scmResult, rows, headerRow, mapping, fallbackDate],
   );
   const warnCount = parsed.filter((p) => p.warnings.length).length;
 
@@ -92,9 +97,17 @@ export function UploadClient() {
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
 
+      {scmResult && (
+        <div className="card border-blue-200 bg-blue-50 text-sm text-blue-900">
+          <b>KKday 공급사 주문 내보내기</b> 형식으로 인식했습니다. 유효 {scmResult.bookings.length}건
+          {scmResult.cancelled > 0 && <>, 취소 {scmResult.cancelled}건은 제외</>}.
+          이용 시간을 도착 시각으로, 최종 픽업 시간까지를 대기 시간으로 계산하고 예약 차급(인승·등급)에 맞는 차량만 배정합니다.
+        </div>
+      )}
+
       {rows.length > 0 && (
         <>
-          <div className="card space-y-4">
+          <div className={`card space-y-4 ${scm ? "hidden" : ""}`}>
             <div className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="label">헤더 행</label>
@@ -148,7 +161,7 @@ export function UploadClient() {
             <div className="overflow-x-auto">
               <table className="table">
                 <thead>
-                  <tr><th>행</th><th>예약번호</th><th>이용일</th><th>픽업</th><th>인원</th><th>상품</th><th>고객</th><th>픽업장소</th><th>하차장소</th><th>소요</th><th>확인</th></tr>
+                  <tr><th>행</th><th>예약번호</th><th>이용일</th><th>도착</th><th>인원</th><th>상품/차급</th><th>고객·항공편</th><th>픽업장소</th><th>하차장소</th><th>대기/소요</th><th>확인</th></tr>
                 </thead>
                 <tbody>
                   {parsed.slice(0, 200).map((p) => (
@@ -159,10 +172,10 @@ export function UploadClient() {
                       <td>{p.pickupAt?.slice(11, 16) ?? "-"}</td>
                       <td>{p.pax}</td>
                       <td className="max-w-48 truncate" title={p.productName ?? ""}>{p.productName}</td>
-                      <td>{p.customerName}</td>
-                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{p.pickupAddress}</td>
-                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{p.dropoffAddress}</td>
-                      <td>{p.durationMin ? `${p.durationMin}분` : "기본"}</td>
+                      <td>{p.customerName ?? p.flightNo}</td>
+                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{p.pickupPlace ?? p.pickupAddress}</td>
+                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{p.dropoffPlace ?? p.dropoffAddress}</td>
+                      <td>{p.waitMin != null ? `대기 ${p.waitMin}분` : p.durationMin ? `${p.durationMin}분` : "기본"}</td>
                       <td className="text-xs text-amber-700">{p.warnings.join(" / ")}</td>
                     </tr>
                   ))}

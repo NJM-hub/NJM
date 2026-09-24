@@ -39,6 +39,11 @@ export async function saveBookings(filename: string, rows: ParsedBooking[]): Pro
     dropoff_lng: r.dropoffLng,
     flight_no: r.flightNo,
     memo: r.memo,
+    trip_type: r.tripType,
+    vehicle_class: r.vehicleClass,
+    wait_min: r.waitMin,
+    pickup_place: r.pickupPlace,
+    dropoff_place: r.dropoffPlace,
     fare: r.fare,
     raw: r.raw,
   });

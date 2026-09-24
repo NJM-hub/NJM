@@ -14,6 +14,19 @@ async function kakao(path: string, query: string, key: string): Promise<LatLng |
   return d ? { lat: Number(d.y), lng: Number(d.x) } : null;
 }
 
+/** 검색어 변형: 원문 → 한자/국가명 제거 → 첫 쉼표 앞부분 (영문 주소·호텔명 대응) */
+export function queryVariants(addr: string): string[] {
+  const noHan = addr
+    .replace(/[\u4e00-\u9fff\u3040-\u30ff]+/g, " ")
+    .replace(/\b(South Korea|Korea|Republic of Korea)\b/gi, " ")
+    .replace(/대한민국/g, " ")
+    .replace(/\s*,\s*(,\s*)*/g, ", ")
+    .replace(/(^[\s,]+|[\s,]+$)/g, "")
+    .replace(/\s+/g, " ");
+  const head = noHan.split(",")[0].trim();
+  return [...new Set([addr.trim(), noHan, head].filter((q) => q.length >= 2))];
+}
+
 /** 주소 → 좌표. 카카오 주소검색 후 실패하면 키워드(호텔명 등) 검색. 결과는 DB 에 캐시 */
 export async function geocodeAddresses(
   db: SupabaseClient,
@@ -39,7 +52,10 @@ export async function geocodeAddresses(
       missing.slice(i, i + 5).map(async (addr) => {
         let pos: LatLng | null = null;
         try {
-          pos = (await kakao("address", addr, key)) ?? (await kakao("keyword", addr, key));
+          for (const q of queryVariants(addr)) {
+            pos = (await kakao("address", q, key)) ?? (await kakao("keyword", q, key));
+            if (pos) break;
+          }
         } catch {
           pos = null;
         }

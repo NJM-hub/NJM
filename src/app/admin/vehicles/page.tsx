@@ -4,7 +4,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { deleteVehicle, saveVehicle } from "./actions";
 
 type Vehicle = {
-  id: string; plate_number: string; model: string | null; seats: number; base_address: string | null;
+  id: string; plate_number: string; model: string | null; seats: number; grade: string | null; base_address: string | null;
   base_lat: number | null; base_lng: number | null; active: boolean; memo: string | null;
 };
 
@@ -14,7 +14,11 @@ function VehicleFields({ v }: { v?: Vehicle }) {
       {v && <input type="hidden" name="id" value={v.id} />}
       <input name="plate_number" defaultValue={v?.plate_number} placeholder="차량번호 (예: 12가3456)" className="input" required />
       <input name="model" defaultValue={v?.model ?? ""} placeholder="차종 (예: 카니발)" className="input" />
-      <input name="seats" type="number" min={1} defaultValue={v?.seats ?? 4} className="input" title="탑승 가능 인원" />
+      <input name="seats" type="number" min={1} defaultValue={v?.seats ?? 4} className="input" title="좌석 수 (예: 7인승이면 7)" />
+      <select name="grade" defaultValue={v?.grade ?? ""} className="input" title="차량 등급">
+        <option value="">이코노미</option>
+        <option value="컴포트">컴포트</option>
+      </select>
       <input name="base_address" defaultValue={v?.base_address ?? ""} placeholder="차고지 주소 (선택)" className="input" />
       <input name="base_lat" defaultValue={v?.base_lat ?? ""} placeholder="위도 (선택)" className="input" />
       <input name="base_lng" defaultValue={v?.base_lng ?? ""} placeholder="경도 (선택)" className="input" />
@@ -35,18 +39,18 @@ export default async function VehiclesPage() {
   return (
     <div className="space-y-6">
       <h1 className="page-title">차량 관리</h1>
-      <form action={saveVehicle} className="card grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-9">
+      <form action={saveVehicle} className="card grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-10">
         <VehicleFields />
         <SubmitButton>추가</SubmitButton>
       </form>
       <p className="text-sm text-gray-500">
-        좌석 수보다 인원이 많은 예약은 배정되지 않습니다. 차고지 좌표(또는 카카오 키가 있을 때 주소)를 넣으면 첫 콜까지의 거리도 고려합니다.
+        예약한 차급(예: 이코노미 7인승)보다 좌석이 적은 차량이나, 컴포트 예약에 이코노미 차량은 배정되지 않습니다. 컴포트 차량은 이코노미 예약에도 쓸 수 있습니다. 차고지 좌표(또는 카카오 키가 있을 때 주소)를 넣으면 첫 콜까지의 거리도 고려합니다.
         기사 연결은 <Link className="text-blue-600" href="/admin/drivers">기사 관리</Link>에서 합니다.
       </p>
       <div className="space-y-2">
         {vehicles?.map((v) => (
           <div key={v.id} className="card !p-3">
-            <form action={saveVehicle} className="grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-9">
+            <form action={saveVehicle} className="grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-10">
               <VehicleFields v={v as Vehicle} />
               <SubmitButton className="btn-secondary">저장</SubmitButton>
             </form>

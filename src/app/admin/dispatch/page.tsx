@@ -20,6 +20,10 @@ type Booking = {
   flight_no: string | null;
   memo: string | null;
   pickup_lat: number | null;
+  pickup_place: string | null;
+  dropoff_place: string | null;
+  vehicle_class: string | null;
+  wait_min: number | null;
 };
 
 type Assignment = {
@@ -50,7 +54,7 @@ export default async function DispatchPage({
   const [{ count: bookingCount }, { count: noCoordCount }, { data: vehicles }, { data: drivers }, { data: runs }] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).is("pickup_lat", null),
-    supabase.from("vehicles").select("id,plate_number,model,seats,active").eq("active", true).order("plate_number"),
+    supabase.from("vehicles").select("id,plate_number,model,seats,grade,active").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,name,phone,vehicle_id").eq("status", "approved"),
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
   ]);
@@ -59,14 +63,15 @@ export default async function DispatchPage({
   const { data: assignmentsRaw } = run
     ? await supabase
         .from("dispatch_assignments")
-        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat)")
+        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min)")
         .eq("run_id", run.id)
     : { data: [] };
   const assignments = (assignmentsRaw ?? []) as unknown as Assignment[];
   const byPickup = (a: Assignment, b: Assignment) =>
     (a.bookings.pickup_at ?? "").localeCompare(b.bookings.pickup_at ?? "");
 
-  const vehicleName = new Map((vehicles ?? []).map((v) => [v.id, `${v.plate_number}${v.model ? ` (${v.model})` : ""}`]));
+  const vehicleName = new Map((vehicles ?? []).map((v) => [v.id, `${v.plate_number} (${v.grade ?? "이코노미"} ${v.seats}인승${v.model ? ` ${v.model}` : ""})`]));
+  const place = (addr: string | null, name: string | null) => name ?? addr ?? "?";
   const driverOfVehicle = new Map((drivers ?? []).map((d) => [d.vehicle_id, d]));
   const usedVehicleIds: string[] = run?.options?.vehicleIds ?? (vehicles ?? []).map((v) => v.id);
   const routes = usedVehicleIds.map((vid) => ({
@@ -88,7 +93,7 @@ export default async function DispatchPage({
     `[${date} 배차 불가 ${unassigned.length}건]`,
     ...[...reasonGroups].flatMap(([reason, list]) => [
       `■ ${reason} (${list.length}건)`,
-      ...list.map((u) => `- ${fmtTime(u.bookings.pickup_at)} ${u.bookings.booking_no ?? ""} ${u.bookings.customer_name ?? ""} ${u.bookings.pax}명 / ${u.bookings.pickup_address ?? "?"} → ${u.bookings.dropoff_address ?? "?"}`),
+      ...list.map((u) => `- ${fmtTime(u.bookings.pickup_at)} ${u.bookings.booking_no ?? ""} ${u.bookings.customer_name ?? ""} ${u.bookings.pax}명 ${u.bookings.vehicle_class ?? ""} / ${place(u.bookings.pickup_address, u.bookings.pickup_place)} → ${place(u.bookings.dropoff_address, u.bookings.dropoff_place)}`),
     ]),
     summary.extraVehiclesNeeded ? `※ 모두 소화하려면 차량 약 ${summary.extraVehiclesNeeded}대 추가 필요` : "",
   ].filter(Boolean).join("\n");
@@ -99,7 +104,7 @@ export default async function DispatchPage({
       const d = driverOfVehicle.get(r.vehicleId);
       return [
         `[${vehicleName.get(r.vehicleId) ?? "차량"}] ${d ? `${d.name} ${d.phone}` : "기사 미지정"}`,
-        ...r.items.map((a, i) => `${i + 1}. ${fmtTime(a.bookings.pickup_at)} ${a.bookings.product_name ?? ""} ${a.bookings.customer_name ?? ""}(${a.bookings.pax}명) ${a.bookings.customer_phone ?? ""}\n   ${a.bookings.pickup_address ?? "?"} → ${a.bookings.dropoff_address ?? "?"}${a.bookings.flight_no ? ` ✈${a.bookings.flight_no}` : ""}${a.bookings.memo ? `\n   메모: ${a.bookings.memo}` : ""}`),
+        ...r.items.map((a, i) => `${i + 1}. ${fmtTime(a.bookings.pickup_at)} ${a.bookings.product_name ?? ""} ${a.bookings.customer_name ?? ""}(${a.bookings.pax}명) ${a.bookings.customer_phone ?? ""}\n   ${place(a.bookings.pickup_address, a.bookings.pickup_place)} → ${place(a.bookings.dropoff_address, a.bookings.dropoff_place)}${a.bookings.flight_no ? ` ✈${a.bookings.flight_no}` : ""}${a.bookings.memo ? `\n   메모: ${a.bookings.memo}` : ""}`),
       ].join("\n");
     })
     .join("\n\n");
@@ -130,7 +135,7 @@ export default async function DispatchPage({
             {vehicles?.map((v) => (
               <label key={v.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm">
                 <input type="checkbox" name="vehicle" value={v.id} defaultChecked={usedVehicleIds.includes(v.id)} />
-                {v.plate_number} <span className="text-gray-400">{v.seats}인승</span>
+                {v.plate_number} <span className="text-gray-400">{v.grade ?? "이코노미"} {v.seats}인승</span>
                 {!driverOfVehicle.get(v.id) && <span className="text-xs text-amber-600">기사없음</span>}
               </label>
             ))}
@@ -273,16 +278,16 @@ function AssignmentTable({
               <tr key={a.id}>
                 <td className="whitespace-nowrap">
                   <div className="font-semibold">{fmtTime(b.pickup_at)}</div>
-                  <div className="text-xs text-gray-500">{b.duration_min ? `${b.duration_min}분` : "기본 소요"}</div>
+                  <div className="text-xs text-gray-500">{b.wait_min ? `대기 ~${b.wait_min}분` : b.duration_min ? `${b.duration_min}분` : ""}</div>
                 </td>
                 <td>
-                  <div className="font-medium">{b.customer_name ?? "-"} <span className="text-gray-500">{b.pax}명</span></div>
-                  <div className="text-xs text-gray-500">{b.booking_no} {b.product_name}</div>
+                  <div className="font-medium">{b.customer_name ?? b.booking_no} <span className="text-gray-500">{b.pax}명</span></div>
+                  <div className="text-xs text-gray-500">{b.customer_name ? b.booking_no : ""} {b.product_name}</div>
                   {b.flight_no && <div className="text-xs text-gray-500">✈ {b.flight_no}</div>}
                 </td>
                 <td className="text-xs">
-                  <div>{b.pickup_address ?? "-"}{b.pickup_lat == null && b.pickup_address && <span className="ml-1 text-amber-600">(좌표없음)</span>}</div>
-                  <div className="text-gray-500">→ {b.dropoff_address ?? "-"}</div>
+                  <div title={b.pickup_address ?? ""}>{b.pickup_place ?? b.pickup_address ?? "-"}{b.pickup_lat == null && b.pickup_address && <span className="ml-1 text-amber-600">(좌표없음)</span>}</div>
+                  <div className="text-gray-500" title={b.dropoff_address ?? ""}>→ {b.dropoff_place ?? b.dropoff_address ?? "-"}</div>
                 </td>
                 <td className="text-xs whitespace-nowrap">
                   {showReason ? (

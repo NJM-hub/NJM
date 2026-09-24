@@ -13,6 +13,7 @@ type Row = {
   bookings: {
     pickup_at: string | null; product_name: string | null; customer_name: string | null; customer_phone: string | null;
     pax: number; pickup_address: string | null; dropoff_address: string | null; flight_no: string | null; memo: string | null;
+    booking_no: string | null; pickup_place: string | null; dropoff_place: string | null; wait_min: number | null;
   };
 };
 
@@ -29,7 +30,7 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   // RLS 가 확정된 본인 배차만 돌려준다
   const { data } = await supabase
     .from("dispatch_assignments")
-    .select("id,seq,fare,vehicles(plate_number),dispatch_runs!inner(service_date),bookings(pickup_at,product_name,customer_name,customer_phone,pax,pickup_address,dropoff_address,flight_no,memo)")
+    .select("id,seq,fare,vehicles(plate_number),dispatch_runs!inner(service_date),bookings(pickup_at,product_name,customer_name,customer_phone,pax,pickup_address,dropoff_address,flight_no,memo,booking_no,pickup_place,dropoff_place,wait_min)")
     .eq("driver_id", user.id)
     .gte("dispatch_runs.service_date", from < today ? from : today)
     .not("vehicle_id", "is", null);
@@ -62,10 +63,15 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
                   <span className="text-sm text-gray-500">{i + 1}콜 · {r.bookings.product_name}</span>
                 </div>
                 <div className="mt-1 text-sm">
-                  {r.bookings.customer_name} ({r.bookings.pax}명)
+                  {r.bookings.customer_name ?? r.bookings.booking_no} ({r.bookings.pax}명)
                   {r.bookings.customer_phone && <a className="ml-2 text-blue-600" href={`tel:${r.bookings.customer_phone}`}>{r.bookings.customer_phone}</a>}
                 </div>
-                <div className="mt-1 text-sm text-gray-700">{r.bookings.pickup_address} → {r.bookings.dropoff_address}</div>
+                <div className="mt-1 text-sm text-gray-700">
+                  {r.bookings.pickup_place ?? r.bookings.pickup_address} → {r.bookings.dropoff_place ?? r.bookings.dropoff_address}
+                </div>
+                {(r.bookings.pickup_place || r.bookings.dropoff_place) && (
+                  <div className="text-xs text-gray-500">{r.bookings.pickup_place ? r.bookings.pickup_address : r.bookings.dropoff_address}</div>
+                )}
                 {r.bookings.flight_no && <div className="text-sm text-gray-500">✈ {r.bookings.flight_no}</div>}
                 {r.bookings.memo && <div className="text-sm text-gray-500">메모: {r.bookings.memo}</div>}
               </li>

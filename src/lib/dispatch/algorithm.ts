@@ -9,6 +9,12 @@ export type DispatchBooking = {
   pickup: LatLng | null;
   dropoff: LatLng | null;
   pax: number;
+  /** 예약한 차급의 최소 좌석 수 (예: 7인승 예약이면 7) */
+  minSeats?: number | null;
+  /** 필요한 차량 등급 (예: 컴포트). null 이면 아무 차량 */
+  grade?: string | null;
+  /** 픽업 장소 도착 후 최대 대기 시간 (분). 차량은 이 시간까지 묶여 있다고 본다 */
+  waitMin?: number | null;
 };
 
 export type DispatchVehicle = {
@@ -16,7 +22,16 @@ export type DispatchVehicle = {
   seats: number;
   /** 차고지(출발 위치). 없으면 첫 콜은 이동시간 제약 없음 */
   base: LatLng | null;
+  /** 차량 등급 (예: 컴포트). null 이면 기본 등급 */
+  grade?: string | null;
 };
+
+/** 차량이 예약 조건(인원, 차급 좌석 수, 등급)을 만족하는지 */
+export function canServe(v: DispatchVehicle, b: DispatchBooking): boolean {
+  if (v.seats < Math.max(b.pax, b.minSeats ?? 0)) return false;
+  if (b.grade && (v.grade ?? "").replace(/\s/g, "") !== b.grade.replace(/\s/g, "")) return false;
+  return true;
+}
 
 export type DispatchOptions = TravelOptions & {
   /** 차량당 최대 콜 수 */
@@ -53,7 +68,7 @@ export type UnassignedReason =
 
 export const UNASSIGNED_REASON_LABEL: Record<UnassignedReason, string> = {
   MISSING_TIME: "픽업 시간 없음",
-  PAX_EXCEEDS_SEATS: "인원 초과 (탑승 가능한 차량 없음)",
+  PAX_EXCEEDS_SEATS: "맞는 차량 없음 (인원·차급)",
   ALL_VEHICLES_FULL: "모든 차량 콜 수 초과",
   TIME_CONFLICT: "시간 겹침 또는 이동시간 부족",
 };
@@ -96,8 +111,11 @@ type Timed = DispatchBooking & { pickupAt: number };
 
 const MIN = 60_000;
 
+/** 운행 종료 시각 = 도착시각 + 최대 대기 + 운행시간(없으면 픽업→하차 이동시간, 그것도 모르면 기본값) */
 function endOf(b: Timed, opts: DispatchOptions): number {
-  return b.pickupAt + (b.durationMin ?? opts.defaultDurationMin) * MIN;
+  let trip = b.durationMin;
+  if (trip == null) trip = b.pickup && b.dropoff ? estimateTravel(b.pickup, b.dropoff, opts).min : opts.defaultDurationMin;
+  return b.pickupAt + ((b.waitMin ?? 0) + trip) * MIN;
 }
 
 /**
@@ -114,7 +132,7 @@ export function simulateRoute(
   let loc: LatLng | null = vehicle.base;
   let freeAt = -Infinity;
   for (const [i, b] of bookings.entries()) {
-    if (b.pax > vehicle.seats) return null;
+    if (!canServe(vehicle, b)) return null;
     const isFirst = i === 0;
     // 첫 콜에 차고지가 없으면 이동 제약을 두지 않는다.
     const travel =
@@ -180,7 +198,7 @@ function bestInsertion(
     const cost = routeCost(stops, opts);
     // 이미 운행 중인 차량을 약간 우선해서 동선을 묶는다.
     const openPenalty = st.bookings.length === 0 ? 5 : 0;
-    const seatWaste = (st.vehicle.seats - b.pax) * opts.seatWasteWeight;
+    const seatWaste = (st.vehicle.seats - Math.max(b.pax, b.minSeats ?? 0)) * opts.seatWasteWeight;
     const delta = cost - st.cost + openPenalty + seatWaste;
     if (!best || delta < best.delta) best = { state: st, bookings, stops, delta };
   }
@@ -201,7 +219,7 @@ function apply(ins: { state: State; bookings: Timed[]; stops: Stop[] }, opts: Di
 function tryRelocate(states: State[], u: Timed, opts: DispatchOptions, depth: number, locked: Set<string>): boolean {
   if (depth <= 0) return false;
   for (const st of states) {
-    if (u.pax > st.vehicle.seats) continue;
+    if (!canServe(st.vehicle, u)) continue;
     for (const victim of st.bookings) {
       if (locked.has(victim.id)) continue;
       const withU = insertSorted(st.bookings.filter((x) => x !== victim), u);
@@ -226,7 +244,7 @@ function tryRelocate(states: State[], u: Timed, opts: DispatchOptions, depth: nu
 }
 
 function classify(states: State[], u: Timed, opts: DispatchOptions): UnassignedReason {
-  const fits = states.filter((s) => s.vehicle.seats >= u.pax);
+  const fits = states.filter((s) => canServe(s.vehicle, u));
   if (fits.length === 0) return "PAX_EXCEEDS_SEATS";
   if (fits.every((s) => s.bookings.length >= opts.maxCallsPerVehicle)) return "ALL_VEHICLES_FULL";
   return "TIME_CONFLICT";
@@ -283,7 +301,7 @@ export function dispatch(
 
   // 경로는 항상 시간순으로 재구성되므로 처리 순서와 무관하게 동선은 유효하다.
   // 여러 순서로 풀어보고 가장 많이 배차된 결과(동률이면 공차 이동이 적은 결과)를 고른다.
-  const fitCount = new Map(timed.map((b) => [b.id, vehicles.filter((v) => v.seats >= b.pax).length]));
+  const fitCount = new Map(timed.map((b) => [b.id, vehicles.filter((v) => canServe(v, b)).length]));
   const dur = (b: Timed) => b.durationMin ?? opts.defaultDurationMin;
   const byTime = [...timed].sort((a, b) => a.pickupAt - b.pickupAt || b.pax - a.pax);
   const orders: Timed[][] = [
@@ -332,20 +350,29 @@ export function dispatch(
   };
 }
 
-/** 남은 건을 소화하려면 기존 차량 중 가장 큰 좌석 기준으로 몇 대가 더 필요한지 추정 */
+/**
+ * 남은 건을 소화하려면 몇 대가 더 필요한지 추정한다.
+ * 추가 차량은 남은 건을 모두 태울 수 있는 크기·등급(상위 등급은 하위 예약도 가능)으로 가정한다.
+ */
 function estimateExtraVehicles(rest: Timed[], states: State[], opts: DispatchOptions): number {
   if (rest.length === 0) return 0;
-  const maxSeats = Math.max(0, ...states.map((s) => s.vehicle.seats));
-  const extra: State[] = [];
-  for (const u of rest) {
-    const seats = Math.max(maxSeats, u.pax);
-    let ins = bestInsertion(extra, u, opts);
-    if (!ins) {
-      const st: State = { vehicle: { id: `extra-${extra.length}`, seats, base: null }, bookings: [], stops: [], cost: 0 };
-      extra.push(st);
-      ins = bestInsertion([st], u, opts);
+  const seats = Math.max(0, ...states.map((s) => s.vehicle.seats), ...rest.map((u) => Math.max(u.pax, u.minSeats ?? 0)));
+  const grades = [...new Set(rest.map((u) => u.grade).filter((g): g is string => !!g))];
+  // 등급이 여러 개면 등급별로 따로 센다 (한 차량이 여러 상위 등급을 겸하지 않음)
+  let total = 0;
+  for (const grade of grades.length ? grades : [null]) {
+    const group = rest.filter((u) => (grades.length ? (u.grade ?? grades[0]) === grade : true));
+    const extra: State[] = [];
+    for (const u of [...group].sort((a, b) => a.pickupAt - b.pickupAt)) {
+      let ins = bestInsertion(extra, u, opts);
+      if (!ins) {
+        const st: State = { vehicle: { id: `extra-${extra.length}`, seats, base: null, grade }, bookings: [], stops: [], cost: 0 };
+        extra.push(st);
+        ins = bestInsertion([st], u, opts);
+      }
+      if (ins) apply(ins, opts);
     }
-    if (ins) apply(ins, opts);
+    total += extra.length;
   }
-  return extra.length;
+  return total;
 }
