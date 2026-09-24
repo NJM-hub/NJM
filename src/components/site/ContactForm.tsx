@@ -5,7 +5,11 @@ import { submitInquiry, type InquiryState } from "@/app/(site)/contact/actions";
 import { REGIONS, telHref, type SiteInfo } from "@/lib/site/config";
 import { PERIODS, SERVICES } from "@/lib/site/services";
 
-export function ContactForm({ service, car, message, info }: { service?: string; car?: string; message?: string; info: SiteInfo }) {
+export type ContactCustomer = { name: string; phone: string; coupons: { id: string; label: string }[] };
+
+export function ContactForm({ service, car, message, info, customer, couponId }: {
+  service?: string; car?: string; message?: string; info: SiteInfo; customer?: ContactCustomer | null; couponId?: string;
+}) {
   const [state, action, pending] = useActionState<InquiryState, FormData>(submitInquiry, { ok: false });
 
   if (state.ok) {
@@ -34,11 +38,11 @@ export function ContactForm({ service, car, message, info }: { service?: string;
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label className="site-label" htmlFor="name">이름{req}</label>
-          <input id="name" name="name" required maxLength={30} autoComplete="name" className="site-input" />
+          <input id="name" name="name" required maxLength={30} autoComplete="name" defaultValue={customer?.name} className="site-input" />
         </div>
         <div>
           <label className="site-label" htmlFor="phone">연락처{req}</label>
-          <input id="phone" name="phone" type="tel" required inputMode="tel" placeholder="010-1234-5678" autoComplete="tel" className="site-input" />
+          <input id="phone" name="phone" type="tel" required inputMode="tel" placeholder="010-1234-5678" autoComplete="tel" defaultValue={customer?.phone} className="site-input" />
         </div>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
@@ -71,6 +75,22 @@ export function ContactForm({ service, car, message, info }: { service?: string;
         <label className="site-label" htmlFor="message">문의 내용</label>
         <textarea id="message" name="message" rows={4} defaultValue={message} maxLength={2000} className="site-input h-auto py-3" placeholder="사고 차량 정보, 원하시는 조건 등을 적어 주세요." />
       </div>
+
+      {customer && customer.coupons.length > 0 && (
+        <div>
+          <label className="site-label" htmlFor="customer_coupon_id">쿠폰 사용</label>
+          <select id="customer_coupon_id" name="customer_coupon_id" defaultValue={customer.coupons.some((c) => c.id === couponId) ? couponId : ""} className="site-input">
+            <option value="">사용 안 함</option>
+            {customer.coupons.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-site-gray">쿠폰은 계약 시 담당자가 적용해 드립니다.</p>
+        </div>
+      )}
+      {!customer && (
+        <p className="text-sm text-site-ink-2">
+          <Link href="/signin" className="font-bold text-brand">로그인</Link>하시면 쿠폰을 쓰고 상담 내역을 마이페이지에서 볼 수 있습니다.
+        </p>
+      )}
 
       <div className="rounded-xl bg-site-bg p-4 text-sm">
         <label className="flex items-center gap-2 font-semibold">

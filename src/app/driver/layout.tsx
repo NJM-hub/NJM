@@ -1,8 +1,8 @@
 import { Nav } from "@/components/Nav";
-import { requireUser } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 
 export default async function DriverLayout({ children }: { children: React.ReactNode }) {
-  const { user, role } = await requireUser();
+  const { user, role } = await requireStaff();
   const links = [
     { href: "/driver", label: "내 배차" },
     { href: "/driver/profile", label: "내 정보" },

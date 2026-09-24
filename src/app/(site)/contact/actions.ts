@@ -1,8 +1,11 @@
 "use server";
+import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
+import { isUsable, type CustomerCoupon } from "@/lib/site/coupons";
 import { SERVICES } from "@/lib/site/services";
 import { REGIONS } from "@/lib/site/config";
 import { getSiteInfo } from "@/lib/site/info";
+import { PHONE_RE } from "@/lib/site/validate";
 
 export type InquiryState = { ok: boolean; error?: string };
 
@@ -19,11 +22,25 @@ export async function submitInquiry(_prev: InquiryState, formData: FormData): Pr
 
   if (!SERVICES.some((s) => s.formValue === service)) return { ok: false, error: "희망 서비스를 선택해 주세요." };
   if (!name) return { ok: false, error: "이름을 입력해 주세요." };
-  if (!/^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(phone)) return { ok: false, error: "연락처를 정확히 입력해 주세요. (예: 010-1234-5678)" };
+  if (!PHONE_RE.test(phone)) return { ok: false, error: "연락처를 정확히 입력해 주세요. (예: 010-1234-5678)" };
   if (formData.get("consent") !== "on") return { ok: false, error: "개인정보 수집 및 이용에 동의해 주세요." };
 
+  // 로그인한 고객이면 상담 내역에 연결하고, 고른 쿠폰이 본인 것이며 쓸 수 있는지 확인한다.
+  const session = await getSession().catch(() => null);
+  const userId = session?.role === "customer" ? session.user.id : null;
+  const db = createAdminClient();
+  let customerCouponId: string | null = null;
+  const couponId = text(formData, "customer_coupon_id", 40);
+  if (userId && couponId) {
+    const { data } = await db.from("customer_coupons").select("id,issued_at,used_at,coupons(*)").eq("id", couponId).eq("customer_id", userId).maybeSingle();
+    if (!data || !isUsable(data as unknown as CustomerCoupon)) return { ok: false, error: "선택한 쿠폰을 사용할 수 없습니다." };
+    customerCouponId = data.id;
+  }
+
   const region = text(formData, "region", 10);
-  const { error } = await createAdminClient().from("inquiries").insert({
+  const { error } = await db.from("inquiries").insert({
+    user_id: userId,
+    customer_coupon_id: customerCouponId,
     service,
     name,
     phone,

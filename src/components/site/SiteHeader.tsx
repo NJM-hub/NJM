@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { telHref, type SiteInfo } from "@/lib/site/config";
 import { SERVICES } from "@/lib/site/services";
+import { AccountLink } from "./AccountLink";
 import { FavoriteCount, HeartIcon } from "./FavoriteButton";
 
 const LINKS = [
@@ -39,6 +40,7 @@ export function SiteHeader({ info }: { info: SiteInfo }) {
             <HeartIcon size={22} />
             <FavoriteCount />
           </Link>
+          <AccountLink className="hidden text-sm font-semibold text-site-ink-2 hover:text-site-ink lg:inline" />
           {info.phone && <a href={telHref(info.phone)} className="hidden text-[15px] font-bold text-site-ink lg:inline">{info.phone}</a>}
           <Link href="/contact" className="site-btn site-btn--sm hidden lg:inline-flex">상담 신청</Link>
           <button
@@ -62,7 +64,10 @@ export function SiteHeader({ info }: { info: SiteInfo }) {
                 {l.label}
               </Link>
             ))}
-            <Link href="/contact" onClick={() => setOpen(false)} className="site-btn my-3">상담 신청</Link>
+            <div className="my-3 grid grid-cols-2 gap-2">
+              <AccountLink onClick={() => setOpen(false)} className="site-btn site-btn--line" />
+              <Link href="/contact" onClick={() => setOpen(false)} className="site-btn">상담 신청</Link>
+            </div>
           </div>
         </nav>
       )}

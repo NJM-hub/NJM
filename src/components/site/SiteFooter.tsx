@@ -35,6 +35,7 @@ export function SiteFooter({ info }: { info: SiteInfo }) {
             <li><Link href="/events" className="hover:text-white">이벤트</Link></li>
             <li><Link href="/cars" className="hover:text-white">전체 차량</Link></li>
             <li><Link href="/favorites" className="hover:text-white">찜한 차량</Link></li>
+            <li><Link href="/join" className="hover:text-white">회원가입</Link> · <Link href="/signin" className="hover:text-white">로그인</Link></li>
             <li><Link href="/login" className="hover:text-white">직원 로그인</Link></li>
           </ul>
         </div>

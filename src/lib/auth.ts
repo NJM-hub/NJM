@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type Role = "admin" | "driver";
+export type Role = "admin" | "driver" | "customer";
 
 export async function getSession() {
   const supabase = await createClient();
@@ -17,6 +17,21 @@ export async function getSession() {
 export async function requireUser() {
   const s = await getSession();
   if (!s) redirect("/login");
+  return s;
+}
+
+/** 기사 화면용: 홈페이지 고객 계정은 마이페이지로 보낸다. */
+export async function requireStaff() {
+  const s = await requireUser();
+  if (s.role === "customer") redirect("/mypage");
+  return s;
+}
+
+/** 홈페이지 고객 화면용 */
+export async function requireCustomer() {
+  const s = await getSession();
+  if (!s) redirect("/signin");
+  if (s.role !== "customer") redirect("/me");
   return s;
 }
 

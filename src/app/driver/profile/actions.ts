@@ -5,7 +5,8 @@ import { driverRowFromForm, type DriverFormState } from "@/lib/drivers/save";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export async function saveMyProfile(_prev: DriverFormState, formData: FormData): Promise<DriverFormState> {
-  const { user } = await requireUser();
+  const { user, role } = await requireUser();
+  if (role === "customer") return { ok: false, message: "홈페이지 고객 계정으로는 기사 등록을 할 수 없습니다." };
   const db = createAdminClient();
   const { data: existing } = await db.from("drivers").select("id,rrn_enc,bank_account_enc").eq("id", user.id).maybeSingle();
 

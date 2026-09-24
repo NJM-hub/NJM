@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // 로그인이 필요한 영역. 나머지(홈페이지·로그인·가입)는 공개.
-const PROTECTED_PATHS = ["/admin", "/driver", "/me"];
+const PROTECTED_PATHS = ["/admin", "/driver", "/me", "/mypage"];
 
 /** Supabase 세션 쿠키 갱신 + 비로그인 사용자가 관리 화면에 들어오면 로그인 페이지로 이동 */
 export async function proxy(request: NextRequest) {
@@ -30,7 +30,8 @@ export async function proxy(request: NextRequest) {
   const isProtected = PROTECTED_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
   if (!user && isProtected) {
     const login = request.nextUrl.clone();
-    login.pathname = "/login";
+    // 홈페이지 고객은 고객 로그인으로, 나머지는 직원 로그인으로
+    login.pathname = path.startsWith("/mypage") ? "/signin" : "/login";
     login.search = "";
     return NextResponse.redirect(login);
   }

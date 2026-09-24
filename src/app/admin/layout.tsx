@@ -12,6 +12,8 @@ const links = [
   { href: "/admin/inquiries", label: "상담 신청" },
   { href: "/admin/cars", label: "홈페이지 차량" },
   { href: "/admin/events", label: "이벤트" },
+  { href: "/admin/customers", label: "회원" },
+  { href: "/admin/coupons", label: "쿠폰" },
   { href: "/admin/site", label: "홈페이지 설정" },
 ];
 
