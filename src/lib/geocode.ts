@@ -10,7 +10,7 @@ type KakaoDoc = { x: string; y: string };
 
 async function kakao(path: string, query: string, key: string): Promise<LatLng | null> {
   const url = `https://dapi.kakao.com/v2/local/search/${path}.json?query=${encodeURIComponent(query)}&size=1`;
-  const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` }, cache: "no-store" });
+  const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` }, cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`kakao ${res.status}`);
   const json = (await res.json()) as { documents?: KakaoDoc[] };
   const d = json.documents?.[0];
@@ -35,6 +35,7 @@ async function nominatim(query: string): Promise<LatLng | null> {
   const res = await fetch(url, {
     headers: { "User-Agent": "njm-rentcar-dispatch/1.0 (https://njm-rentcar.vercel.app)" },
     cache: "no-store",
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) throw new Error(`nominatim ${res.status}`);
   const json = (await res.json()) as { lat: string; lon: string }[];
@@ -49,7 +50,7 @@ async function nominatim(query: string): Promise<LatLng | null> {
 export async function geocodeAddresses(
   db: SupabaseClient,
   addresses: string[],
-  deadline = Date.now() + 40_000,
+  deadline = Date.now() + 25_000,
 ): Promise<Map<string, LatLng | null>> {
   const unique = [...new Set(addresses.map((a) => a.trim()).filter(Boolean))];
   const result = new Map<string, LatLng | null>();
