@@ -85,3 +85,17 @@ test("회차 금액 수정: 마지막 회차 조정으로 총액 유지", () => 
   assert.equal(rows[9], 110000 - 40000);
   assert.equal(rows.reduce((a, b) => a + b, 0), 1100000);
 });
+
+test("배포 초기화: 환경변수 관리자 생성 + 샘플은 비어 있을 때만", async () => {
+  const { bootstrap } = await import("../server.js");
+  const db = openDb(":memory:");
+  const env = { ADMIN_PASSWORD: "testpass123", SEED_SAMPLE: "1" };
+  bootstrap(db, env);
+  bootstrap(db, env);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM users").get().n, 1);
+  const n = db.prepare("SELECT COUNT(*) AS n FROM investments").get().n;
+  assert.ok(n > 0);
+  bootstrap(db, env);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM investments").get().n, n);
+  assert.throws(() => bootstrap(openDb(":memory:"), { ADMIN_PASSWORD: "short" }));
+});

@@ -1,0 +1,29 @@
+# Render Blueprint: 투자수익 장부 (invest-ledger)
+# Render 대시보드 → New → Blueprint → 이 저장소 선택. ADMIN_PASSWORD 만 입력하면 배포됩니다.
+services:
+  - type: web
+    name: invest-ledger
+    runtime: docker
+    rootDir: invest-ledger
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: starter # 데이터 디스크(영구 저장)는 유료 플랜에서만 가능
+    healthCheckPath: /healthz
+    disk:
+      name: ledger-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: LEDGER_DATA_DIR
+        value: /var/data
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD # 배포할 때 직접 입력 (8자 이상)
+        sync: false
+      - key: SEED_SAMPLE # 1 이면 처음에 샘플 데이터 19건 생성
+        value: "0"

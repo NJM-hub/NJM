@@ -8,6 +8,7 @@ import { computePortfolio, computeMonthly } from "./src/ledger.js";
 import { buildPlan, METHODS, UNIT_LABEL, cycleLabel, termLabel } from "./src/schedule.js";
 import { isDate, todayKST, monthStart, monthEnd } from "./src/dates.js";
 import { buildExport, parseImport } from "./src/excel.js";
+import { seed } from "./src/seed.js";
 
 const PORT = Number(process.env.PORT || 3100);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -29,6 +30,7 @@ export function createApp(db) {
     next();
   });
 
+  app.get("/healthz", (req, res) => res.json({ ok: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use("/vendor/chart.umd.js", (req, res) =>
     res.sendFile(path.resolve(import.meta.dirname, "node_modules/chart.js/dist/chart.umd.min.js")),
@@ -55,6 +57,8 @@ export function createApp(db) {
 
   api.post("/setup", (req, res) => {
     if (!needsSetup()) return res.status(400).json({ error: "이미 관리자 계정이 있습니다." });
+    if (process.env.NODE_ENV === "production" && process.env.SETUP_OPEN !== "1")
+      return res.status(403).json({ error: "서버 환경변수 ADMIN_PASSWORD 로 관리자 계정을 만들어야 합니다." });
     const { username, password } = req.body ?? {};
     const err = auth.validatePassword(password);
     if (!username || err) return res.status(400).json({ error: err ?? "아이디를 입력하세요." });
@@ -482,8 +486,26 @@ export function createApp(db) {
   return app;
 }
 
+// 배포용 초기화: 환경변수로 첫 관리자 계정 생성 (공개 주소에서 아무나 관리자가 되는 것을 방지)
+// SEED_SAMPLE=1 이면 투자 데이터가 비어 있을 때만 샘플 데이터 생성
+export function bootstrap(db, env = process.env) {
+  const users = db.prepare("SELECT COUNT(*) AS n FROM users").get().n;
+  if (!users && env.ADMIN_PASSWORD) {
+    const err = auth.validatePassword(env.ADMIN_PASSWORD);
+    if (err) throw new Error(`ADMIN_PASSWORD: ${err}`);
+    const username = (env.ADMIN_USERNAME || "admin").trim();
+    db.prepare("INSERT INTO users(username, password_hash, role) VALUES (?, ?, 'admin')").run(username, auth.hashPassword(env.ADMIN_PASSWORD));
+    console.log(`관리자 계정 생성: ${username}`);
+  }
+  if (env.SEED_SAMPLE === "1" && !db.prepare("SELECT COUNT(*) AS n FROM investments").get().n) {
+    seed(db);
+    console.log("샘플 데이터 생성");
+  }
+}
+
 if (import.meta.main ?? process.argv[1] === import.meta.filename) {
   const db = openDb();
+  bootstrap(db);
   const app = createApp(db);
   // 매일 자동 백업 (시작 시 1회 + 24시간마다)
   try {

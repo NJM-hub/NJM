@@ -23,6 +23,20 @@ npm start        # http://localhost:3100
 | `COOKIE_SECURE=1` | HTTPS로 서비스할 때 설정 (세션 쿠키 Secure) |
 | `TRUST_PROXY=1` | 리버스 프록시 뒤에서 실행할 때 설정 |
 
+## 인터넷 주소로 배포 (Render, 클릭 몇 번)
+
+저장소 루트의 `render.yaml`에 배포 설정이 모두 들어 있습니다.
+
+1. [render.com](https://render.com)에 GitHub 계정으로 가입(로그인)합니다.
+2. **New → Blueprint** → 이 저장소(`NJM-hub/NJM`)와 브랜치를 선택합니다.
+3. **ADMIN_PASSWORD** 입력칸에 관리자 비밀번호(8자 이상)를 넣고 **Apply**를 누릅니다.
+4. 몇 분 뒤 `https://invest-ledger-xxxx.onrender.com` 주소가 생깁니다. 아이디 `admin`과 방금 정한 비밀번호로 로그인합니다.
+
+- 요금: 데이터를 영구 저장하려면 디스크가 필요해 **Starter 플랜(월 약 $7) + 디스크 1GB(월 약 $0.25)**가 듭니다. 무료 플랜은 재시작 때 데이터가 지워져 장부용으로 쓸 수 없습니다.
+- 샘플 데이터를 보고 싶으면 환경변수 `SEED_SAMPLE`을 `1`로 바꿉니다 (투자 데이터가 비어 있을 때만 생성).
+- 운영 모드(`NODE_ENV=production`)에서는 웹에서 관리자를 만들 수 없고, 반드시 `ADMIN_PASSWORD` 환경변수로 만듭니다 (공개 주소에서 아무나 관리자가 되는 것을 방지).
+- Docker로 직접 운영할 때: `docker build -t invest-ledger . && docker run -p 3100:3100 -v ledger:/var/data -e ADMIN_PASSWORD=... invest-ledger`
+
 인터넷에 공개할 때는 반드시 HTTPS(리버스 프록시 등) 뒤에서 `COOKIE_SECURE=1`로 실행하세요. SQLite 파일을 쓰므로 Vercel 같은 서버리스가 아닌, 디스크가 유지되는 서버(VPS, Railway, Fly.io 볼륨 등)에 배포합니다.
 
 ## 주요 기능
