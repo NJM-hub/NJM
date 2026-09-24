@@ -11,6 +11,7 @@ import {
   type ColumnMapping,
   type FieldKey,
 } from "@/lib/kkday/parse";
+import { tripLabel } from "@/lib/format";
 import { isKkdayScm, parseKkdayScm } from "@/lib/kkday/scm";
 import { saveBookings, type SaveResult } from "./actions";
 
@@ -171,7 +172,10 @@ export function UploadClient() {
                       <td>{p.serviceDate}</td>
                       <td>{p.pickupAt?.slice(11, 16) ?? "-"}</td>
                       <td>{p.pax}</td>
-                      <td className="max-w-48 truncate" title={p.productName ?? ""}>{p.productName}</td>
+                      <td className="max-w-48 truncate" title={p.productName ?? ""}>
+                        {tripLabel(p.tripType) && <span className={`badge mr-1 ${tripLabel(p.tripType)!.className}`}>{tripLabel(p.tripType)!.label}</span>}
+                        {p.vehicleClass ?? p.productName}
+                      </td>
                       <td>{p.customerName ?? p.flightNo}</td>
                       <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{p.pickupPlace ?? p.pickupAddress}</td>
                       <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{p.dropoffPlace ?? p.dropoffAddress}</td>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/dispatch/algorithm";
 import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
+import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, loadSettings } from "@/lib/settings";
 
@@ -30,6 +31,8 @@ type BookingRow = {
   wait_min: number | null;
   pickup_place: string | null;
   dropoff_place: string | null;
+  pickup_geo: string | null;
+  dropoff_geo: string | null;
 };
 
 type VehicleRow = {
@@ -62,38 +65,52 @@ function toDispatchVehicle(v: VehicleRow): DispatchVehicle {
   return { id: v.id, seats: v.seats, grade: v.grade, base: pt(v.base_lat, v.base_lng) };
 }
 
-/** 좌표가 비어 있는 예약/차고지 주소를 카카오 API 로 채운다 (키가 있을 때만) */
+/**
+ * 좌표가 없거나 대략 위치(구 중심)인 예약의 주소를 지도 검색으로 정확한 좌표로 바꾼다.
+ * 시간 안에 못 찾은 곳은 구·동네 중심 좌표로 추정해서라도 거리를 계산한다.
+ */
 async function fillCoordinates(
   db: Awaited<ReturnType<typeof assertAdmin>>["supabase"],
   bookings: BookingRow[],
   vehicles: VehicleRow[],
 ) {
+  const need = (lat: number | null, geo: string | null) => lat == null || geo === "area";
   const addrs: string[] = [];
   for (const b of bookings) {
-    if (b.pickup_lat == null) addrs.push(...[b.pickup_address, b.pickup_place].filter((x): x is string => !!x));
-    if (b.dropoff_lat == null) addrs.push(...[b.dropoff_address, b.dropoff_place].filter((x): x is string => !!x));
+    if (need(b.pickup_lat, b.pickup_geo)) addrs.push(...[b.pickup_address, b.pickup_place].filter((x): x is string => !!x));
+    if (need(b.dropoff_lat, b.dropoff_geo)) addrs.push(...[b.dropoff_address, b.dropoff_place].filter((x): x is string => !!x));
   }
   for (const v of vehicles) if (v.base_lat == null && v.base_address) addrs.push(v.base_address);
   if (!addrs.length) return;
   const geo = await geocodeAddresses(db, addrs);
   const lookup = (a: string | null) => (a ? geo.get(a.trim()) ?? null : null);
 
+  type Fix = { lat: number; lng: number; geo: "exact" | "area" };
+  const locate = (addr: string | null, place: string | null): Fix | null => {
+    // 상세 주소로 못 찾으면 장소명(호텔명), 그래도 없으면 구·동네 중심
+    const exact = lookup(addr) ?? lookup(place);
+    if (exact) return { ...exact, geo: "exact" };
+    const area = areaLocation(addr, place);
+    return area ? { ...area, geo: "area" } : null;
+  };
+
   const updates: PromiseLike<unknown>[] = [];
   for (const b of bookings) {
-    // 상세 주소로 못 찾으면 장소명(호텔명)으로 검색한 결과를 쓴다
-    const p = b.pickup_lat == null ? lookup(b.pickup_address) ?? lookup(b.pickup_place) : null;
-    const d = b.dropoff_lat == null ? lookup(b.dropoff_address) ?? lookup(b.dropoff_place) : null;
-    if (!p && !d) continue;
-    if (p) [b.pickup_lat, b.pickup_lng] = [p.lat, p.lng];
-    if (d) [b.dropoff_lat, b.dropoff_lng] = [d.lat, d.lng];
+    const p = need(b.pickup_lat, b.pickup_geo) ? locate(b.pickup_address, b.pickup_place) : null;
+    const d = need(b.dropoff_lat, b.dropoff_geo) ? locate(b.dropoff_address, b.dropoff_place) : null;
+    const changed = (f: Fix | null, geoNow: string | null) => f && !(f.geo === "area" && geoNow === "area");
+    if (!changed(p, b.pickup_geo) && !changed(d, b.dropoff_geo)) continue;
+    if (p) [b.pickup_lat, b.pickup_lng, b.pickup_geo] = [p.lat, p.lng, p.geo];
+    if (d) [b.dropoff_lat, b.dropoff_lng, b.dropoff_geo] = [d.lat, d.lng, d.geo];
     updates.push(
       db.from("bookings").update({
-        pickup_lat: b.pickup_lat, pickup_lng: b.pickup_lng, dropoff_lat: b.dropoff_lat, dropoff_lng: b.dropoff_lng,
+        pickup_lat: b.pickup_lat, pickup_lng: b.pickup_lng, pickup_geo: b.pickup_geo,
+        dropoff_lat: b.dropoff_lat, dropoff_lng: b.dropoff_lng, dropoff_geo: b.dropoff_geo,
       }).eq("id", b.id),
     );
   }
   for (const v of vehicles) {
-    const p = v.base_lat == null ? lookup(v.base_address) : null;
+    const p = v.base_lat == null ? lookup(v.base_address) ?? areaLocation(v.base_address) : null;
     if (!p) continue;
     [v.base_lat, v.base_lng] = [p.lat, p.lng];
     updates.push(db.from("vehicles").update({ base_lat: p.lat, base_lng: p.lng }).eq("id", v.id));
@@ -113,7 +130,7 @@ export async function runDispatch(formData: FormData) {
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
       .from("bookings")
-      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place")
+      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo")
       .eq("service_date", date),
     supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { fmtTime, isMonth, monthRange, todayKst, won } from "@/lib/format";
+import { fmtTime, isMonth, monthRange, todayKst, tripLabel, won } from "@/lib/format";
 import { computeWithholding } from "@/lib/tax";
 
 type Row = {
@@ -14,6 +14,7 @@ type Row = {
     pickup_at: string | null; product_name: string | null; customer_name: string | null; customer_phone: string | null;
     pax: number; pickup_address: string | null; dropoff_address: string | null; flight_no: string | null; memo: string | null;
     booking_no: string | null; pickup_place: string | null; dropoff_place: string | null; wait_min: number | null;
+    trip_type: string | null; vehicle_class: string | null;
   };
 };
 
@@ -30,7 +31,7 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   // RLS 가 확정된 본인 배차만 돌려준다
   const { data } = await supabase
     .from("dispatch_assignments")
-    .select("id,seq,fare,vehicles(plate_number),dispatch_runs!inner(service_date),bookings(pickup_at,product_name,customer_name,customer_phone,pax,pickup_address,dropoff_address,flight_no,memo,booking_no,pickup_place,dropoff_place,wait_min)")
+    .select("id,seq,fare,vehicles(plate_number),dispatch_runs!inner(service_date),bookings(pickup_at,product_name,customer_name,customer_phone,pax,pickup_address,dropoff_address,flight_no,memo,booking_no,pickup_place,dropoff_place,wait_min,trip_type,vehicle_class)")
     .eq("driver_id", user.id)
     .gte("dispatch_runs.service_date", from < today ? from : today)
     .not("vehicle_id", "is", null);
@@ -60,7 +61,10 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
               <li key={r.id} className="rounded-lg border border-gray-100 p-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-lg font-bold">{fmtTime(r.bookings.pickup_at)}</span>
-                  <span className="text-sm text-gray-500">{i + 1}콜 · {r.bookings.product_name}</span>
+                  {tripLabel(r.bookings.trip_type) && (
+                    <span className={`badge ${tripLabel(r.bookings.trip_type)!.className}`}>{tripLabel(r.bookings.trip_type)!.label}</span>
+                  )}
+                  <span className="text-sm text-gray-500">{i + 1}콜 · {r.bookings.vehicle_class ?? r.bookings.product_name}</span>
                 </div>
                 <div className="mt-1 text-sm">
                   {r.bookings.customer_name ?? r.bookings.booking_no} ({r.bookings.pax}명)
