@@ -306,7 +306,11 @@ function AssignmentTable({
                     <span className="text-red-600">{reasonLabel(a.unassigned_reason)}</span>
                   ) : (
                     <>
-                      <div>{a.deadhead_km != null ? `${a.deadhead_km.toFixed(1)}km` : "거리 미상"} · {Math.round(a.deadhead_min ?? 0)}분</div>
+                      <div>
+                        {a.seq === 1 && a.deadhead_km == null
+                          ? "첫 콜"
+                          : `${a.deadhead_km != null ? `${a.deadhead_km.toFixed(1)}km` : "거리 미상"} · ${Math.round(a.deadhead_min ?? 0)}분`}
+                      </div>
                       {idle != null && a.seq !== 1 && <div className="text-gray-500">여유 {idle}분</div>}
                     </>
                   )}
