@@ -38,8 +38,15 @@
 
 ### 처음 설정할 것
 
-1. **DB**: Supabase SQL Editor에서 `supabase/migrations/0002_site.sql`, `0003_site_info_events.sql`, `0004_customers_coupons.sql`을 차례로 실행합니다.
-2. **(선택) 예시 차량**: `supabase/seed_cars.sql`을 실행하면 목록 화면을 바로 확인할 수 있습니다.
+1. **DB**: 한 줄로 모든 마이그레이션을 적용합니다. 이미 적용된 것은 건너뛰므로 여러 번 실행해도 됩니다.
+   ```bash
+   # Supabase 대시보드 > Connect > Session pooler 의 연결 문자열
+   SUPABASE_DB_URL="postgresql://postgres.<ref>:<비밀번호>@<host>:5432/postgres" npm run db:migrate
+   # 예시 차량까지 넣으려면 (차량이 하나도 없을 때만 들어감)
+   SUPABASE_DB_URL="..." npm run db:seed
+   ```
+   명령어 대신 Supabase SQL Editor에 `supabase/migrations/`의 파일을 번호 순서대로 붙여넣어 실행해도 됩니다.
+2. **(선택) 예시 차량**: SQL Editor를 쓴다면 `supabase/seed_cars.sql`을 실행하면 목록 화면을 바로 확인할 수 있습니다.
 3. **회사 정보**: 관리자로 로그인 → **홈페이지 설정**에서 입력합니다. 언제든 나중에 넣어도 되고, 비워 둔 항목은 홈페이지에 표시되지 않습니다(대표번호가 없으면 전화 버튼이 숨겨지고 상담 신청으로 안내). 입력 전까지 대시보드에 안내가 뜹니다.
 4. **차량·이벤트**: **홈페이지 차량**, **이벤트** 메뉴에서 등록하면 홈페이지에 바로 반영됩니다.
 5. **색상**: `src/app/globals.css`의 `--color-brand` 값 하나만 바꾸면 버튼·강조색이 모두 바뀝니다.
