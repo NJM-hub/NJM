@@ -212,7 +212,7 @@ export default async function DispatchPage({
             </div>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
             {routes.map((r) => {
               const d = driverOfVehicle.get(r.vehicleId);
               return (
