@@ -3,11 +3,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { signUpWithoutEmail } from "./actions";
 
 export default function SignupPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -18,17 +18,15 @@ export default function SignupPage() {
     if (password.length < 8) return setError("비밀번호는 8자 이상이어야 합니다.");
     setLoading(true);
     setError(null);
-    const { data, error } = await createClient().auth.signUp({
-      email: String(f.get("email")),
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/driver/profile` },
-    });
+    const email = String(f.get("email"));
+    const res = await signUpWithoutEmail(email, password);
+    if (!res.ok) {
+      setLoading(false);
+      return setError(res.error);
+    }
+    const { error } = await createClient().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     setLoading(false);
     if (error) return setError(error.message);
-    if (!data.session) {
-      setNotice("가입 확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인해서 기사 정보를 입력해주세요.");
-      return;
-    }
     router.replace("/driver/profile");
     router.refresh();
   }
@@ -51,7 +49,6 @@ export default function SignupPage() {
           <input id="password2" name="password2" type="password" required className="input" autoComplete="new-password" />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {notice && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{notice}</p>}
         <button className="btn w-full" disabled={loading}>{loading ? "가입 중..." : "가입하기"}</button>
         <p className="text-center text-sm text-gray-500">
           이미 계정이 있나요? <Link href="/login" className="text-blue-600 hover:underline">로그인</Link>
