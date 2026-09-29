@@ -17,50 +17,57 @@
 
 ---
 
-## 처음 설치하기 (약 20분)
+## 처음 설치하기
 
-> 코드를 직접 고칠 필요는 없습니다. 아래 순서대로 **웹사이트에서 클릭과 복사/붙여넣기**만 하면 됩니다.
+두 가지 방법 중 하나를 고르세요.
 
-### 1단계. Supabase(데이터베이스) 만들기
+### 방법 A. 가장 쉬운 방법 (Vercel 안에서 Supabase 연결, 약 10분)
 
-1. <https://supabase.com> 에 가입 → **New project**
-   - Name: `invest-ledger` (아무거나)
-   - Database Password: 안전한 비밀번호 (따로 적어두세요)
-   - Region: **Northeast Asia (Seoul)**
-2. 프로젝트가 만들어지면(1~2분) 왼쪽 메뉴 **SQL Editor** → **New query**
-3. 이 저장소의 `invest-ledger/supabase/migrations/0001_init.sql` 파일 내용을 **전체 복사**해서 붙여넣고 **Run** 을 누릅니다.
-   - `Success. No rows returned` 가 나오면 성공입니다.
-   - ⚠️ 이 SQL은 **한 번만** 실행합니다. 두 번 실행하면 "already exists" 오류가 나는데, 이미 만들어졌다는 뜻이니 무시해도 됩니다.
-4. 왼쪽 **Table Editor** 에 `customers`, `investments`, `repayment_schedules`, `repayments` 등이 보이면 완료.
-5. **Project Settings → API Keys** (또는 **Data API**) 화면에서 두 값을 복사해 둡니다.
-   - **Project URL** (예: `https://abcdxyz.supabase.co`)
-   - **service_role** 키 (새 화면에서는 **Secret keys** 의 `sb_secret_...` 키) — "Reveal"을 눌러 복사
+주소·키를 찾아 복사하거나 SQL 을 붙여넣을 필요가 없습니다. 직접 입력하는 것은 **접속 비밀번호 한 줄**뿐입니다.
 
-> 🔒 service_role(secret) 키는 **은행 공인인증서 같은 것**입니다. 이 키가 있으면 DB 전체를 읽고 쓸 수 있으니
-> 카톡·메일·GitHub 등에 절대 붙여넣지 말고, Vercel 환경변수에만 넣으세요.
+1. <https://vercel.com/new> → 저장소 **NJM** 옆 **[Import]**
+2. **Root Directory** 가 `invest-ledger` 인지 확인
+3. **Environment Variables** 에 한 줄만 입력
+   - 왼쪽(Key): `BASIC_AUTH_PASSWORD`
+   - 오른쪽(Value): 내가 정한 접속 비밀번호 (영문+숫자, 예: `Ledger2026njm`) — 메모해 두기
+4. **[Deploy]** (아직 DB 가 없어 화면이 안 나와도 정상)
+5. 프로젝트 위쪽 탭 **Storage** → **Create Database** → **Supabase** → Region **Seoul** · 요금제 **Free** → **Create** → **Connect**
+   - Supabase 주소·키·DB 주소가 환경변수에 **자동으로** 들어갑니다.
+6. **Deployments** 탭 → 맨 위 배포의 **⋯** → **Redeploy** (이때 DB 표가 자동으로 만들어집니다)
 
-### 2단계. Vercel(웹사이트) 배포
+### 방법 B. Supabase 를 직접 만든 경우
 
-1. <https://vercel.com> 에 GitHub 계정으로 로그인 → **Add New… → Project**
-2. 이 GitHub 저장소를 **Import**
-3. ⭐ **Root Directory** 옆 **Edit** → `invest-ledger` 폴더를 선택 (이 저장소에는 다른 앱도 들어 있어서 꼭 지정해야 합니다)
-4. Framework Preset 이 **Next.js** 로 잡혔는지 확인
-5. **Environment Variables** 에 아래 4개를 추가
+1. Supabase 에서 새 프로젝트 생성 (Region: **Northeast Asia (Seoul)**)
+2. **SQL Editor** → New query → `supabase/migrations/0001_init.sql` 전체 붙여넣기 → **Run** (한 번만)
+3. Vercel → **[Import]** → Root Directory `invest-ledger` → Environment Variables 에 4줄 입력
 
-| Name | Value |
+| Key (왼쪽) | Value (오른쪽) |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role(secret) 키 |
-| `BASIC_AUTH_USER` | 접속 아이디 (예: `admin`) |
-| `BASIC_AUTH_PASSWORD` | 접속 비밀번호 (영문+숫자로 길게) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL (`https://xxxx.supabase.co` — 뒤에 `/rest/v1/` 없이) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → **API Keys** → **Secret key**(`sb_secret_...`) 또는 Legacy 탭의 **service_role** |
+| `BASIC_AUTH_USER` | `admin` |
+| `BASIC_AUTH_PASSWORD` | 내가 정한 접속 비밀번호 (영문+숫자) |
 
-6. **Deploy** → 1~2분 후 나오는 주소(예: `https://invest-ledger-xxx.vercel.app`)로 접속
-7. 브라우저가 아이디/비밀번호를 물으면 위에서 정한 `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 입력
+4. **[Deploy]**
 
-> 환경변수를 나중에 바꿨다면 Vercel → **Deployments** → 최신 배포의 `⋯` → **Redeploy** 를 눌러야 적용됩니다.
+> 🔒 service_role(secret) 키는 **통장 비밀번호 같은 것**입니다. Vercel 환경변수에만 넣고, 카톡·메일·GitHub 에 붙여넣지 마세요.
 
-### (참고) 접속 비밀번호에 대해
-5단계에서 정식 로그인 화면을 만들기 전까지, 사이트 전체를 **간단한 아이디/비밀번호**로 보호합니다.
+### 접속
+- 배포 주소(예: `https://invest-ledger-xxx.vercel.app`)로 들어가면 아이디/비밀번호를 묻습니다.
+- 아이디: `admin` / 비밀번호: `BASIC_AUTH_PASSWORD` 에 넣은 값
+- 환경변수를 나중에 바꿨다면 **Deployments** → 최신 배포 **⋯** → **Redeploy** 를 눌러야 적용됩니다.
+
+> 💳 비용: Vercel Hobby + Supabase Free 로 **무료**로 시작할 수 있습니다.
+> Supabase 무료 요금제는 1주일 넘게 접속이 없으면 잠시 멈춥니다(대시보드에서 Restore 로 재개).
+> 멈추는 것이 싫다면 Supabase 요금제를 **Pro(월 약 25달러)** 로 올리면 됩니다.
+
+### (참고) DB 표 자동 생성
+배포할 때 `scripts/migrate.mjs` 가 `supabase/migrations/*.sql` 중 아직 적용 안 된 파일을 자동으로 실행합니다.
+DB 주소(`POSTGRES_URL_NON_POOLING`)가 있을 때만 동작하며(방법 A 는 자동으로 생김),
+SQL Editor 로 이미 실행해 둔 경우에도 기존 데이터를 건드리지 않고 건너뜁니다.
+
+### (참고) 접속 비밀번호
+5단계에서 정식 로그인 화면을 만들기 전까지 사이트 전체를 간단한 아이디/비밀번호로 보호합니다.
 `BASIC_AUTH_PASSWORD` 를 넣지 않으면 배포 사이트는 열리지 않도록 막혀 있습니다(안전장치).
 
 ---
@@ -130,6 +137,7 @@ invest-ledger/
 │  ├─ supabase.ts / env.ts           DB 연결 / 환경변수
 │  └─ constants.ts, types.ts         선택지·타입
 ├─ supabase/migrations/0001_init.sql DB 테이블·뷰·보안 설정
+├─ scripts/migrate.mjs               배포 시 DB 표 자동 생성
 ├─ proxy.ts                          접속 비밀번호 확인
 └─ docs/ARCHITECTURE.md              구조·DB 설계 설명
 ```
@@ -138,8 +146,8 @@ invest-ledger/
 
 | 증상 | 해결 |
 |---|---|
-| "화면을 불러오지 못했습니다" | Vercel 환경변수 2개(Supabase URL, service_role 키) 확인 → Redeploy |
-| "relation ... does not exist" / "Could not find the table" | Supabase SQL Editor 에서 `0001_init.sql` 실행 |
+| "화면을 불러오지 못했습니다" | 방법 A: Storage 에 Supabase 연결 후 Redeploy 했는지 / 방법 B: 환경변수 2개(Supabase URL, secret 키) 확인 → Redeploy |
+| "relation ... does not exist" / "Could not find the table" | 방법 A: Redeploy / 방법 B: SQL Editor 에서 `0001_init.sql` 실행 |
 | "BASIC_AUTH_PASSWORD 환경변수를 설정해야…" | Vercel 환경변수에 `BASIC_AUTH_PASSWORD` 추가 → Redeploy |
 | 비밀번호를 맞게 넣어도 계속 물어봄 | 비밀번호에 한글이 있으면 안 됩니다. 영문·숫자로 바꾸세요 |
 | Vercel 빌드가 다른 앱으로 됨 | Vercel → Settings → General → **Root Directory** 가 `invest-ledger` 인지 확인 |
