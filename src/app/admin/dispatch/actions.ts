@@ -14,6 +14,9 @@ import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, loadSettings } from "@/lib/settings";
+import type { SheetBooking } from "@/lib/kkday/sheet";
+import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
+import { saveBookings } from "../upload/actions";
 
 type BookingRow = {
   id: string;
@@ -268,7 +271,11 @@ async function refreshSummary(db: Awaited<ReturnType<typeof assertAdmin>>["supab
   const { data: rows } = await db.from("dispatch_assignments").select("vehicle_id,unassigned_reason,deadhead_km").eq("run_id", runId);
   if (!run || !rows) return;
   const byReason: Record<string, number> = {};
-  for (const r of rows) if (!r.vehicle_id) byReason[r.unassigned_reason ?? "MANUAL"] = (byReason[r.unassigned_reason ?? "MANUAL"] ?? 0) + 1;
+  const external = rows.filter((r) => !r.vehicle_id && r.unassigned_reason === "EXTERNAL").length;
+  for (const r of rows) {
+    if (r.vehicle_id || r.unassigned_reason === "EXTERNAL") continue;
+    byReason[r.unassigned_reason ?? "MANUAL"] = (byReason[r.unassigned_reason ?? "MANUAL"] ?? 0) + 1;
+  }
   const assigned = rows.filter((r) => r.vehicle_id).length;
   await db
     .from("dispatch_runs")
@@ -276,7 +283,8 @@ async function refreshSummary(db: Awaited<ReturnType<typeof assertAdmin>>["supab
       summary: {
         ...run.summary,
         assigned,
-        unassigned: rows.length - assigned,
+        external,
+        unassigned: rows.length - assigned - external,
         vehiclesUsed: new Set(rows.filter((r) => r.vehicle_id).map((r) => r.vehicle_id)).size,
         totalDeadheadKm: Math.round(rows.reduce((s, r) => s + (r.vehicle_id ? r.deadhead_km ?? 0 : 0), 0)),
         byReason,
@@ -312,4 +320,133 @@ export async function unconfirmRun(formData: FormData) {
   const { data: run } = await supabase.from("dispatch_runs").update({ status: "draft", confirmed_at: null }).eq("id", runId).select("service_date").single();
   revalidatePath("/admin/dispatch");
   redirect(`/admin/dispatch?date=${run?.service_date ?? ""}&run=${runId}`);
+}
+
+export type SheetImportResult =
+  | { ok: true; count: number; dates: string[]; assigned: number; external: number; unassigned: number; vehiclesCreated: string[] }
+  | { ok: false; error: string };
+
+/**
+ * 구글 시트 배차표를 그대로 전산에 반영한다.
+ * 예약을 저장하고, 시트의 기사/차량(차량번호 뒤 4자리)을 차량 목록과 맞춰(없으면 새로 등록)
+ * 날짜별로 시트와 똑같은 배차를 만들어 확정한다. 금액만 적힌 건은 외부 배차로 기록한다.
+ */
+export async function importSheetDispatch(filename: string, rows: SheetBooking[]): Promise<SheetImportResult> {
+  const saved = await saveBookings(filename, rows);
+  if (!saved.ok) return saved;
+  const { supabase, user } = await assertAdmin();
+  const settings = await loadSettings(supabase);
+  const opts: DispatchOptions = dispatchOptionsOf(settings);
+  const valid = rows.filter((r) => r.serviceDate);
+
+  // 1. 차량 맞추기 / 새로 등록
+  const { data: vehicles, error: vErr } = await supabase.from("vehicles").select("id,plate_number,driver_name");
+  if (vErr) return { ok: false, error: vErr.message };
+  const plan = planSheetVehicles(valid, vehicles ?? []);
+  const vehicleOf = new Map(plan.matched);
+  if (plan.create.length) {
+    const { data: created, error } = await supabase
+      .from("vehicles")
+      .insert(plan.create.map((v) => ({ plate_number: v.plate_number, driver_name: v.driver_name, seats: v.seats, grade: v.grade, memo: "배차 시트에서 자동 등록 (차량번호 전체로 수정하세요)" })))
+      .select("id,plate_number");
+    if (error || !created) return { ok: false, error: `차량 등록 실패: ${error?.message}` };
+    for (const c of plan.create) vehicleOf.set(c.key, created.find((v) => v.plate_number === c.plate_number)!.id);
+  }
+  await Promise.all(plan.setDriverName.map((u) => supabase.from("vehicles").update({ driver_name: u.driver_name }).eq("id", u.id)));
+
+  const { data: drivers } = await supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null);
+  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
+
+  // 2. 날짜별 배차 만들기
+  const totals = { assigned: 0, external: 0, unassigned: 0 };
+  for (const date of saved.dates) {
+    const sheetRows = valid.filter((r) => r.serviceDate === date);
+    const sheetByNo = new Map(sheetRows.filter((r) => r.bookingNo).map((r) => [r.bookingNo!, r]));
+    const { data: bookings, error: bErr } = await supabase
+      .from("bookings")
+      .select("id,booking_no,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo")
+      .eq("service_date", date);
+    if (bErr || !bookings) return { ok: false, error: bErr?.message ?? "예약을 불러오지 못했습니다." };
+
+    const vehicleIdOf = (b: { booking_no: string | null }) => {
+      const r = b.booking_no ? sheetByNo.get(b.booking_no) : undefined;
+      const k = r ? sheetVehicleKey(r) : null;
+      return k ? vehicleOf.get(k) ?? null : null;
+    };
+    const usedIds = [...new Set(bookings.map(vehicleIdOf).filter((v): v is string => !!v))];
+    const { data: used } = usedIds.length
+      ? await supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", usedIds)
+      : { data: [] as VehicleRow[] };
+    await fillCoordinates(supabase, bookings, used ?? []);
+
+    type Row = {
+      run_id?: string; booking_id: string; vehicle_id: string | null; driver_id: string | null; seq: number | null;
+      ready_at: string | null; deadhead_km: number | null; deadhead_min: number | null; unassigned_reason: string | null; fare: number;
+    };
+    const rowsOut: Row[] = [];
+    for (const v of used ?? []) {
+      const own = bookings.filter((b) => vehicleIdOf(b) === v.id).sort((p, q) => (p.pickup_at ?? "").localeCompare(q.pickup_at ?? ""));
+      const timed = own.map(toDispatchBooking).filter((b) => b.pickupAt != null) as Parameters<typeof simulateRoute>[1];
+      // 시트대로 배정하므로 콜 수 제한 없이 동선만 계산 (시간상 무리한 동선이면 순번만 매긴다)
+      const stops = simulateRoute(toDispatchVehicle(v), timed, { ...opts, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER });
+      own.forEach((b, i) => {
+        const s = stops?.find((x) => x.bookingId === b.id);
+        rowsOut.push({
+          booking_id: b.id, vehicle_id: v.id, driver_id: driverOf.get(v.id) ?? null, seq: s?.seq ?? i + 1,
+          ready_at: s ? new Date(s.readyAt).toISOString() : null, deadhead_km: s?.deadheadKm ?? null, deadhead_min: s?.deadheadMin ?? null,
+          unassigned_reason: null, fare: b.fare ?? settings.fare_per_call,
+        });
+      });
+    }
+    for (const b of bookings) {
+      if (vehicleIdOf(b)) continue;
+      const d = b.booking_no ? sheetByNo.get(b.booking_no)?.sheetDriver : undefined;
+      const reason = d === undefined ? "NOT_IN_SHEET" : d?.kind === "external" ? "EXTERNAL" : "SHEET_EMPTY";
+      rowsOut.push({
+        booking_id: b.id, vehicle_id: null, driver_id: null, seq: null, ready_at: null, deadhead_km: null, deadhead_min: null,
+        unassigned_reason: reason, fare: d?.kind === "external" ? d.fare : b.fare ?? settings.fare_per_call,
+      });
+    }
+
+    const assigned = rowsOut.filter((r) => r.vehicle_id).length;
+    const external = rowsOut.filter((r) => r.unassigned_reason === "EXTERNAL").length;
+    const byReason: Record<string, number> = {};
+    for (const r of rowsOut) if (r.unassigned_reason && r.unassigned_reason !== "EXTERNAL") byReason[r.unassigned_reason] = (byReason[r.unassigned_reason] ?? 0) + 1;
+    const summary = {
+      totalBookings: rowsOut.length,
+      assigned,
+      external,
+      unassigned: rowsOut.length - assigned - external,
+      vehiclesUsed: usedIds.length,
+      totalDeadheadKm: Math.round(rowsOut.reduce((s, r) => s + (r.deadhead_km ?? 0), 0)),
+      byReason,
+      extraVehiclesNeeded: 0,
+    };
+    totals.assigned += assigned;
+    totals.external += external;
+    totals.unassigned += summary.unassigned;
+
+    // 시트가 최종 배차이므로 확정본으로 만든다 (기존 확정본은 초안으로 남기고, 이전 초안은 정리)
+    await supabase.from("dispatch_runs").delete().eq("service_date", date).eq("status", "draft");
+    await supabase.from("dispatch_runs").update({ status: "draft", confirmed_at: null }).eq("service_date", date).eq("status", "confirmed");
+    const { data: run, error: rErr } = await supabase
+      .from("dispatch_runs")
+      .insert({
+        service_date: date,
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+        options: { ...opts, vehicleIds: usedIds, source: "sheet", filename },
+        summary,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (rErr || !run) return { ok: false, error: rErr?.message ?? "배차 저장 실패" };
+    const { error: aErr } = await supabase.from("dispatch_assignments").insert(rowsOut.map((r) => ({ ...r, run_id: run.id })));
+    if (aErr) return { ok: false, error: aErr.message };
+  }
+
+  revalidatePath("/admin/dispatch");
+  revalidatePath("/admin/vehicles");
+  return { ok: true, count: saved.count, dates: saved.dates, ...totals, vehiclesCreated: plan.create.map((c) => c.plate_number) };
 }

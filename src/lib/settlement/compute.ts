@@ -19,7 +19,7 @@ export type DriverSettlement = Withholding & {
 type Row = {
   driver_id: string | null;
   fare: number;
-  vehicles: { plate_number: string } | null;
+  vehicles: { plate_number: string; driver_name: string | null } | null;
   dispatch_runs: { service_date: string; status: string };
   bookings: { booking_no: string | null; product_name: string | null; pickup_at: string | null };
 };
@@ -29,7 +29,7 @@ export async function computeSettlement(db: SupabaseClient, month: string, opts:
   const { from, to } = monthRange(month);
   const { data, error } = await db
     .from("dispatch_assignments")
-    .select("driver_id,fare,vehicles(plate_number),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at)")
+    .select("driver_id,fare,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at)")
     .eq("dispatch_runs.status", "confirmed")
     .gte("dispatch_runs.service_date", from)
     .lte("dispatch_runs.service_date", to)
@@ -43,16 +43,19 @@ export async function computeSettlement(db: SupabaseClient, month: string, opts:
     : { data: [] };
   const info = new Map((drivers ?? []).map((d) => [d.id, d]));
 
+  // 기사 계정이 없는 차량은 차량에 적힌 기사 이름별로 묶는다
+  const keyOf = (r: Row) => r.driver_id ?? (r.vehicles?.driver_name ? `name:${r.vehicles.driver_name}` : "");
   const groups = new Map<string, Row[]>();
-  for (const r of rows) groups.set(r.driver_id ?? "", [...(groups.get(r.driver_id ?? "") ?? []), r]);
+  for (const r of rows) groups.set(keyOf(r), [...(groups.get(keyOf(r)) ?? []), r]);
 
-  return [...groups].map(([driverId, list]) => {
+  return [...groups].map(([key, list]) => {
+    const driverId = key.startsWith("name:") ? "" : key;
     const d = driverId ? info.get(driverId) : undefined;
     const gross = list.reduce((s, r) => s + (r.fare ?? 0), 0);
     return {
       ...computeWithholding(gross, opts),
       driverId: driverId || null,
-      name: d?.name ?? "(기사 미지정 차량)",
+      name: d?.name ?? (key.startsWith("name:") ? `${key.slice(5)} (계정 미연결)` : "(기사 미지정 차량)"),
       phone: d?.phone ?? null,
       rrnEnc: d?.rrn_enc ?? null,
       rrnMasked: d?.rrn_masked ?? null,

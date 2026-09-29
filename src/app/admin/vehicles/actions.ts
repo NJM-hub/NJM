@@ -18,6 +18,7 @@ export async function saveVehicle(formData: FormData) {
     base_lng: numOrNull(formData.get("base_lng")),
     active: formData.get("active") === "on",
     memo: String(formData.get("memo") || "").trim() || null,
+    driver_name: String(formData.get("driver_name") || "").trim() || null,
   };
   if (!row.plate_number) throw new Error("차량번호를 입력하세요.");
   if (!(row.seats > 0)) throw new Error("좌석 수가 올바르지 않습니다.");

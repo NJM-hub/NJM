@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth";
+import Papa from "papaparse";
 import type { ParsedBooking } from "@/lib/kkday/parse";
 
 export type SaveResult = { ok: true; count: number; dates: string[] } | { ok: false; error: string };
@@ -66,4 +67,29 @@ export async function saveBookings(filename: string, rows: ParsedBooking[]): Pro
   }
   revalidatePath("/admin");
   return { ok: true, count: dedup.length + withoutNo.length, dates };
+}
+
+export type SheetFetchResult = { ok: true; name: string; rows: string[][] } | { ok: false; error: string };
+
+/** 구글 시트 링크의 해당 탭(gid)을 CSV 로 내려받는다. 시트는 "링크가 있는 모든 사용자" 보기 권한이어야 한다. */
+export async function fetchGoogleSheet(url: string): Promise<SheetFetchResult> {
+  await assertAdmin();
+  const id = url.match(/\/spreadsheets\/d\/([\w-]+)/)?.[1];
+  if (!id) return { ok: false, error: "구글 시트 링크가 아닙니다. (docs.google.com/spreadsheets/d/... 형식)" };
+  const gid = url.match(/[#?&]gid=(\d+)/)?.[1] ?? "0";
+  let res: Response;
+  try {
+    res = await fetch(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    return { ok: false, error: `시트를 불러오지 못했습니다: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const text = await res.text();
+  if (!res.ok || /^\s*<(!doctype|html)/i.test(text)) {
+    return { ok: false, error: "시트를 열 수 없습니다. 공유 설정을 '링크가 있는 모든 사용자(뷰어)'로 바꿔주세요." };
+  }
+  const rows = Papa.parse<string[]>(text.replace(/^\uFEFF/, ""), { skipEmptyLines: false }).data;
+  return { ok: true, name: `구글시트 ${id.slice(0, 8)}#${gid}`, rows };
 }
