@@ -17,6 +17,8 @@ type Props = {
   today: string;
   submitLabel: string;
   cancelHref: string;
+  /** 고객 화면에서 [이 고객 투자 등록]으로 왔을 때 미리 선택할 고객 */
+  initialCustomerId?: string;
 };
 
 type Values = {
@@ -37,7 +39,7 @@ type Values = {
   memo: string;
 };
 
-function initialValues(initial: Investment | undefined, today: string, hasCustomers: boolean): Values {
+function initialValues(initial: Investment | undefined, today: string, hasCustomers: boolean, customerId = ""): Values {
   if (initial) {
     const preset = (PERIOD_PRESETS as readonly number[]).includes(initial.period_days);
     return {
@@ -61,7 +63,7 @@ function initialValues(initial: Investment | undefined, today: string, hasCustom
   const startOn = defaultStartOn(today);
   return {
     customerMode: hasCustomers ? "existing" : "new",
-    customerId: "",
+    customerId,
     customerName: "",
     customerPhone: "",
     investmentNo: "",
@@ -89,9 +91,9 @@ function withMaturity(v: Values): Values {
   return { ...v, maturityOn: maturityOn(v.startOn, days) };
 }
 
-export default function InvestmentForm({ action, customers, initial, today, submitLabel, cancelHref }: Props) {
+export default function InvestmentForm({ action, customers, initial, today, submitLabel, cancelHref, initialCustomerId }: Props) {
   const [state, formAction] = useActionState(action, {} as FormState);
-  const [v, setV] = useState<Values>(() => initialValues(initial, today, customers.length > 0));
+  const [v, setV] = useState<Values>(() => initialValues(initial, today, customers.length > 0, initialCustomerId));
   const fe = state.fieldErrors ?? {};
 
   const set = (patch: Partial<Values>) => setV((prev) => ({ ...prev, ...patch }));

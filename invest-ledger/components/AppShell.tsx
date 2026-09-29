@@ -13,7 +13,7 @@ const NAV: NavItem[] = [
   { href: "/investments/new", label: "투자 등록", ready: true },
   { href: "/overview", label: "전체 현황", ready: true },
   { href: "/stats", label: "월별 통계", ready: true },
-  { href: "/customers", label: "고객 관리", ready: false },
+  { href: "/customers", label: "고객 관리", ready: true },
 ];
 
 function isActive(pathname: string, href: string) {

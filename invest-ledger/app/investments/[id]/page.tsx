@@ -78,7 +78,7 @@ export default async function InvestmentDetailPage({
         description={
           <span className="inline-flex flex-wrap items-center gap-2">
             <span className="font-mono">{inv.investment_no}</span>
-            <span>{inv.customer_name}</span>
+            <Link href={`/customers/${inv.customer_id}`} className="text-navy-600 underline">{inv.customer_name}</Link>
             <StatusBadge status={inv.status} overdue={inv.overdue_count > 0} />
           </span>
         }
@@ -174,7 +174,7 @@ export default async function InvestmentDetailPage({
         <section className="card card-body">
           <h2 className="mb-2 text-base font-semibold text-navy-900">기본 정보</h2>
           <dl>
-            <Row label="고객명">{inv.customer_name}</Row>
+            <Row label="고객명"><Link href={`/customers/${inv.customer_id}`} className="text-navy-600 underline">{inv.customer_name}</Link></Row>
             <Row label="연락처">
               {inv.customer_phone ? <a href={`tel:${inv.customer_phone}`} className="text-navy-600 underline">{inv.customer_phone}</a> : "-"}
             </Row>

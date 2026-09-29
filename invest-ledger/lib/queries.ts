@@ -19,14 +19,6 @@ function toSummary(row: Record<string, unknown>): InvestmentSummary {
   return r as InvestmentSummary;
 }
 
-export async function listInvestments(opts: { includeCancelled?: boolean } = {}): Promise<InvestmentSummary[]> {
-  let q = db().from("v_investment_summary").select("*").order("executed_on", { ascending: false }).order("investment_no", { ascending: false });
-  if (!opts.includeCancelled) q = q.neq("status", "cancelled");
-  const { data, error } = await q;
-  if (error) fail("투자 목록 조회", error);
-  return (data ?? []).map(toSummary);
-}
-
 export async function getInvestment(id: string): Promise<InvestmentSummary | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const { data, error } = await db().from("v_investment_summary").select("*").eq("id", id).maybeSingle();
@@ -134,4 +126,26 @@ export async function listPaymentsBetween(from: string, to: string): Promise<Pai
     "입금 조회",
   );
   return rows.map((r) => ({ ...r, amount: Number(r.amount) }));
+}
+
+/** 고객 전체 (미사용 고객 포함) */
+export async function listAllCustomers(): Promise<Customer[]> {
+  return fetchAll<Customer>((a, b) => db().from("customers").select("*").order("id").range(a, b), "고객 조회");
+}
+
+export async function getCustomer(id: string): Promise<Customer | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await db().from("customers").select("*").eq("id", id).maybeSingle();
+  if (error) fail("고객 조회", error);
+  return data;
+}
+
+export async function listCustomerInvestments(customerId: string): Promise<InvestmentSummary[]> {
+  const { data, error } = await db()
+    .from("v_investment_summary")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("executed_on", { ascending: false });
+  if (error) fail("고객 투자 조회", error);
+  return (data ?? []).map(toSummary);
 }
