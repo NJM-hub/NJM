@@ -18,7 +18,7 @@ export default function StatCard({
   return (
     <div className={`rounded-xl border p-4 shadow-sm ${tones[tone]}`}>
       <div className={`text-xs font-medium ${tone === "navy" ? "text-navy-200" : "text-slate-500"}`}>{label}</div>
-      <div className="mt-1 text-lg font-bold tabular-nums sm:text-xl">{value}</div>
+      <div className="mt-1 whitespace-nowrap text-[15px] font-bold tabular-nums sm:text-lg xl:text-xl">{value}</div>
       {sub && <div className={`mt-0.5 text-xs ${tone === "navy" ? "text-navy-200" : "text-slate-500"}`}>{sub}</div>}
     </div>
   );

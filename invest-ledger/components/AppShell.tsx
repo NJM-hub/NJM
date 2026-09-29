@@ -8,11 +8,12 @@ type NavItem = { href: string; label: string; ready: boolean };
 
 // ready: false 인 메뉴는 이후 단계에서 열립니다
 const NAV: NavItem[] = [
-  { href: "/", label: "홈", ready: true },
+  { href: "/", label: "대시보드", ready: true },
   { href: "/investments", label: "투자 목록", ready: true },
   { href: "/investments/new", label: "투자 등록", ready: true },
+  { href: "/overview", label: "전체 현황", ready: true },
+  { href: "/stats", label: "월별 통계", ready: true },
   { href: "/customers", label: "고객 관리", ready: false },
-  { href: "/stats", label: "월별 통계", ready: false },
 ];
 
 function isActive(pathname: string, href: string) {
