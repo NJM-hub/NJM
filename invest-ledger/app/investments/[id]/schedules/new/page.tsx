@@ -5,9 +5,12 @@ import ScheduleForm from "@/components/ScheduleForm";
 import { addScheduleAction } from "@/app/investments/repayment-actions";
 import { getInvestment } from "@/lib/queries";
 
+import { requirePage } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export default async function NewSchedulePage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage("staff");
   const { id } = await params;
   const inv = await getInvestment(id);
   if (!inv) notFound();

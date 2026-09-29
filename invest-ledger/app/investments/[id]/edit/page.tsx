@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 import InvestmentForm from "@/components/InvestmentForm";
 import PageHeader from "@/components/PageHeader";
 import { updateInvestment } from "@/app/investments/actions";
+import { requirePage } from "@/lib/auth";
 import { todayKst } from "@/lib/dates";
 import { getInvestment, listCustomers } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditInvestmentPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage("staff");
   const { id } = await params;
   const [inv, customers] = await Promise.all([getInvestment(id), listCustomers()]);
   if (!inv) notFound();

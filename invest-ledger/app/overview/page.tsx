@@ -6,9 +6,12 @@ import { pct, won, ymd } from "@/lib/format";
 import { listAllInvestments } from "@/lib/queries";
 import { overview } from "@/lib/stats";
 
+import { requirePage } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
+  await requirePage();
   const o = overview(await listAllInvestments());
 
   return (

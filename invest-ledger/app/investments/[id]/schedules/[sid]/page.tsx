@@ -6,9 +6,12 @@ import { updateScheduleAction } from "@/app/investments/repayment-actions";
 import { won, ymd } from "@/lib/format";
 import { getInvestment, getSchedule } from "@/lib/queries";
 
+import { requirePage } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export default async function EditSchedulePage({ params }: { params: Promise<{ id: string; sid: string }> }) {
+  await requirePage("staff");
   const { id, sid } = await params;
   const [inv, s] = await Promise.all([getInvestment(id), getSchedule(sid)]);
   if (!inv || !s || s.investment_id !== inv.id) notFound();

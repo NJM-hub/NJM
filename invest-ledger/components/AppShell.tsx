@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-type NavItem = { href: string; label: string; ready: boolean };
+type NavItem = { href: string; label: string; ready: boolean; admin?: boolean };
+
+export type ShellUser = { name: string; email: string; roleLabel: string; isAdmin: boolean };
 
 // ready: false 인 메뉴는 이후 단계에서 열립니다
 const NAV: NavItem[] = [
@@ -14,6 +16,7 @@ const NAV: NavItem[] = [
   { href: "/overview", label: "전체 현황", ready: true },
   { href: "/stats", label: "월별 통계", ready: true },
   { href: "/customers", label: "고객 관리", ready: true },
+  { href: "/users", label: "사용자 관리", ready: true, admin: true },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -22,11 +25,11 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin: boolean }) {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) =>
+      {NAV.filter((item) => !item.admin || isAdmin).map((item) =>
         item.ready ? (
           <Link
             key={item.href}
@@ -58,16 +61,42 @@ function Brand() {
   );
 }
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+function UserBox({ user, logout, onNavigate }: { user: ShellUser; logout: () => Promise<void>; onNavigate?: () => void }) {
+  return (
+    <div className="rounded-lg bg-white/5 p-3 text-sm">
+      <div className="truncate font-semibold text-white">{user.name || user.email}</div>
+      <div className="truncate text-xs text-navy-200">{user.roleLabel} · {user.email}</div>
+      <div className="mt-2 flex gap-2 text-xs">
+        <Link href="/account" onClick={onNavigate} className="rounded-md px-2 py-1 text-navy-100 ring-1 ring-white/20 hover:bg-white/10">내 계정</Link>
+        <form action={logout}>
+          <button type="submit" className="rounded-md px-2 py-1 text-navy-100 ring-1 ring-white/20 hover:bg-white/10">로그아웃</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function AppShell({
+  children,
+  user,
+  logout,
+}: {
+  children: React.ReactNode;
+  user: ShellUser;
+  logout: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="min-h-screen lg:flex">
       {/* PC: 왼쪽 메뉴 */}
       <aside className="hidden w-60 shrink-0 bg-navy-900 px-4 py-6 lg:block">
-        <div className="sticky top-6 flex flex-col gap-8">
+        <div className="sticky top-6 flex h-[calc(100vh-3rem)] flex-col gap-8">
           <Brand />
-          <NavLinks />
+          <NavLinks isAdmin={user.isAdmin} />
+          <div className="mt-auto">
+            <UserBox user={user} logout={logout} />
+          </div>
         </div>
       </aside>
 
@@ -85,8 +114,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         {open && (
-          <div className="border-t border-white/10 px-4 pb-4 pt-2">
-            <NavLinks onNavigate={() => setOpen(false)} />
+          <div className="space-y-3 border-t border-white/10 px-4 pb-4 pt-2">
+            <NavLinks onNavigate={() => setOpen(false)} isAdmin={user.isAdmin} />
+            <UserBox user={user} logout={logout} onNavigate={() => setOpen(false)} />
           </div>
         )}
       </header>

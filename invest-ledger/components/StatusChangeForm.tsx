@@ -9,10 +9,13 @@ export default function StatusChangeForm({
   action,
   current,
   currentReason,
+  allowCancel,
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
   current: string;
   currentReason: string;
+  /** 취소(또는 취소 되돌리기)는 관리자만 */
+  allowCancel: boolean;
 }) {
   const [state, formAction] = useActionState(action, {} as FormState);
   const [status, setStatus] = useState(current);
@@ -29,7 +32,7 @@ export default function StatusChangeForm({
       className="space-y-3"
     >
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {INVESTMENT_STATUSES.map((s) => (
+        {INVESTMENT_STATUSES.filter((s) => allowCancel || (s.value !== "cancelled" && current !== "cancelled") || s.value === current).map((s) => (
           <label key={s.value}
             className={`cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-medium ${
               status === s.value ? "border-navy-800 bg-navy-800 text-white" : "border-slate-300 bg-white text-slate-700"

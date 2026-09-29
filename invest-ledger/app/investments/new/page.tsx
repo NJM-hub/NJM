@@ -1,12 +1,14 @@
 import InvestmentForm from "@/components/InvestmentForm";
 import PageHeader from "@/components/PageHeader";
 import { createInvestment } from "@/app/investments/actions";
+import { requirePage } from "@/lib/auth";
 import { todayKst } from "@/lib/dates";
 import { listCustomers } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewInvestmentPage({ searchParams }: { searchParams: Promise<{ customer?: string }> }) {
+  await requirePage("staff");
   const [{ customer }, customers] = await Promise.all([searchParams, listCustomers()]);
   const initialCustomerId = customers.some((c) => c.id === customer) ? customer : undefined;
   return (

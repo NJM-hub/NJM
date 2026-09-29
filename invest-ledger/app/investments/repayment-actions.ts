@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { authorize } from "@/lib/auth";
 import { isDate } from "@/lib/dates";
 import { parseMoney } from "@/lib/format";
 import { regenerateSchedule, syncCompletion } from "@/lib/ledger";
@@ -19,7 +20,17 @@ function done(investmentId: string, msg: string): never {
 /** 회수계획 만들기 / 다시 만들기 */
 export async function generateScheduleAction(investmentId: string): Promise<FormState> {
   try {
-    await regenerateSchedule(db(), investmentId);
+    const a = await authorize("staff");
+    if ("denied" in a) return a.denied;
+    const supabase = db(a.user.id);
+    // 처음 만들기는 직원도 가능, 이미 있는 계획을 다시 만드는 것은 관리자만
+    const { count } = await supabase
+      .from("repayment_schedules")
+      .select("id", { count: "exact", head: true })
+      .eq("investment_id", investmentId)
+      .eq("status", "active");
+    if ((count ?? 0) > 0 && a.user.role !== "admin") return { error: "회수계획 다시 만들기는 관리자만 할 수 있습니다." };
+    await regenerateSchedule(supabase, investmentId);
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -40,7 +51,9 @@ export async function recordPaymentAction(investmentId: string, _prev: FormState
   if (mode === "schedule" && !scheduleId) fieldErrors.schedule_id = "회차를 선택하세요.";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
-  const supabase = db();
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const supabase = db(a.user.id);
   const { data: schedules, error } = await supabase
     .from("v_schedule_status")
     .select("id, seq, due_date, unpaid_amount")
@@ -79,7 +92,9 @@ export async function quickPayAction(investmentId: string, _prev: FormState, fd:
   const paidOn = str(fd, "paid_on");
   if (!isDate(paidOn)) return { error: "입금일이 올바르지 않습니다." };
 
-  const supabase = db();
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const supabase = db(a.user.id);
   const { data: s, error } = await supabase
     .from("v_schedule_status")
     .select("unpaid_amount")
@@ -105,7 +120,9 @@ export async function voidRepaymentAction(investmentId: string, _prev: FormState
   const reason = str(fd, "void_reason");
   if (!reason) return { error: "취소 사유를 입력하세요." };
 
-  const supabase = db();
+  const a = await authorize("admin");
+  if ("denied" in a) return a.denied;
+  const supabase = db(a.user.id);
   const { error } = await supabase
     .from("repayments")
     .update({ status: "void", void_reason: reason })
@@ -135,8 +152,10 @@ export async function updateScheduleAction(
 ): Promise<FormState> {
   const v = parseScheduleForm(fd);
   if (Object.keys(v.fieldErrors).length) return { fieldErrors: v.fieldErrors };
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
 
-  const { error } = await db()
+  const { error } = await db(a.user.id)
     .from("repayment_schedules")
     .update({ due_date: v.dueDate, planned_amount: v.planned, memo: v.memo })
     .eq("id", scheduleId)
@@ -149,8 +168,10 @@ export async function updateScheduleAction(
 export async function addScheduleAction(investmentId: string, _prev: FormState, fd: FormData): Promise<FormState> {
   const v = parseScheduleForm(fd);
   if (Object.keys(v.fieldErrors).length) return { fieldErrors: v.fieldErrors };
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
 
-  const supabase = db();
+  const supabase = db(a.user.id);
   const { data: last, error: seqError } = await supabase
     .from("repayment_schedules")
     .select("seq")

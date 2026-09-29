@@ -1,40 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
+
+// 로그인 없이 열 수 있는 화면
+const PUBLIC = ["/login", "/setup"];
 
 /**
- * 임시 접속 보호 (5단계 로그인 기능 전까지 사용)
- * 사이트에 들어오면 브라우저가 아이디/비밀번호를 묻고,
- * 환경변수 BASIC_AUTH_USER / BASIC_AUTH_PASSWORD 와 같을 때만 통과시킨다.
+ * 모든 요청에서 로그인 쿠키(서명·만료)를 확인하고, 없으면 로그인 화면으로 보낸다.
+ * 계정 중지·비밀번호 변경 여부는 각 화면에서 DB 로 한 번 더 확인한다 (lib/auth.ts).
  */
-export function proxy(request: NextRequest) {
-  const user = process.env.BASIC_AUTH_USER || "admin";
-  const password = process.env.BASIC_AUTH_PASSWORD;
+export async function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  if (PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
 
-  if (!password) {
-    // 내 컴퓨터(개발 모드)에서는 비밀번호 없이 허용, 배포 사이트에서는 설정할 때까지 차단
-    if (process.env.NODE_ENV !== "production") return NextResponse.next();
-    return new NextResponse("BASIC_AUTH_PASSWORD 환경변수를 설정해야 사이트를 열 수 있습니다. (README 참고)", {
-      status: 503,
-      headers: { "content-type": "text/plain; charset=utf-8" },
-    });
-  }
+  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  if (session) return NextResponse.next();
 
-  const header = request.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    try {
-      const [u, ...rest] = atob(header.slice(6)).split(":");
-      if (u === user && rest.join(":") === password) return NextResponse.next();
-    } catch {
-      // 잘못된 헤더는 아래에서 다시 비밀번호를 묻는다
-    }
-  }
-
-  return new NextResponse("로그인이 필요합니다.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="invest-ledger", charset="UTF-8"',
-      "content-type": "text/plain; charset=utf-8",
-    },
-  });
+  const url = request.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
+  return NextResponse.redirect(url);
 }
 
 export const config = {

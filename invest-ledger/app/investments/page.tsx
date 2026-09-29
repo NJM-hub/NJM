@@ -3,6 +3,7 @@ import AlertBadge from "@/components/AlertBadge";
 import ListControls from "@/components/ListControls";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
+import { requirePage } from "@/lib/auth";
 import { diffDays, todayKst } from "@/lib/dates";
 import { pct, won, ymd } from "@/lib/format";
 import { applyListQuery, LIST_FILTERS, LIST_SORTS, parseListQuery } from "@/lib/listing";
@@ -12,7 +13,7 @@ import { alertLevel, dDayLabel } from "@/lib/stats";
 export const dynamic = "force-dynamic";
 
 export default async function InvestmentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const sp = await searchParams;
+  const [{ can }, sp] = await Promise.all([requirePage(), searchParams]);
   const query = parseListQuery(sp);
   const today = todayKst();
   const { rows, counts } = applyListQuery(await listAllInvestments(), query, today);
@@ -34,7 +35,7 @@ export default async function InvestmentsPage({ searchParams }: { searchParams: 
       <PageHeader
         title="투자 목록"
         description={`${rows.length.toLocaleString("ko-KR")}건 · 투자금액 ${won(sumPrincipal)} · 미회수 ${won(sumRemaining)}`}
-        actions={<Link href="/investments/new" className="btn">+ 투자 등록</Link>}
+        actions={can.edit ? <Link href="/investments/new" className="btn">+ 투자 등록</Link> : undefined}
       />
 
       <div className="card card-body mb-4 space-y-3">
@@ -54,7 +55,7 @@ export default async function InvestmentsPage({ searchParams }: { searchParams: 
       {rows.length === 0 ? (
         <div className="card card-body py-16 text-center">
           <p className="text-slate-500">{query.q || query.filter !== "all" ? "조건에 맞는 투자가 없습니다." : "등록된 투자가 없습니다."}</p>
-          {!query.q && query.filter === "all" && <Link href="/investments/new" className="btn mt-4">첫 투자 등록하기</Link>}
+          {can.edit && !query.q && query.filter === "all" && <Link href="/investments/new" className="btn mt-4">첫 투자 등록하기</Link>}
         </div>
       ) : (
         <>

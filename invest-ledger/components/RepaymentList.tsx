@@ -29,7 +29,7 @@ export default function RepaymentList({
 }: {
   repayments: Repayment[];
   seqById: Record<string, number>;
-  voidAction: Action;
+  voidAction?: Action;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [showVoid, setShowVoid] = useState(false);
@@ -68,12 +68,12 @@ export default function RepaymentList({
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
                   <span className={`text-sm font-semibold tabular-nums ${r.status === "void" ? "line-through" : ""}`}>{won(r.amount)}</span>
-                  {r.status === "valid" && openId !== r.id && (
+                  {voidAction && r.status === "valid" && openId !== r.id && (
                     <button type="button" onClick={() => setOpenId(r.id)} className="text-xs text-red-600 hover:underline">취소</button>
                   )}
                 </div>
               </div>
-              {openId === r.id && <VoidForm action={voidAction} repayment={r} onClose={() => setOpenId(null)} />}
+              {voidAction && openId === r.id && <VoidForm action={voidAction} repayment={r} onClose={() => setOpenId(null)} />}
             </li>
           ))}
         </ul>

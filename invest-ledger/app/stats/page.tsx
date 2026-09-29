@@ -6,9 +6,12 @@ import { won } from "@/lib/format";
 import { listAllInvestments, listPaymentsBetween, listSchedulesBetween } from "@/lib/queries";
 import { liveInvestments, monthly } from "@/lib/stats";
 
+import { requirePage } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
+  await requirePage();
   const { year: y } = await searchParams;
   const today = todayKst();
   const thisYear = Number(today.slice(0, 4));

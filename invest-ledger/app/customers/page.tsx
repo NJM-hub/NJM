@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ListControls from "@/components/ListControls";
 import PageHeader from "@/components/PageHeader";
+import { requirePage } from "@/lib/auth";
 import { todayKst } from "@/lib/dates";
 import { won, ymd } from "@/lib/format";
 import { customerSummaries, matchesCustomer } from "@/lib/listing";
@@ -17,7 +18,7 @@ const SORTS = [
 ] as const;
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const sp = await searchParams;
+  const [, sp] = await Promise.all([requirePage(), searchParams]);
   const q = (sp.q ?? "").trim();
   const showInactive = sp.inactive === "1";
   const sort = SORTS.some((s) => s.value === sp.sort) ? sp.sort! : "remaining";

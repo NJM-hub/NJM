@@ -2,6 +2,7 @@ import Link from "next/link";
 import AlertList from "@/components/AlertList";
 import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
+import { requirePage } from "@/lib/auth";
 import { addDays, todayKst } from "@/lib/dates";
 import { pct, won, ymd } from "@/lib/format";
 import { listAllInvestments, listPaymentsBetween, listSchedulesBetween } from "@/lib/queries";
@@ -9,7 +10,8 @@ import { buildAlerts, dashboard, liveInvestments } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
+  const [{ can }, { denied }] = await Promise.all([requirePage(), searchParams]);
   const today = todayKst();
   const [investments, upcoming, paidToday] = await Promise.all([
     listAllInvestments(),
@@ -35,8 +37,14 @@ export default async function DashboardPage() {
       <PageHeader
         title="대시보드"
         description={`오늘 ${ymd(today)} · 취소 건 제외`}
-        actions={<Link href="/investments/new" className="btn">+ 투자 등록</Link>}
+        actions={can.edit ? <Link href="/investments/new" className="btn">+ 투자 등록</Link> : undefined}
       />
+
+      {denied && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          그 화면을 볼 권한이 없어 대시보드로 이동했습니다.
+        </div>
+      )}
 
       {/* 받을 금액 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

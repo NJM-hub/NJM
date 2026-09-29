@@ -5,9 +5,12 @@ import PageHeader from "@/components/PageHeader";
 import { updateCustomerAction } from "@/app/customers/actions";
 import { getCustomer } from "@/lib/queries";
 
+import { requirePage } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
 
 export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage("staff");
   const { id } = await params;
   const c = await getCustomer(id);
   if (!c) notFound();

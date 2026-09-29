@@ -7,6 +7,7 @@ import StatCard from "@/components/StatCard";
 import StatusBadge from "@/components/StatusBadge";
 import { toggleCustomerStatusAction } from "@/app/customers/actions";
 import { methodLabel } from "@/lib/constants";
+import { requirePage } from "@/lib/auth";
 import { todayKst } from "@/lib/dates";
 import { pct, won, ymd } from "@/lib/format";
 import { customerSummaries } from "@/lib/listing";
@@ -28,7 +29,7 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ msg?: string }>;
 }) {
-  const [{ id }, { msg }] = await Promise.all([params, searchParams]);
+  const [{ can }, { id }, { msg }] = await Promise.all([requirePage(), params, searchParams]);
   const c = await getCustomer(id);
   if (!c) notFound();
   const investments = await listCustomerInvestments(c.id);
@@ -51,9 +52,9 @@ export default async function CustomerDetailPage({
         }
         actions={
           <>
-            <Link href={`/investments/new?customer=${c.id}`} className="btn">+ 이 고객 투자 등록</Link>
-            <Link href={`/customers/${c.id}/edit`} className="btn-secondary">정보 수정</Link>
-            <CustomerStatusButton action={toggleCustomerStatusAction.bind(null, c.id, active ? "inactive" : "active")} active={active} />
+            {can.edit && <Link href={`/investments/new?customer=${c.id}`} className="btn">+ 이 고객 투자 등록</Link>}
+            {can.edit && <Link href={`/customers/${c.id}/edit`} className="btn-secondary">정보 수정</Link>}
+            {can.cancel && <CustomerStatusButton action={toggleCustomerStatusAction.bind(null, c.id, active ? "inactive" : "active")} active={active} />}
           </>
         }
       />

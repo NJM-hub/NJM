@@ -4,7 +4,7 @@
 
 ```
 [PC·휴대폰 브라우저]
-        │  (접속 비밀번호 확인 — proxy.ts)
+        │  (로그인 쿠키 확인 — proxy.ts / 권한 확인 — lib/auth.ts)
         ▼
 [Vercel]  Next.js 앱 (화면 + 서버)
    ├─ app/          화면(페이지)
@@ -20,7 +20,9 @@
 
 - **브라우저는 DB에 직접 접근하지 않습니다.** 모든 조회·저장은 Vercel 서버를 거칩니다.
 - DB는 RLS(행 단위 보안)가 켜져 있고 공개 키로는 아무것도 읽을 수 없습니다.
-- 5단계에서 Supabase 로그인을 붙이면 `proxy.ts` 의 임시 비밀번호를 로그인 화면으로 바꿉니다.
+- **로그인(5단계)**: 비밀번호 확인은 Supabase Auth 가 하고, 로그인 상태는 서버가 서명한 쿠키(HttpOnly)로 유지합니다.
+  매 화면·저장마다 profiles 에서 사용 여부·권한·세션 버전을 다시 확인하므로 사용 중지·권한 변경이 즉시 적용됩니다.
+- 저장할 때 서버가 로그인 사용자 id 를 요청 헤더(`x-actor-id`)로 보내고, DB 가 등록자(created_by)와 변경 이력(actor)에 기록합니다.
 
 ## 2. 테이블 관계
 
@@ -82,7 +84,14 @@ auth.users (Supabase 로그인) 1 ── 1 profiles (이름·권한)
 | status | `valid` / `void` (잘못 입력하면 삭제 대신 void) |
 
 ### profiles — 사용자·권한 (5단계)
-`role`: `admin` 관리자 / `staff` 직원 / `viewer` 조회 전용
+| 컬럼 | 설명 |
+|---|---|
+| id | Supabase 로그인 사용자 → auth.users.id |
+| email / display_name | 로그인 이메일 / 이름 |
+| role | `admin` 관리자 / `staff` 직원 / `viewer` 조회전용 |
+| is_active | 사용 여부 (삭제 대신 사용 중지) |
+| session_version | 비밀번호 변경·재설정 시 올려서 기존 로그인을 끊음 |
+| last_login_at | 마지막 로그인 |
 
 ### audit_logs — 변경 이력
 누가(actor) 언제 어떤 표의 어떤 행을 어떻게 바꿨는지 변경 전/후 값을 통째로 저장. 수정·삭제 불가.
@@ -111,5 +120,5 @@ auth.users (Supabase 로그인) 1 ── 1 profiles (이름·권한)
 - 모든 등록·수정은 `audit_logs` 에 자동 기록됩니다.
 
 ## 5. 향후 확장
-- **직원 계정(5단계)**: `profiles.role` 로 권한 구분, 테이블에 로그인 사용자용 RLS 정책 추가, `created_by` 에 작성자 기록.
+- **권한 추가**: `lib/permissions.ts` 에 역할·권한을 추가하면 화면과 서버 확인에 함께 적용됩니다.
 - **엑셀 내보내기**: 두 뷰(v_investment_summary, v_schedule_status)가 화면과 같은 숫자를 한 줄씩 제공하므로 그대로 엑셀 행으로 내보내면 됩니다.

@@ -13,7 +13,7 @@
 | 2 | 회수계획 자동 생성 + 실제 회수 입력(미회수·연체 기록) | ✅ 완료 |
 | 3 | 대시보드(오늘/내일/7일/연체, 만기 알림 색상) + 월별 통계·그래프 + 전체 현황 | ✅ 완료 |
 | 4 | 검색·필터·정렬 + 고객별 관리 | ✅ 완료 |
-| 5 | 로그인 + 권한(관리자/직원) | 예정 |
+| 5 | 로그인 + 권한(관리자/직원/조회전용) | ✅ 완료 |
 
 ---
 
@@ -45,16 +45,16 @@
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL (`https://xxxx.supabase.co` — 뒤에 `/rest/v1/` 없이) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → **API Keys** → **Secret key**(`sb_secret_...`) 또는 Legacy 탭의 **service_role** |
-| `BASIC_AUTH_USER` | `admin` |
-| `BASIC_AUTH_PASSWORD` | 내가 정한 접속 비밀번호 (영문+숫자) |
+| `BASIC_AUTH_PASSWORD` | 내가 정한 비밀번호 (영문+숫자, 처음 관리자 만들 때 본인 확인용) |
 
 4. **[Deploy]**
 
 > 🔒 service_role(secret) 키는 **통장 비밀번호 같은 것**입니다. Vercel 환경변수에만 넣고, 카톡·메일·GitHub 에 붙여넣지 마세요.
 
 ### 접속
-- 배포 주소(예: `https://invest-ledger-xxx.vercel.app`)로 들어가면 아이디/비밀번호를 묻습니다.
-- 아이디: `admin` / 비밀번호: `BASIC_AUTH_PASSWORD` 에 넣은 값
+- Supabase SQL Editor 에서 `0002_auth.sql` 도 실행합니다 (방법 A 는 자동)
+- 배포 주소(예: `https://invest-ledger-xxx.vercel.app`)로 처음 들어가면 **처음 설정** 화면이 나옵니다 → 관리자 계정 만들기 (아래 "5단계: 로그인 켜기" 참고)
+- 이후에는 이메일·비밀번호로 로그인합니다
 - 환경변수를 나중에 바꿨다면 **Deployments** → 최신 배포 **⋯** → **Redeploy** 를 눌러야 적용됩니다.
 
 > 💳 비용: Vercel Hobby + Supabase Free 로 **무료**로 시작할 수 있습니다.
@@ -66,9 +66,9 @@
 DB 주소(`POSTGRES_URL_NON_POOLING`)가 있을 때만 동작하며(방법 A 는 자동으로 생김),
 SQL Editor 로 이미 실행해 둔 경우에도 기존 데이터를 건드리지 않고 건너뜁니다.
 
-### (참고) 접속 비밀번호
-5단계에서 정식 로그인 화면을 만들기 전까지 사이트 전체를 간단한 아이디/비밀번호로 보호합니다.
-`BASIC_AUTH_PASSWORD` 를 넣지 않으면 배포 사이트는 열리지 않도록 막혀 있습니다(안전장치).
+### (참고) 접속 비밀번호 `BASIC_AUTH_PASSWORD`
+5단계부터는 정식 로그인을 사용합니다. 이 값은 **처음 관리자 계정을 만들 때 본인 확인용**으로만 쓰입니다.
+(관리자가 만들어진 뒤에는 쓰이지 않지만, 지우지 말고 그대로 두세요)
 
 ---
 
@@ -142,6 +142,47 @@ SQL Editor 로 이미 실행해 둔 경우에도 기존 데이터를 건드리�
 - **만기임박** 필터: 만기까지 7일 이내이고 남은 금액이 있는 진행 중 투자 (연체 건은 연체 필터에)
 - 고객별 합계와 연체 건수에서 **취소**된 투자는 빠집니다 (목록에는 흐리게 표시)
 
+## 5단계: 로그인 켜기 (한 번만)
+
+1. GitHub 에서 `invest-ledger/supabase/migrations/0002_auth.sql` 을 열고 복사 아이콘(⧉)으로 전체 복사
+2. Supabase → **SQL Editor** → 새 탭(+) → 붙여넣기 → **Run** (여러 번 실행해도 안전)
+3. 사이트에 들어가면 **처음 설정** 화면이 나옵니다
+   - **지금 쓰는 접속 비밀번호**: Vercel 의 `BASIC_AUTH_PASSWORD` 값 (본인 확인용, 이번 한 번만 씀)
+   - 관리자 이름 / 로그인 이메일 / 새 비밀번호 입력 → **관리자 계정 만들기**
+4. 이제부터는 **이메일 + 비밀번호**로 로그인합니다. (브라우저가 묻던 아이디/비밀번호 창은 사라집니다)
+
+> 새 환경변수는 필요 없습니다. 로그인 쿠키 서명에는 이미 넣어둔 `SUPABASE_SERVICE_ROLE_KEY` 를 사용합니다.
+> 이메일은 로그인 아이디로만 쓰이고 실제로 메일이 가지 않습니다.
+
+### 권한
+
+| 권한 | 할 수 있는 일 |
+|---|---|
+| **관리자** | 모든 기능 + 사용자 관리 + 투자 취소·되돌리기, 입금 취소, 회수계획 다시 만들기, 고객 미사용 |
+| **직원** | 투자 등록·수정, 입금 기록(완납·자동 배분), 회차 수정·추가, 고객 수정 |
+| **조회전용** | 모든 화면 보기만 가능 |
+
+- 권한이 없는 버튼은 화면에 나오지 않고, 서버에서도 한 번 더 막습니다.
+- 계정은 지우지 않고 **사용 중지**합니다. 중지하면 그 사람은 즉시 로그아웃됩니다.
+- 비밀번호를 바꾸면(본인 변경·관리자 재설정) 그 계정의 다른 기기 로그인은 모두 끊깁니다.
+- 투자 상세 화면 아래 **변경 이력**에 누가 언제 등록·수정·입금했는지 남습니다.
+
+## 5단계 동작 확인 체크리스트
+
+- [ ] `0002_auth.sql` 실행 후 사이트 접속 → **처음 설정** 화면 → 관리자 계정 만들기 → 대시보드
+- [ ] 왼쪽 아래(휴대폰은 메뉴 안)에 내 이름·권한, **내 계정**, **로그아웃**
+- [ ] 로그아웃 → 로그인 화면 → 이메일·비밀번호로 로그인 (틀리면 안내 문구)
+- [ ] 메뉴 **사용자 관리** → 직원 추가 (이름·이메일·권한·처음 비밀번호)
+- [ ] 다른 브라우저(또는 시크릿 창)에서 직원으로 로그인 → **사용자 관리** 메뉴가 없고, 입금 **취소** 버튼이 없다
+- [ ] 조회전용으로 로그인 → 투자 등록·입금 등록·정보 수정 버튼이 없다
+- [ ] 관리자가 직원을 **사용 중지** → 직원 화면을 새로고침하면 로그인 화면으로
+- [ ] 투자 상세 **변경 이력**에 등록·입금한 사람 이름이 보인다
+- [ ] **내 계정**에서 비밀번호 변경
+
+### 비밀번호를 잊었을 때
+- 직원: 관리자가 **사용자 관리 → 이름 클릭 → 비밀번호 재설정**
+- 관리자(한 명뿐일 때): Supabase → **Authentication → Users** → 해당 이메일 → **⋯ → Reset password / Update user** 로 새 비밀번호 지정
+
 ---
 
 ## 내 컴퓨터에서 실행하기 (선택)
@@ -155,7 +196,7 @@ npm install
 npm run dev                    # http://localhost:3000 접속
 ```
 
-- 내 컴퓨터(개발 모드)에서는 `BASIC_AUTH_PASSWORD` 를 비워두면 비밀번호 없이 열립니다.
+- 내 컴퓨터에서도 로그인이 필요합니다. 처음 설정 화면에서 `.env.local` 의 `BASIC_AUTH_PASSWORD` 로 본인 확인 후 관리자를 만드세요.
 - `.env.local` 은 `.gitignore` 에 들어 있어 GitHub 에 올라가지 않습니다.
 
 | 명령 | 설명 |
@@ -175,6 +216,8 @@ invest-ledger/
 │  ├─ overview/page.tsx              전체 현황
 │  ├─ stats/page.tsx                 월별 통계 + 그래프
 │  ├─ customers/                     고객 목록 / [id] 고객 상세 / [id]/edit 수정 / actions.ts
+│  ├─ login/, setup/                 로그인 / 처음 관리자 만들기 (actions.ts)
+│  ├─ users/, account/               사용자 관리(관리자) / 내 계정
 │  ├─ error.tsx / not-found.tsx      오류 안내 화면
 │  └─ investments/
 │     ├─ page.tsx                    투자 목록
@@ -202,6 +245,9 @@ invest-ledger/
 │  ├─ ledger.ts                      회수계획 저장·완료 상태 자동 변경
 │  ├─ stats.ts                       대시보드·월별·전체 현황 계산, 만기 알림 등급
 │  ├─ listing.ts                     투자 목록 검색·필터·정렬, 고객별 합계
+│  ├─ auth.ts, session.ts            로그인 사용자 확인, 서명된 로그인 쿠키
+│  ├─ permissions.ts                 권한(관리자/직원/조회전용)
+│  ├─ users.ts, history.ts           사용자 조회, 변경 이력
 │  ├─ format.ts                      원화 표시 (100,000,000원)
 │  ├─ dates.ts                       날짜 (한국 시간)
 │  ├─ validate.ts                    입력값 검사
@@ -209,8 +255,9 @@ invest-ledger/
 │  ├─ supabase.ts / env.ts           DB 연결 / 환경변수
 │  └─ constants.ts, types.ts         선택지·타입
 ├─ supabase/migrations/0001_init.sql DB 테이블·뷰·보안 설정
+├─ supabase/migrations/0002_auth.sql 로그인·권한, 등록자/수정자 기록
 ├─ scripts/migrate.mjs               배포 시 DB 표 자동 생성
-├─ proxy.ts                          접속 비밀번호 확인
+├─ proxy.ts                          로그인 확인 (안 돼 있으면 로그인 화면으로)
 └─ docs/ARCHITECTURE.md              구조·DB 설계 설명
 ```
 
@@ -220,6 +267,7 @@ invest-ledger/
 |---|---|
 | "화면을 불러오지 못했습니다" | 방법 A: Storage 에 Supabase 연결 후 Redeploy 했는지 / 방법 B: 환경변수 2개(Supabase URL, secret 키) 확인 → Redeploy |
 | "relation ... does not exist" / "Could not find the table" | 방법 A: Redeploy / 방법 B: SQL Editor 에서 `0001_init.sql` 실행 |
-| "BASIC_AUTH_PASSWORD 환경변수를 설정해야…" | Vercel 환경변수에 `BASIC_AUTH_PASSWORD` 추가 → Redeploy |
-| 비밀번호를 맞게 넣어도 계속 물어봄 | 비밀번호에 한글이 있으면 안 됩니다. 영문·숫자로 바꾸세요 |
+| 처음 설정에서 "BASIC_AUTH_PASSWORD 가 없어…" | Vercel 환경변수에 `BASIC_AUTH_PASSWORD` 추가 → Redeploy |
+| 로그인 화면에 "SQL 을 한 번 실행해야 합니다" | `0002_auth.sql` 을 SQL Editor 에서 실행 후 새로고침 |
+| 로그인이 잠깐 안 됨 ("rate limit") | Supabase 로그인 횟수 제한입니다. 몇 분 뒤 다시 시도하세요 |
 | Vercel 빌드가 다른 앱으로 됨 | Vercel → Settings → General → **Root Directory** 가 `invest-ledger` 인지 확인 |

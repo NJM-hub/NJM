@@ -15,10 +15,13 @@ import {
   recordPaymentAction,
   voidRepaymentAction,
 } from "@/app/investments/repayment-actions";
+import { requirePage } from "@/lib/auth";
 import { methodLabel } from "@/lib/constants";
 import { todayKst } from "@/lib/dates";
-import { pct, won, ymd } from "@/lib/format";
+import { dateTime, pct, won, ymd } from "@/lib/format";
+import { investmentHistory } from "@/lib/history";
 import { getInvestment, getRepayments, getSchedules } from "@/lib/queries";
+import { userNames } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +55,11 @@ export default async function InvestmentDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ msg?: string; saved?: string }>;
 }) {
-  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const [{ can }, { id }, sp] = await Promise.all([requirePage(), params, searchParams]);
   const inv = await getInvestment(id);
   if (!inv) notFound();
-  const [schedules, repayments] = await Promise.all([getSchedules(inv.id), getRepayments(inv.id)]);
+  const [schedules, repayments, names] = await Promise.all([getSchedules(inv.id), getRepayments(inv.id), userNames()]);
+  const history = await investmentHistory(inv.id, repayments.map((r) => r.id));
 
   const today = todayKst();
   const message = MESSAGES[sp.msg ?? (sp.saved ? "saved" : "")];
@@ -82,7 +86,7 @@ export default async function InvestmentDetailPage({
             <StatusBadge status={inv.status} overdue={inv.overdue_count > 0} />
           </span>
         }
-        actions={<Link href={`/investments/${inv.id}/edit`} className="btn-secondary">정보 수정</Link>}
+        actions={can.edit ? <Link href={`/investments/${inv.id}/edit`} className="btn-secondary">정보 수정</Link> : undefined}
       />
 
       {message && (
@@ -114,7 +118,8 @@ export default async function InvestmentDetailPage({
       </div>
 
       {/* 입금 등록 + 실제 회수내역 */}
-      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+      <div className={`mt-5 grid items-start gap-5 ${can.edit ? "lg:grid-cols-2" : ""}`}>
+        {can.edit && (
         <section className="card card-body">
           <h2 className="mb-1 text-base font-semibold text-navy-900">입금 등록</h2>
           <p className="mb-3 text-xs text-slate-500">
@@ -127,12 +132,13 @@ export default async function InvestmentDetailPage({
             today={today}
           />
         </section>
+        )}
 
         <section className="card">
           <h2 className="border-b border-slate-100 px-4 py-3 text-base font-semibold text-navy-900 sm:px-5">
             실제 회수내역 <span className="text-sm font-normal text-slate-500">· {repayments.filter((r) => r.status === "valid").length}건</span>
           </h2>
-          <RepaymentList repayments={repayments} seqById={seqById} voidAction={voidRepaymentAction.bind(null, inv.id)} />
+          <RepaymentList repayments={repayments} seqById={seqById} voidAction={can.cancel ? voidRepaymentAction.bind(null, inv.id) : undefined} />
         </section>
       </div>
 
@@ -142,7 +148,7 @@ export default async function InvestmentDetailPage({
             <h2 className="text-base font-semibold text-navy-900">
               회수계획 <span className="text-sm font-normal text-slate-500">· {methodLabel(inv.repayment_method)} {schedules.length}회</span>
             </h2>
-            {schedules.length > 0 && !hasLinkedPayments && (
+            {schedules.length > 0 && !hasLinkedPayments && can.cancel && (
               <GenerateScheduleButton
                 action={generateScheduleAction.bind(null, inv.id)}
                 label="다시 만들기"
@@ -160,12 +166,14 @@ export default async function InvestmentDetailPage({
           {schedules.length === 0 ? (
             <div className="px-5 py-10 text-center">
               <p className="mb-4 text-sm text-slate-500">아직 회수계획이 없습니다. 투자 조건에 맞춰 회차를 자동으로 만듭니다.</p>
-              <div className="inline-block">
-                <GenerateScheduleButton action={generateScheduleAction.bind(null, inv.id)} label="회수계획 만들기" />
-              </div>
+              {can.edit && (
+                <div className="inline-block">
+                  <GenerateScheduleButton action={generateScheduleAction.bind(null, inv.id)} label="회수계획 만들기" />
+                </div>
+              )}
             </div>
           ) : (
-            <ScheduleTable investmentId={inv.id} schedules={schedules} today={today} quickPay={quickPayAction.bind(null, inv.id)} />
+            <ScheduleTable investmentId={inv.id} schedules={schedules} today={today} quickPay={can.edit ? quickPayAction.bind(null, inv.id) : undefined} />
           )}
         </section>
 
@@ -196,9 +204,34 @@ export default async function InvestmentDetailPage({
             전액 회수되면 자동으로 &lsquo;완료&rsquo;가 됩니다.
             {inv.status_reason && <> 현재 사유: <b>{inv.status_reason}</b></>}
           </p>
-          <StatusChangeForm action={changeInvestmentStatus.bind(null, inv.id)} current={inv.status} currentReason={inv.status_reason} />
+          {can.edit ? (
+            <StatusChangeForm action={changeInvestmentStatus.bind(null, inv.id)} current={inv.status} currentReason={inv.status_reason} allowCancel={can.cancel} />
+          ) : (
+            <p className="text-sm text-slate-500">조회전용 계정은 상태를 바꿀 수 없습니다.</p>
+          )}
         </section>
       </div>
+
+      <section className="card mt-5">
+        <h2 className="border-b border-slate-100 px-4 py-3 text-base font-semibold text-navy-900 sm:px-5">
+          변경 이력 <span className="text-sm font-normal text-slate-500">· 누가 언제 등록·수정했는지</span>
+        </h2>
+        {history.length === 0 ? (
+          <p className="px-5 py-6 text-center text-sm text-slate-500">기록이 없습니다.</p>
+        ) : (
+          <ul className="max-h-[360px] divide-y divide-slate-100 overflow-auto text-sm">
+            {history.map((h) => (
+              <li key={h.id} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:gap-4 sm:px-5">
+                <span className="shrink-0 tabular-nums text-xs text-slate-500 sm:w-36">
+                  {dateTime(h.at)}
+                </span>
+                <span className="shrink-0 text-xs font-medium text-slate-700 sm:w-24">{h.actor ? names[h.actor] ?? "알 수 없음" : "시스템"}</span>
+                <span className="text-slate-800">{h.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
 }

@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { logoutAction } from "@/app/login/actions";
 import AppShell from "@/components/AppShell";
+import { getCurrentUser } from "@/lib/auth";
+import { roleLabel } from "@/lib/permissions";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +16,8 @@ export const viewport: Viewport = {
   themeColor: "#0f1f3a",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
   return (
     <html lang="ko">
       <head>
@@ -24,7 +28,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen font-sans antialiased">
-        <AppShell>{children}</AppShell>
+        {user ? (
+          <AppShell user={{ name: user.name, email: user.email, roleLabel: roleLabel(user.role), isAdmin: user.role === "admin" }} logout={logoutAction}>
+            {children}
+          </AppShell>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );

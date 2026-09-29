@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { authorize } from "@/lib/auth";
 import { hasLinkedRepayments, regenerateSchedule } from "@/lib/ledger";
 import { db } from "@/lib/supabase";
 import type { FormState } from "@/lib/types";
@@ -39,8 +40,10 @@ function friendlyError(message: string): FormState {
 export async function createInvestment(_prev: FormState, fd: FormData): Promise<FormState> {
   const parsed = parseInvestmentForm(fd);
   if (!parsed.ok) return { fieldErrors: parsed.fieldErrors };
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
   const v = parsed.data;
-  const supabase = db();
+  const supabase = db(a.user.id);
 
   let newId: string;
   try {
@@ -83,8 +86,10 @@ export async function createInvestment(_prev: FormState, fd: FormData): Promise<
 export async function updateInvestment(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
   const parsed = parseInvestmentForm(fd);
   if (!parsed.ok) return { fieldErrors: parsed.fieldErrors };
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
   const v = parsed.data;
-  const supabase = db();
+  const supabase = db(a.user.id);
 
   let msg = "saved";
   try {
@@ -143,7 +148,16 @@ export async function changeInvestmentStatus(id: string, _prev: FormState, fd: F
   if (!isInvestmentStatus(status)) return { error: "상태를 선택하세요." };
   if (status === "cancelled" && !reason) return { error: "취소 사유를 입력하세요." };
 
-  const { error } = await db().from("investments").update({ status, status_reason: reason }).eq("id", id);
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const supabase = db(a.user.id);
+  // 취소하거나 취소를 되돌리는 것은 관리자만
+  const { data: cur } = await supabase.from("investments").select("status").eq("id", id).single();
+  if ((status === "cancelled" || cur?.status === "cancelled") && status !== cur?.status && a.user.role !== "admin") {
+    return { error: "투자 취소(또는 취소 되돌리기)는 관리자만 할 수 있습니다." };
+  }
+
+  const { error } = await supabase.from("investments").update({ status, status_reason: reason }).eq("id", id);
   if (error) return { error: `상태를 바꾸지 못했습니다: ${error.message}` };
 
   revalidatePath("/", "layout");

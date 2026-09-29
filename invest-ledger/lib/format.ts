@@ -24,3 +24,14 @@ export function pct(n: number | string | null | undefined): string {
 export function ymd(d: string | null | undefined): string {
   return d ? d.replaceAll("-", ".") : "-";
 }
+
+/** 시각 → "2026.09.29 17:18" (한국 시간) */
+export function dateTime(ts: string | null | undefined): string {
+  if (!ts) return "-";
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(ts)).map((x) => [x.type, x.value]),
+  );
+  return `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}`;
+}

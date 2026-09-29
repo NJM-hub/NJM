@@ -60,7 +60,7 @@ export default function ScheduleTable({
   investmentId: string;
   schedules: ScheduleRow[];
   today: string;
-  quickPay: Action;
+  quickPay?: Action;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const rows = schedules.filter((s) => matches(s, filter));
@@ -78,9 +78,11 @@ export default function ScheduleTable({
             {f.label} {count(f.value)}
           </button>
         ))}
-        <Link href={`/investments/${investmentId}/schedules/new`} className="ml-auto text-xs font-semibold text-navy-600 hover:underline">
-          + 회차 추가
-        </Link>
+        {quickPay && (
+          <Link href={`/investments/${investmentId}/schedules/new`} className="ml-auto text-xs font-semibold text-navy-600 hover:underline">
+            + 회차 추가
+          </Link>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -117,8 +119,8 @@ export default function ScheduleTable({
                     <td><StateBadge state={s.state} /></td>
                     <td className="max-w-40 truncate text-xs text-slate-500" title={s.memo}>{s.memo}</td>
                     <td className="space-x-2 text-right">
-                      <QuickPay action={quickPay} schedule={s} today={today} />
-                      <Link href={editHref(s)} className="text-xs text-navy-600 hover:underline">수정</Link>
+                      {quickPay && <QuickPay action={quickPay} schedule={s} today={today} />}
+                      {quickPay && <Link href={editHref(s)} className="text-xs text-navy-600 hover:underline">수정</Link>}
                     </td>
                   </tr>
                 ))}
@@ -146,10 +148,12 @@ export default function ScheduleTable({
                     {s.last_paid_on && <>입금일 {ymd(s.last_paid_on)} </>}{s.memo && <>· {s.memo}</>}
                   </div>
                 )}
-                <div className="mt-2 flex items-center justify-end gap-3">
-                  <Link href={editHref(s)} className="text-xs text-navy-600 underline">수정·메모</Link>
-                  <QuickPay action={quickPay} schedule={s} today={today} />
-                </div>
+                {quickPay && (
+                  <div className="mt-2 flex items-center justify-end gap-3">
+                    <Link href={editHref(s)} className="text-xs text-navy-600 underline">수정·메모</Link>
+                    <QuickPay action={quickPay} schedule={s} today={today} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
