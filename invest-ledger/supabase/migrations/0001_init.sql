@@ -1,6 +1,7 @@
 -- =====================================================================
 -- 투자 실행·회수 장부  |  초기 스키마 (1~5단계 전체 구조)
--- Supabase → SQL Editor 에 이 파일 전체를 붙여넣고 [Run] 을 누르세요. (한 번만 실행)
+-- Supabase → SQL Editor 에 이 파일 전체를 붙여넣고 [Run] 을 누르세요.
+-- 여러 번 실행해도 안전합니다 (이미 있는 것은 건너뛰고, 빠진 것만 만듭니다).
 --
 --   customers (고객)
 --      │ 1:N
@@ -44,7 +45,7 @@ $$;
 -- ---------------------------------------------------------------------
 -- 사용자·권한 (5단계에서 로그인과 연결. 지금은 구조만 준비)
 -- ---------------------------------------------------------------------
-create table public.profiles (
+create table if not exists public.profiles (
   id           uuid primary key references auth.users (id) on delete restrict,
   display_name text not null default '',
   role         text not null default 'staff' check (role in ('admin', 'staff', 'viewer')),
@@ -57,7 +58,7 @@ comment on table public.profiles is '사용자. role: admin(관리자) / staff(�
 -- ---------------------------------------------------------------------
 -- 고객
 -- ---------------------------------------------------------------------
-create table public.customers (
+create table if not exists public.customers (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (length(btrim(name)) > 0),
   phone      text not null default '',
@@ -68,15 +69,15 @@ create table public.customers (
   updated_at timestamptz not null default now()
 );
 comment on table public.customers is '고객 정보. 삭제 대신 status=inactive';
-create index customers_name_idx on public.customers (name);
-create index customers_phone_idx on public.customers (phone);
+create index if not exists customers_name_idx on public.customers (name);
+create index if not exists customers_phone_idx on public.customers (phone);
 
 -- ---------------------------------------------------------------------
 -- 투자
 -- ---------------------------------------------------------------------
-create sequence public.investment_no_seq;
+create sequence if not exists public.investment_no_seq;
 
-create table public.investments (
+create table if not exists public.investments (
   id                uuid primary key default gen_random_uuid(),
   investment_no     text not null unique
                     default ('INV-' || lpad(nextval('public.investment_no_seq')::text, 5, '0')),
@@ -102,15 +103,15 @@ create table public.investments (
 );
 comment on table public.investments is '투자 건. status: active(진행중) completed(완료) suspended(보류) cancelled(취소=삭제 대신)';
 comment on column public.investments.expected_total is '총 회수 예정금액 = 투자금액 × (1 + 수익률/100) (자동 계산)';
-create index investments_customer_idx on public.investments (customer_id);
-create index investments_executed_idx on public.investments (executed_on);
-create index investments_maturity_idx on public.investments (maturity_on);
-create index investments_status_idx on public.investments (status);
+create index if not exists investments_customer_idx on public.investments (customer_id);
+create index if not exists investments_executed_idx on public.investments (executed_on);
+create index if not exists investments_maturity_idx on public.investments (maturity_on);
+create index if not exists investments_status_idx on public.investments (status);
 
 -- ---------------------------------------------------------------------
 -- 회수계획 (2단계에서 자동 생성)
 -- ---------------------------------------------------------------------
-create table public.repayment_schedules (
+create table if not exists public.repayment_schedules (
   id             uuid primary key default gen_random_uuid(),
   investment_id  uuid not null references public.investments (id) on delete restrict,
   seq            integer not null check (seq > 0),
@@ -123,14 +124,14 @@ create table public.repayment_schedules (
   unique (id, investment_id)
 );
 comment on table public.repayment_schedules is '회차별 회수 예정. 미회수여도 지우지 않음. 계획을 다시 만들면 기존 행은 status=void';
-create unique index repayment_schedules_seq_uq
+create unique index if not exists repayment_schedules_seq_uq
   on public.repayment_schedules (investment_id, seq) where status = 'active';
-create index repayment_schedules_due_idx on public.repayment_schedules (due_date) where status = 'active';
+create index if not exists repayment_schedules_due_idx on public.repayment_schedules (due_date) where status = 'active';
 
 -- ---------------------------------------------------------------------
 -- 실제 회수내역 (입금 기록)
 -- ---------------------------------------------------------------------
-create table public.repayments (
+create table if not exists public.repayments (
   id            uuid primary key default gen_random_uuid(),
   investment_id uuid not null references public.investments (id) on delete restrict,
   schedule_id   uuid,
@@ -147,14 +148,14 @@ create table public.repayments (
     references public.repayment_schedules (id, investment_id) on delete restrict
 );
 comment on table public.repayments is '실제 입금 기록. 잘못 입력하면 삭제 대신 status=void';
-create index repayments_investment_idx on public.repayments (investment_id) where status = 'valid';
-create index repayments_schedule_idx on public.repayments (schedule_id) where status = 'valid';
-create index repayments_paid_on_idx on public.repayments (paid_on) where status = 'valid';
+create index if not exists repayments_investment_idx on public.repayments (investment_id) where status = 'valid';
+create index if not exists repayments_schedule_idx on public.repayments (schedule_id) where status = 'valid';
+create index if not exists repayments_paid_on_idx on public.repayments (paid_on) where status = 'valid';
 
 -- ---------------------------------------------------------------------
 -- 변경 이력 (누가 언제 무엇을 바꿨는지)
 -- ---------------------------------------------------------------------
-create table public.audit_logs (
+create table if not exists public.audit_logs (
   id         bigint generated always as identity primary key,
   table_name text not null,
   row_id     uuid,
@@ -164,7 +165,7 @@ create table public.audit_logs (
   actor      uuid,
   created_at timestamptz not null default now()
 );
-create index audit_logs_row_idx on public.audit_logs (row_id);
+create index if not exists audit_logs_row_idx on public.audit_logs (row_id);
 
 create or replace function public.write_audit_log()
 returns trigger language plpgsql set search_path = '' as $$
@@ -188,17 +189,17 @@ do $$
 declare t text;
 begin
   foreach t in array array['profiles', 'customers', 'investments', 'repayment_schedules', 'repayments'] loop
-    execute format('create trigger %I before update on public.%I for each row execute function public.set_updated_at()', t || '_updated_at', t);
-    execute format('create trigger %I before delete on public.%I for each row execute function public.prevent_delete()', t || '_no_delete', t);
+    execute format('create or replace trigger %I before update on public.%I for each row execute function public.set_updated_at()', t || '_updated_at', t);
+    execute format('create or replace trigger %I before delete on public.%I for each row execute function public.prevent_delete()', t || '_no_delete', t);
   end loop;
   foreach t in array array['customers', 'investments', 'repayment_schedules', 'repayments'] loop
-    execute format('create trigger %I after insert or update on public.%I for each row execute function public.write_audit_log()', t || '_audit', t);
+    execute format('create or replace trigger %I after insert or update on public.%I for each row execute function public.write_audit_log()', t || '_audit', t);
   end loop;
 end $$;
 
-create trigger audit_logs_no_delete before delete on public.audit_logs
+create or replace trigger audit_logs_no_delete before delete on public.audit_logs
   for each row execute function public.prevent_delete();
-create trigger audit_logs_no_update before update on public.audit_logs
+create or replace trigger audit_logs_no_update before update on public.audit_logs
   for each row execute function public.prevent_delete();
 
 -- ---------------------------------------------------------------------
@@ -206,7 +207,7 @@ create trigger audit_logs_no_update before update on public.audit_logs
 -- ---------------------------------------------------------------------
 
 -- 회차별 상태: 실제 회수금액·미회수금액·연체 여부
-create view public.v_schedule_status with (security_invoker = true) as
+create or replace view public.v_schedule_status with (security_invoker = true) as
 select
   s.id,
   s.investment_id,
@@ -235,7 +236,7 @@ left join lateral (
 where s.status = 'active';
 
 -- 투자 건별 요약: 회수금액·남은금액·회수율·연체·경과일수
-create view public.v_investment_summary with (security_invoker = true) as
+create or replace view public.v_investment_summary with (security_invoker = true) as
 select
   i.*,
   c.name                                          as customer_name,
