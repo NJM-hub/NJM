@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { hasLinkedRepayments, regenerateSchedule } from "@/lib/ledger";
 import { db } from "@/lib/supabase";
 import type { FormState } from "@/lib/types";
 import { isInvestmentStatus, parseInvestmentForm, type CustomerInput } from "@/lib/validate";
@@ -67,8 +68,16 @@ export async function createInvestment(_prev: FormState, fd: FormData): Promise<
     return friendlyError((e as Error).message);
   }
 
+  // 회수계획 자동 생성 (실패해도 투자 등록은 유지, 상세 화면에서 다시 만들 수 있음)
+  let msg = "saved";
+  try {
+    await regenerateSchedule(supabase, newId);
+  } catch {
+    msg = "schedule_failed";
+  }
+
   revalidatePath("/", "layout");
-  redirect(`/investments/${newId}?saved=1`);
+  redirect(`/investments/${newId}?msg=${msg}`);
 }
 
 export async function updateInvestment(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
@@ -77,7 +86,15 @@ export async function updateInvestment(id: string, _prev: FormState, fd: FormDat
   const v = parsed.data;
   const supabase = db();
 
+  let msg = "saved";
   try {
+    const { data: before, error: beforeError } = await supabase
+      .from("investments")
+      .select("principal, return_rate, repayment_method, start_on, maturity_on")
+      .eq("id", id)
+      .single();
+    if (beforeError) return friendlyError(beforeError.message);
+
     const customerId = await resolveCustomerId(supabase, v.customer);
     const { error } = await supabase
       .from("investments")
@@ -96,12 +113,27 @@ export async function updateInvestment(id: string, _prev: FormState, fd: FormDat
       })
       .eq("id", id);
     if (error) return friendlyError(error.message);
+
+    // 금액·수익률·방식·기간이 바뀌면 회수계획도 새로 만든다 (이미 입금이 연결돼 있으면 그대로 둠)
+    const termsChanged =
+      Number(before.principal) !== v.principal ||
+      Number(before.return_rate) !== v.returnRate ||
+      before.repayment_method !== v.repaymentMethod ||
+      before.start_on !== v.startOn ||
+      before.maturity_on !== v.maturityOn;
+    if (termsChanged) {
+      if (await hasLinkedRepayments(supabase, id)) msg = "schedule_kept";
+      else {
+        await regenerateSchedule(supabase, id);
+        msg = "schedule";
+      }
+    }
   } catch (e) {
     return friendlyError((e as Error).message);
   }
 
   revalidatePath("/", "layout");
-  redirect(`/investments/${id}?saved=1`);
+  redirect(`/investments/${id}?msg=${msg}`);
 }
 
 /** 상태 변경 (삭제 대신 '취소'로 바꾼다) */
@@ -115,5 +147,5 @@ export async function changeInvestmentStatus(id: string, _prev: FormState, fd: F
   if (error) return { error: `상태를 바꾸지 못했습니다: ${error.message}` };
 
   revalidatePath("/", "layout");
-  redirect(`/investments/${id}?saved=1`);
+  redirect(`/investments/${id}?msg=status`);
 }

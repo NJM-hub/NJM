@@ -49,3 +49,31 @@ export type FormState = {
   error?: string;
   fieldErrors?: Record<string, string>;
 };
+
+/** v_schedule_status: 회차별 예정/실제/미회수/연체 */
+export type ScheduleRow = {
+  id: string;
+  investment_id: string;
+  seq: number;
+  due_date: string;
+  planned_amount: number;
+  memo: string;
+  paid_amount: number;
+  last_paid_on: string | null;
+  unpaid_amount: number;
+  state: "paid" | "overdue" | "partial" | "due_today" | "scheduled";
+  is_overdue: boolean;
+};
+
+/** repayments: 실제 입금 기록 */
+export type Repayment = {
+  id: string;
+  investment_id: string;
+  schedule_id: string | null;
+  paid_on: string;
+  amount: number;
+  memo: string;
+  status: "valid" | "void";
+  void_reason: string;
+  created_at: string;
+};

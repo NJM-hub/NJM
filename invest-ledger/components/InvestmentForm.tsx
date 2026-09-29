@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import SubmitButton from "@/components/SubmitButton";
 import { expectedTotal, defaultStartOn, maturityOn } from "@/lib/calc";
-import { DEFAULT_PERIOD, PERIOD_PRESETS, REPAYMENT_METHODS } from "@/lib/constants";
+import { DEFAULT_PERIOD, PERIOD_PRESETS, REPAYMENT_METHODS, methodLabel } from "@/lib/constants";
+import { scheduleCount } from "@/lib/schedule";
 import { isDate } from "@/lib/dates";
 import { comma, parseMoney, won } from "@/lib/format";
 import type { Customer, FormState, Investment } from "@/lib/types";
@@ -98,6 +99,7 @@ export default function InvestmentForm({ action, customers, initial, today, subm
   const rateNum = Number(v.returnRate);
   const total = principalNum > 0 && Number.isFinite(rateNum) ? expectedTotal(principalNum, rateNum) : 0;
   const days = periodOf(v);
+  const rounds = isDate(v.startOn) && isDate(v.maturityOn) ? scheduleCount(v.startOn, v.maturityOn, v.repaymentMethod) : 0;
 
   const err = (k: string) => (fe[k] ? <p className="field-error">{fe[k]}</p> : null);
   const cls = (k: string) => `input ${fe[k] ? "input-error" : ""}`;
@@ -277,6 +279,12 @@ export default function InvestmentForm({ action, customers, initial, today, subm
             <p className="hint">시작일 + 회수기간 − 1일로 자동 계산 (직접 수정 가능)</p>
             {err("maturity_on")}
           </div>
+          {rounds > 0 && total > 0 && (
+            <div className="rounded-lg border border-navy-100 bg-navy-50 px-3 py-2 text-sm text-navy-900 sm:col-span-2">
+              회수계획 미리보기: <b>{methodLabel(v.repaymentMethod)} {rounds}회</b>, 1회 약 <b>{won(Math.floor(total / rounds))}</b>
+              <span className="text-xs text-slate-500"> (저장하면 회차별 예정일·금액이 자동으로 만들어집니다)</span>
+            </div>
+          )}
           <div className="sm:col-span-2">
             <label className="label" htmlFor="memo">메모</label>
             <textarea id="memo" name="memo" rows={3} className="input"
