@@ -21,7 +21,7 @@ type Row = {
   fare: number;
   vehicles: { plate_number: string; driver_name: string | null } | null;
   dispatch_runs: { service_date: string; status: string };
-  bookings: { booking_no: string | null; product_name: string | null; pickup_at: string | null };
+  bookings: { booking_no: string | null; product_name: string | null; pickup_at: string | null; source: string | null };
 };
 
 /** 해당 월 확정 배차를 기사별로 합산하고 원천징수액을 계산 */
@@ -29,13 +29,14 @@ export async function computeSettlement(db: SupabaseClient, month: string, opts:
   const { from, to } = monthRange(month);
   const { data, error } = await db
     .from("dispatch_assignments")
-    .select("driver_id,fare,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at)")
+    .select("driver_id,fare,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at,source)")
     .eq("dispatch_runs.status", "confirmed")
     .gte("dispatch_runs.service_date", from)
     .lte("dispatch_runs.service_date", to)
     .not("vehicle_id", "is", null);
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as Row[];
+  // 기사가 외부에서 직접 받아온 콜은 회사 정산 대상이 아니다
+  const rows = ((data ?? []) as unknown as Row[]).filter((r) => r.bookings?.source !== "driver_own");
 
   const ids = [...new Set(rows.map((r) => r.driver_id).filter((x): x is string => !!x))];
   const { data: drivers } = ids.length

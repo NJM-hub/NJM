@@ -14,7 +14,7 @@ import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, loadSettings } from "@/lib/settings";
-import type { SheetBooking } from "@/lib/kkday/sheet";
+import { OWN_CALL_SOURCE, type SheetBooking } from "@/lib/kkday/sheet";
 import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
 import { saveBookings } from "../upload/actions";
 
@@ -36,6 +36,7 @@ type BookingRow = {
   dropoff_place: string | null;
   pickup_geo: string | null;
   dropoff_geo: string | null;
+  fixed_vehicle_id?: string | null;
 };
 
 type VehicleRow = {
@@ -55,6 +56,7 @@ function toDispatchBooking(b: BookingRow): DispatchBooking {
     minSeats: cls.seats,
     grade: gradeRequired(cls.grade),
     waitMin: b.wait_min,
+    fixedVehicleId: b.fixed_vehicle_id ?? null,
     id: b.id,
     pickupAt: b.pickup_at ? new Date(b.pickup_at).getTime() : null,
     durationMin: b.duration_min,
@@ -133,7 +135,7 @@ export async function runDispatch(formData: FormData) {
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
       .from("bookings")
-      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo")
+      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,fixed_vehicle_id,source")
       .eq("service_date", date),
     supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),
@@ -141,15 +143,21 @@ export async function runDispatch(formData: FormData) {
   if (bErr || vErr) throw new Error(bErr?.message ?? vErr?.message);
   if (!bookings?.length) throw new Error("해당 날짜에 예약이 없습니다. 먼저 일정표를 업로드하세요.");
 
-  // 체크된 차량만 사용 (체크 정보가 없으면 전체 운행 가능 차량)
-  const usable = (vehicles ?? []).filter((v) => vehicleIds.length === 0 || vehicleIds.includes(v.id));
+  // 체크된 차량만 사용 (체크 정보가 없으면 전체 운행 가능 차량). 기사 자체 콜이 있는 차량은 항상 포함
+  const fixedIds = new Set(bookings.map((b) => b.fixed_vehicle_id).filter((v): v is string => !!v));
+  const usable = (vehicles ?? []).filter((v) => vehicleIds.length === 0 || vehicleIds.includes(v.id) || fixedIds.has(v.id));
   if (!usable.length) throw new Error("사용할 차량이 없습니다.");
 
   await fillCoordinates(supabase, bookings, usable);
 
   const result = dispatch(bookings.map(toDispatchBooking), usable.map(toDispatchVehicle), opts);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
-  const fareOf = new Map(bookings.map((b) => [b.id, b.fare ?? settings.fare_per_call]));
+  const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : b.fare ?? settings.fare_per_call]));
+  // 시간이 없는 자체 콜(전세 등)은 동선 계산 없이 그 차량에 붙인다
+  const usableIds = new Set(usable.map((v) => v.id));
+  const fixedUntimed = new Map(
+    bookings.filter((b) => b.fixed_vehicle_id && usableIds.has(b.fixed_vehicle_id) && !b.pickup_at).map((b) => [b.id, b.fixed_vehicle_id!]),
+  );
 
   // 같은 날짜의 이전 초안은 정리
   await supabase.from("dispatch_runs").delete().eq("service_date", date).eq("status", "draft");
@@ -180,17 +188,21 @@ export async function runDispatch(formData: FormData) {
         fare: fareOf.get(s.bookingId) ?? 0,
       })),
     ),
-    ...result.unassigned.map((u) => ({
-      run_id: run.id,
-      booking_id: u.bookingId,
-      vehicle_id: null,
-      driver_id: null,
-      unassigned_reason: u.reason,
-      fare: fareOf.get(u.bookingId) ?? 0,
-    })),
+    ...result.unassigned.map((u) => {
+      const vid = fixedUntimed.get(u.bookingId) ?? null;
+      return {
+        run_id: run.id,
+        booking_id: u.bookingId,
+        vehicle_id: vid,
+        driver_id: vid ? driverOf.get(vid) ?? null : null,
+        unassigned_reason: vid ? null : u.reason,
+        fare: fareOf.get(u.bookingId) ?? 0,
+      };
+    }),
   ];
   const { error: aErr } = await supabase.from("dispatch_assignments").insert(rows);
   if (aErr) throw new Error(aErr.message);
+  if (fixedUntimed.size) await refreshSummary(supabase, run.id);
 
   revalidatePath("/admin/dispatch");
   redirect(`/admin/dispatch?date=${date}&run=${run.id}`);
@@ -323,13 +335,17 @@ export async function unconfirmRun(formData: FormData) {
 }
 
 export type SheetImportResult =
-  | { ok: true; count: number; dates: string[]; assigned: number; external: number; unassigned: number; vehiclesCreated: string[] }
+  | {
+      ok: true; count: number; dates: string[]; assigned: number; external: number; unassigned: number; ownCalls: number;
+      vehiclesCreated: string[];
+    }
   | { ok: false; error: string };
 
 /**
  * 구글 시트 배차표를 그대로 전산에 반영한다.
  * 예약을 저장하고, 시트의 기사/차량(차량번호 뒤 4자리)을 차량 목록과 맞춰(없으면 새로 등록)
  * 날짜별로 시트와 똑같은 배차를 만들어 확정한다. 금액만 적힌 건은 외부 배차로 기록한다.
+ * 표 아래 기사별 칸의 자체 콜은 출처(driver_own)를 달아 그 기사 차량에 고정한다.
  */
 export async function importSheetDispatch(filename: string, rows: SheetBooking[]): Promise<SheetImportResult> {
   const saved = await saveBookings(filename, rows);
@@ -354,17 +370,36 @@ export async function importSheetDispatch(filename: string, rows: SheetBooking[]
   }
   await Promise.all(plan.setDriverName.map((u) => supabase.from("vehicles").update({ driver_name: u.driver_name }).eq("id", u.id)));
 
+  // 기사 자체 콜: 차량 고정, 시트에서 지워진 자체 콜은 삭제
+  const ownSheet = valid.filter((r) => r.source === OWN_CALL_SOURCE && r.bookingNo);
+  const ownByVehicle = new Map<string, string[]>();
+  for (const r of ownSheet) {
+    const vid = vehicleOf.get(sheetVehicleKey(r) ?? "");
+    if (vid) ownByVehicle.set(vid, [...(ownByVehicle.get(vid) ?? []), r.bookingNo!]);
+  }
+  for (const [vid, nos] of ownByVehicle) {
+    const { error } = await supabase.from("bookings").update({ fixed_vehicle_id: vid }).in("booking_no", nos).in("service_date", saved.dates);
+    if (error) return { ok: false, error: error.message };
+  }
+  for (const date of saved.dates) {
+    const keep = ownSheet.filter((r) => r.serviceDate === date).map((r) => r.bookingNo!);
+    let q = supabase.from("bookings").delete().eq("service_date", date).eq("source", OWN_CALL_SOURCE);
+    if (keep.length) q = q.not("booking_no", "in", `(${keep.map((n) => `"${n}"`).join(",")})`);
+    const { error } = await q;
+    if (error) return { ok: false, error: error.message };
+  }
+
   const { data: drivers } = await supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
 
   // 2. 날짜별 배차 만들기
-  const totals = { assigned: 0, external: 0, unassigned: 0 };
+  const totals = { assigned: 0, external: 0, unassigned: 0, ownCalls: 0 };
   for (const date of saved.dates) {
     const sheetRows = valid.filter((r) => r.serviceDate === date);
     const sheetByNo = new Map(sheetRows.filter((r) => r.bookingNo).map((r) => [r.bookingNo!, r]));
     const { data: bookings, error: bErr } = await supabase
       .from("bookings")
-      .select("id,booking_no,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo")
+      .select("id,booking_no,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,source")
       .eq("service_date", date);
     if (bErr || !bookings) return { ok: false, error: bErr?.message ?? "예약을 불러오지 못했습니다." };
 
@@ -389,14 +424,16 @@ export async function importSheetDispatch(filename: string, rows: SheetBooking[]
       const timed = own.map(toDispatchBooking).filter((b) => b.pickupAt != null) as Parameters<typeof simulateRoute>[1];
       // 시트대로 배정하므로 콜 수 제한 없이 동선만 계산 (시간상 무리한 동선이면 순번만 매긴다)
       const stops = simulateRoute(toDispatchVehicle(v), timed, { ...opts, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER });
-      own.forEach((b, i) => {
+      const timedIds = timed.map((b) => b.id);
+      for (const b of own) {
         const s = stops?.find((x) => x.bookingId === b.id);
+        const idx = timedIds.indexOf(b.id);
         rowsOut.push({
-          booking_id: b.id, vehicle_id: v.id, driver_id: driverOf.get(v.id) ?? null, seq: s?.seq ?? i + 1,
+          booking_id: b.id, vehicle_id: v.id, driver_id: driverOf.get(v.id) ?? null, seq: s?.seq ?? (idx >= 0 ? idx + 1 : null),
           ready_at: s ? new Date(s.readyAt).toISOString() : null, deadhead_km: s?.deadheadKm ?? null, deadhead_min: s?.deadheadMin ?? null,
-          unassigned_reason: null, fare: b.fare ?? settings.fare_per_call,
+          unassigned_reason: null, fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : b.fare ?? settings.fare_per_call,
         });
-      });
+      }
     }
     for (const b of bookings) {
       if (vehicleIdOf(b)) continue;
@@ -410,12 +447,14 @@ export async function importSheetDispatch(filename: string, rows: SheetBooking[]
 
     const assigned = rowsOut.filter((r) => r.vehicle_id).length;
     const external = rowsOut.filter((r) => r.unassigned_reason === "EXTERNAL").length;
+    const ownCalls = bookings.filter((b) => b.source === OWN_CALL_SOURCE).length;
     const byReason: Record<string, number> = {};
     for (const r of rowsOut) if (r.unassigned_reason && r.unassigned_reason !== "EXTERNAL") byReason[r.unassigned_reason] = (byReason[r.unassigned_reason] ?? 0) + 1;
     const summary = {
       totalBookings: rowsOut.length,
       assigned,
       external,
+      ownCalls,
       unassigned: rowsOut.length - assigned - external,
       vehiclesUsed: usedIds.length,
       totalDeadheadKm: Math.round(rowsOut.reduce((s, r) => s + (r.deadhead_km ?? 0), 0)),
@@ -425,6 +464,7 @@ export async function importSheetDispatch(filename: string, rows: SheetBooking[]
     totals.assigned += assigned;
     totals.external += external;
     totals.unassigned += summary.unassigned;
+    totals.ownCalls += ownCalls;
 
     // 시트가 최종 배차이므로 확정본으로 만든다 (기존 확정본은 초안으로 남기고, 이전 초안은 정리)
     await supabase.from("dispatch_runs").delete().eq("service_date", date).eq("status", "draft");

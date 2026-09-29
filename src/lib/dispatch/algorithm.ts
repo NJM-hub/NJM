@@ -15,6 +15,8 @@ export type DispatchBooking = {
   grade?: string | null;
   /** 픽업 장소 도착 후 최대 대기 시간 (분). 차량은 이 시간까지 묶여 있다고 본다 */
   waitMin?: number | null;
+  /** 이 차량에 고정 (기사가 직접 받아온 콜 등). 다른 차량으로 옮기지 않는다 */
+  fixedVehicleId?: string | null;
 };
 
 export type DispatchVehicle = {
@@ -217,6 +219,7 @@ function apply(ins: { state: State; bookings: Timed[]; stops: Stop[] }, opts: Di
  * 실패하면 상태를 원래대로 되돌린다.
  */
 function tryRelocate(states: State[], u: Timed, opts: DispatchOptions, depth: number, locked: Set<string>): boolean {
+  if (u.fixedVehicleId) return false;
   if (depth <= 0) return false;
   for (const st of states) {
     if (!canServe(st.vehicle, u)) continue;
@@ -250,9 +253,24 @@ function classify(states: State[], u: Timed, opts: DispatchOptions): UnassignedR
   return "TIME_CONFLICT";
 }
 
+/**
+ * 고정 콜이 들어 있는 차량의 초기 경로. 고정 콜끼리 시간이 맞지 않아도 그대로 두고
+ * (순번만 매기고 이동 정보는 비움), 그 차량에는 더 넣을 수 없게 된다.
+ */
+function fixedState(v: DispatchVehicle, fixed: Timed[], opts: DispatchOptions): State {
+  const bookings = fixed.filter((b) => b.fixedVehicleId === v.id).sort((x, y) => x.pickupAt - y.pickupAt);
+  if (!bookings.length) return { vehicle: v, bookings: [], stops: [], cost: 0 };
+  const stops =
+    simulateRoute(v, bookings, { ...opts, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER }) ??
+    bookings.map((b, i) => ({
+      bookingId: b.id, seq: i + 1, deadheadKm: null, deadheadMin: 0, readyAt: b.pickupAt, pickupAt: b.pickupAt, endAt: endOf(b, opts),
+    }));
+  return { vehicle: v, bookings, stops, cost: routeCost(stops, opts) };
+}
+
 /** 주어진 순서대로 한 번 배정하고 보정까지 수행 */
-function solveOnce(order: Timed[], vehicles: DispatchVehicle[], opts: DispatchOptions) {
-  const states: State[] = vehicles.map((v) => ({ vehicle: v, bookings: [], stops: [], cost: 0 }));
+function solveOnce(order: Timed[], vehicles: DispatchVehicle[], opts: DispatchOptions, fixed: Timed[] = []) {
+  const states: State[] = vehicles.map((v) => fixedState(v, fixed, opts));
   const pending: Timed[] = [];
   for (const b of order) {
     const ins = bestInsertion(states, b, opts);
@@ -263,7 +281,7 @@ function solveOnce(order: Timed[], vehicles: DispatchVehicle[], opts: DispatchOp
   for (const u of pending) {
     const ins = bestInsertion(states, u, opts);
     if (ins) apply(ins, opts);
-    else if (!tryRelocate(states, u, opts, 2, new Set())) rest.push(u);
+    else if (!tryRelocate(states, u, opts, 2, new Set(fixed.map((b) => b.id)))) rest.push(u);
   }
   const cost = states.reduce((n, s) => n + s.cost, 0);
   return { states, rest, cost };
@@ -291,9 +309,13 @@ export function dispatch(
   const unassigned: Unassigned[] = [];
 
   const timed: Timed[] = [];
+  const fixed: Timed[] = [];
+  const vehicleIds = new Set(vehicles.map((v) => v.id));
   for (const b of bookings) {
     if (b.pickupAt == null || Number.isNaN(b.pickupAt)) {
       unassigned.push({ bookingId: b.id, reason: "MISSING_TIME" });
+    } else if (b.fixedVehicleId && vehicleIds.has(b.fixedVehicleId)) {
+      fixed.push(b as Timed);
     } else {
       timed.push(b as Timed);
     }
@@ -317,11 +339,11 @@ export function dispatch(
   }
 
   const deadline = Date.now() + opts.timeBudgetMs;
-  let best = solveOnce(orders[0], vehicles, opts);
+  let best = solveOnce(orders[0], vehicles, opts, fixed);
   for (const [i, order] of orders.entries()) {
     if (i === 0) continue;
     if (i >= 3 && Date.now() > deadline) break;
-    const r = solveOnce(order, vehicles, opts);
+    const r = solveOnce(order, vehicles, opts, fixed);
     if (r.rest.length < best.rest.length || (r.rest.length === best.rest.length && r.cost < best.cost - 1e-9)) best = r;
   }
 

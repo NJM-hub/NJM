@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { reasonLabel } from "@/lib/dispatch/reasons";
+import { OWN_CALL_SOURCE } from "@/lib/kkday/sheet";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { confirmRun, moveAssignment, runDispatch, unconfirmRun } from "./actions";
@@ -28,6 +29,7 @@ type Booking = {
   dropoff_lat: number | null;
   pickup_geo: string | null;
   dropoff_geo: string | null;
+  source: string | null;
 };
 
 type Assignment = {
@@ -65,7 +67,7 @@ export default async function DispatchPage({
   const { data: assignmentsRaw } = run
     ? await supabase
         .from("dispatch_assignments")
-        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,fare,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min,trip_type,dropoff_lat,pickup_geo,dropoff_geo)")
+        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,fare,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min,trip_type,dropoff_lat,pickup_geo,dropoff_geo,source)")
         .eq("run_id", run.id)
     : { data: [] };
   const assignments = (assignmentsRaw ?? []) as unknown as Assignment[];
@@ -74,7 +76,8 @@ export default async function DispatchPage({
 
   const vehicleName = new Map((vehicles ?? []).map((v) => [v.id, `${v.plate_number} (${v.grade ?? "이코노미"} ${v.seats}인승${v.model ? ` ${v.model}` : ""})`]));
   const place = (addr: string | null, name: string | null) => name ?? addr ?? "?";
-  const tag = (b: Booking) => (tripLabel(b.trip_type) ? `[${tripLabel(b.trip_type)!.label}] ` : "");
+  const tag = (b: Booking) =>
+    `${b.source === OWN_CALL_SOURCE ? "[자체] " : ""}${tripLabel(b.trip_type) ? `[${tripLabel(b.trip_type)!.label}] ` : ""}`;
   const driverOfVehicle = new Map((drivers ?? []).map((d) => [d.vehicle_id, d]));
   // 기사 계정이 연결되지 않은 차량은 차량에 적어둔 기사 이름을 보여준다
   const driverNameOfVehicle = new Map((vehicles ?? []).filter((v) => v.driver_name).map((v) => [v.id, v.driver_name as string]));
@@ -87,6 +90,7 @@ export default async function DispatchPage({
     vehicleId: vid,
     items: assignments.filter((a) => a.vehicle_id === vid).sort(byPickup),
   }));
+  const ownCalls = assignments.filter((a) => a.bookings.source === OWN_CALL_SOURCE).sort(byPickup);
   const external = assignments.filter((a) => !a.vehicle_id && a.unassigned_reason === "EXTERNAL").sort(byPickup);
   const unassigned = assignments.filter((a) => !a.vehicle_id && a.unassigned_reason !== "EXTERNAL").sort(byPickup);
   const maxCalls: number = run?.options?.maxCallsPerVehicle ?? 4;
@@ -184,6 +188,7 @@ export default async function DispatchPage({
             <Stat label="전체" value={summary.totalBookings ?? assignments.length} />
             <Stat label="배차 완료" value={summary.assigned ?? 0} />
             {external.length > 0 && <Stat label="외부 배차" value={external.length} />}
+            {ownCalls.length > 0 && <Stat label="기사 자체 콜" value={ownCalls.length} />}
             <Stat label="배차 불가" value={unassigned.length} danger={unassigned.length > 0} />
             <Stat label="사용 차량" value={summary.vehiclesUsed ?? 0} />
             <Stat label="공차 이동(추정)" value={`${summary.totalDeadheadKm ?? 0}km`} />
@@ -225,6 +230,24 @@ export default async function DispatchPage({
                 외부(타업체) 배차 ({external.length}건 · {won(external.reduce((s, a) => s + (a.fare ?? 0), 0))})
               </h2>
               <AssignmentTable items={external} vehicles={vehicles ?? []} editable={editable} showReason />
+            </div>
+          )}
+
+          {ownCalls.length > 0 && (
+            <div className="card border-violet-200">
+              <h2 className="mb-1 font-semibold text-violet-800">기사 자체 콜 ({ownCalls.length}건)</h2>
+              <p className="mb-2 text-xs text-gray-500">
+                기사님이 외부에서 직접 받아온 콜입니다. 해당 차량에 고정되어 자동 배차 때 다른 예약이 이 시간을 피해 배정되며, 기사 정산에는 포함되지 않습니다.
+              </p>
+              <ul className="space-y-1 text-sm">
+                {ownCalls.map((a) => (
+                  <li key={a.id} className="flex flex-wrap gap-2">
+                    <span className="w-12 font-semibold">{a.bookings.pickup_at ? fmtTime(a.bookings.pickup_at) : "시간?"}</span>
+                    <span className="w-40 text-gray-600">{a.vehicle_id ? `${vehicleName.get(a.vehicle_id)?.split(" ")[0] ?? ""} ${driverLabel(a.vehicle_id) ?? ""}` : "미배정"}</span>
+                    <span>{a.bookings.memo}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -307,8 +330,9 @@ function AssignmentTable({
                 </td>
                 <td>
                   <div className="font-medium">
+                    {b.source === OWN_CALL_SOURCE && <span className="badge mr-1 bg-violet-100 text-violet-800">자체 콜</span>}
                     {trip && <span className={`badge mr-1 ${trip.className}`}>{trip.label}</span>}
-                    {b.customer_name ?? b.booking_no} <span className="text-gray-500">{b.pax}명</span>
+                    {b.source === OWN_CALL_SOURCE ? b.memo : <>{b.customer_name ?? b.booking_no} <span className="text-gray-500">{b.pax}명</span></>}
                   </div>
                   <div className="text-xs text-gray-500">{b.customer_name ? b.booking_no : ""} {b.vehicle_class ?? b.product_name}</div>
                   {b.flight_no && <div className="text-xs text-gray-500">✈ {b.flight_no}</div>}

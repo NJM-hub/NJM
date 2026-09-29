@@ -13,6 +13,27 @@ function booking(id: string, hour: number, extra: Partial<DispatchBooking> = {})
 const car = (id: string, seats = 4): DispatchVehicle => ({ id, seats, base: seoul });
 
 describe("dispatch", () => {
+  it("고정 콜(기사 자체 콜)은 그 차량에 두고, 다른 예약은 피해서 배정한다", () => {
+    const res = dispatch(
+      [booking("own", 1, { fixedVehicleId: "v2" }), booking("a", 1), booking("b", 4)],
+      [car("v1"), car("v2")],
+    );
+    const of = (id: string) => res.routes.find((r) => r.stops.some((s) => s.bookingId === id))?.vehicleId;
+    expect(of("own")).toBe("v2");
+    expect(of("a")).toBe("v1");
+    expect(res.summary.assigned).toBe(3);
+  });
+
+  it("고정 콜끼리 시간이 겹쳐도 그 차량에 그대로 둔다", () => {
+    const res = dispatch(
+      [booking("x", 1, { fixedVehicleId: "v1" }), booking("y", 1, { fixedVehicleId: "v1" }), booking("z", 1)],
+      [car("v1"), car("v2")],
+    );
+    const v1 = res.routes.find((r) => r.vehicleId === "v1")!;
+    expect(v1.stops.map((s) => s.bookingId).sort()).toEqual(["x", "y"]);
+    expect(res.routes.find((r) => r.vehicleId === "v2")!.stops.map((s) => s.bookingId)).toEqual(["z"]);
+  });
+
   it("차량당 최대 4콜까지만 배정한다", () => {
     const bookings = Array.from({ length: 10 }, (_, i) => booking(`b${i}`, i * 2));
     const res = dispatch(bookings, [car("v1"), car("v2")]);
