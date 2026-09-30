@@ -35,3 +35,6 @@ export default async function UploadPage() {
     </div>
   );
 }
+
+// 시트 가져오기는 주소 → 좌표 변환까지 하므로 시간이 걸릴 수 있다
+export const maxDuration = 60;

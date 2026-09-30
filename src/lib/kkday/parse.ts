@@ -130,6 +130,8 @@ export type ParsedBooking = {
   dropoffLng: number | null;
   raw: Record<string, string>;
   warnings: string[];
+  /** 예약 출처. 기사가 외부에서 직접 받아온 콜은 "driver_own" */
+  source?: string | null;
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");

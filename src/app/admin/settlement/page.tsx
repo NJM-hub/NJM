@@ -68,7 +68,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
           </thead>
           <tbody>
             {list.map((d) => (
-              <tr key={d.driverId ?? "none"}>
+              <tr key={d.driverId ?? d.name}>
                 <td>
                   <details>
                     <summary className="cursor-pointer font-medium">{d.name}</summary>
