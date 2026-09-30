@@ -26,6 +26,7 @@ export default async function SettingsPage() {
       <section className="card grid gap-4 sm:grid-cols-2">
         <h2 className="font-semibold sm:col-span-2">정산 · 세무</h2>
         <F name="fare_per_call" label="콜당 기사 지급액(원)" value={s.fare_per_call} help="일정표에 기사 지급액 컬럼이 있으면 그 값 우선" />
+        <F name="own_call_fee" label="외부오더(자체 콜) 1건당 차감액(원)" value={s.own_call_fee ?? 15000} help="차량별 월정산에서 기사가 직접 받은 콜마다 빼는 금액" />
         <F name="business_code" label="업종코드 (간이지급명세서)" value={s.business_code} help="기본 940909(기타자영업). 세무사와 확인 후 변경" />
         <F name="income_tax_rate_pct" label="소득세율(%)" value={s.income_tax_rate * 100} step="0.1" />
         <F name="local_tax_rate_pct" label="지방소득세(소득세 대비 %)" value={s.local_tax_rate * 100} step="1" />

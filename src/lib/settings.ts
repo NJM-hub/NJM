@@ -16,6 +16,8 @@ export type AppSettings = {
   business_code: string;
   company_name: string | null;
   company_brn: string | null;
+  /** 외부오더(기사 자체 콜) 1건당 차감액 */
+  own_call_fee: number;
 };
 
 export async function loadSettings(db: SupabaseClient): Promise<AppSettings> {

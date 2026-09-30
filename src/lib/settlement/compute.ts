@@ -19,6 +19,7 @@ export type DriverSettlement = Withholding & {
 type Row = {
   driver_id: string | null;
   fare: number;
+  settle_amount: number | null;
   vehicles: { plate_number: string; driver_name: string | null } | null;
   dispatch_runs: { service_date: string; status: string };
   bookings: { booking_no: string | null; product_name: string | null; pickup_at: string | null; source: string | null };
@@ -29,14 +30,17 @@ export async function computeSettlement(db: SupabaseClient, month: string, opts:
   const { from, to } = monthRange(month);
   const { data, error } = await db
     .from("dispatch_assignments")
-    .select("driver_id,fare,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at,source)")
+    .select("driver_id,fare,settle_amount,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at,source)")
     .eq("dispatch_runs.status", "confirmed")
     .gte("dispatch_runs.service_date", from)
     .lte("dispatch_runs.service_date", to)
     .not("vehicle_id", "is", null);
   if (error) throw new Error(error.message);
   // 기사가 외부에서 직접 받아온 콜은 회사 정산 대상이 아니다
-  const rows = ((data ?? []) as unknown as Row[]).filter((r) => r.bookings?.source !== "driver_own");
+  // 기사가 외부에서 직접 받은 콜은 회사 지급 대상이 아니다. 차량별 월정산에서 금액을 고친 건은 그 금액으로
+  const rows = ((data ?? []) as unknown as Row[])
+    .filter((r) => r.bookings?.source !== "driver_own")
+    .map((r) => ({ ...r, fare: r.settle_amount ?? r.fare }));
 
   const ids = [...new Set(rows.map((r) => r.driver_id).filter((x): x is string => !!x))];
   const { data: drivers } = ids.length
