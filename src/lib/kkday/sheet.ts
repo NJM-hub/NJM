@@ -63,7 +63,12 @@ export function findDispatchSheetHeader(rows: Cell[][]): number {
 
 /** 기사 칸에 "100%取消" 처럼 취소 표시가 있으면 취소된 예약 */
 export function isCancelledCell(c: Cell): boolean {
-  return /取消|취소|cancel/i.test(String(c ?? ""));
+  // 퍼센트 서식 셀(100% → 1, 50% → 0.5)은 취소 수수료 비율 표시
+  if (typeof c === "number") return c > 0 && c <= 1;
+  const s = String(c ?? "").trim();
+  if (/^(0?\.\d+|1(\.0+)?)$/.test(s)) return true;
+  // "100%", "50%", "USD 20.38 (50%)" 처럼 비율만 적힌 칸도 취소 (금액만 적힌 외부 콜과 구분)
+  return /取消|취소|cancel/i.test(s) || /\d+(\.\d+)?\s*%/.test(s);
 }
 
 /** "金基峰9763" → 차량 배차, "55000" → 외부 콜, 빈칸 → null */
@@ -74,6 +79,9 @@ export function parseDriverCell(c: Cell): SheetDriver | null {
   if (/^\d+$/.test(amount) && Number(amount) >= 1000) return { kind: "external", fare: Number(amount), label: s };
   const m = s.match(/^(.*?)\s*(?<!\d)(\d{4})$/);
   if (m) return { kind: "vehicle", driverName: m[1].trim() || null, plateSuffix: m[2], label: s };
+  // "9772 Henry" 처럼 차량번호 뒤 4자리가 앞에 오는 경우
+  const f = s.match(/^(\d{4})(?!\d)\s*(.*)$/);
+  if (f) return { kind: "vehicle", driverName: f[2].trim() || null, plateSuffix: f[1], label: s };
   return { kind: "vehicle", driverName: s, plateSuffix: null, label: s };
 }
 
