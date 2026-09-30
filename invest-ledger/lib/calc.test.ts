@@ -16,7 +16,7 @@ describe("회수 계산", () => {
   });
 
   it("만기일 = 시작일 + 기간 - 1", () => {
-    expect(defaultStartOn("2026-09-29")).toBe("2026-09-30");
+    expect(defaultStartOn("2026-09-29")).toBe("2026-09-29");
     expect(maturityOn("2026-09-30", 100)).toBe("2027-01-07");
     expect(diffDays("2026-09-30", "2027-01-07") + 1).toBe(100);
   });

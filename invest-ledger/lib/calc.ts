@@ -6,9 +6,9 @@ export function expectedTotal(principal: number, ratePercent: number): number {
   return Math.round(principal * (1 + ratePercent / 100));
 }
 
-/** 회수 시작일 기본값: 투자 실행일 다음 날 */
+/** 회수 시작일 기본값: 투자 실행일과 같은 날 */
 export function defaultStartOn(executedOn: string): string {
-  return addDays(executedOn, 1);
+  return executedOn;
 }
 
 /** 회수 만기일 = 시작일 + 회수기간 - 1 (예: 100일이면 시작일 포함 100일째 되는 날) */
