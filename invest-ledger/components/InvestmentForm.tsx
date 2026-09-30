@@ -271,7 +271,7 @@ export default function InvestmentForm({ action, customers, initial, today, subm
             <label className="label" htmlFor="start_on">회수 시작일 *</label>
             <input id="start_on" name="start_on" type="date" className={cls("start_on")}
               value={v.startOn} onChange={(e) => setV((prev) => withMaturity({ ...prev, startOn: e.target.value }))} />
-            <p className="hint">기본값: 실행일 다음 날</p>
+            <p className="hint">기본값: 투자 실행일과 같은 날</p>
             {err("start_on")}
           </div>
           <div>
