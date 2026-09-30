@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { href: "/stats", label: "월별 통계", ready: true },
   { href: "/customers", label: "고객 관리", ready: true },
   { href: "/users", label: "사용자 관리", ready: true, admin: true },
+  { href: "/backup", label: "백업", ready: true, admin: true },
 ];
 
 function isActive(pathname: string, href: string) {

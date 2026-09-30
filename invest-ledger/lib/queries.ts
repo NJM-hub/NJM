@@ -70,7 +70,7 @@ export async function getRepayments(investmentId: string): Promise<Repayment[]> 
 
 // ─────────────────────── 대시보드·통계용 ───────────────────────
 // Supabase 는 한 번에 최대 1,000행까지 돌려주므로 나눠서 모두 가져온다.
-async function fetchAll<T>(
+export async function fetchAll<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
   what: string,
 ): Promise<T[]> {
