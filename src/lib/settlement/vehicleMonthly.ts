@@ -26,6 +26,8 @@ export type VehicleMonthRow = {
   memo?: string | null;
   /** 금액을 손으로 고쳤는지 */
   edited?: boolean;
+  /** 정산에 직접 추가한 항목이면 그 출처 (TALIXO, 기타 등) */
+  manualSource?: string | null;
 };
 
 export type DayCount = { pickup: number; sending: number; other: number; own: number; amount: number };
@@ -60,10 +62,10 @@ export function tripKind(tripType: string | null): TripKind {
 }
 
 /** 엑셀 정산표의 "인아웃" 표기 */
-export function inOutLabel(r: Pick<VehicleMonthRow, "tripType" | "source">): string {
+export function inOutLabel(r: Pick<VehicleMonthRow, "tripType" | "source" | "manualSource">): string {
   if (r.source === OWN_CALL) return "외부오더";
   const k = tripKind(r.tripType);
-  return k === "pickup" ? "픽업" : k === "sending" ? "샌딩" : r.tripType ?? "기타";
+  return k === "pickup" ? "픽업" : k === "sending" ? "샌딩" : r.tripType ?? r.manualSource ?? "기타";
 }
 
 const empty = (): DayCount => ({ pickup: 0, sending: 0, other: 0, own: 0, amount: 0 });
@@ -81,7 +83,8 @@ export function summarizeVehicleMonth(rows: VehicleMonthRow[]): VehicleMonth[] {
     const d = v.days.get(r.serviceDate) ?? empty();
     v.days.set(r.serviceDate, d);
     if (r.source === OWN_CALL) d.own++;
-    else d[tripKind(r.tripType)]++;
+    // 직접 추가한 가감 항목(픽업/샌딩이 아닌 것)은 운행 건수에 넣지 않고 금액만 더한다
+    else if (!(r.manualSource && tripKind(r.tripType) === "other")) d[tripKind(r.tripType)]++;
     d.amount += r.amount ?? 0;
   }
 

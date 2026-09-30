@@ -4,7 +4,7 @@ import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
 import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
-import { saveAmounts, saveExpenses } from "./actions";
+import { addManualItem, deleteManualItem, saveAmounts, saveExpenses, setSettlementStatus } from "./actions";
 
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -68,9 +68,14 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
           </select>
         </div>
         <button className="btn-secondary">조회</button>
-        <a className="btn ml-auto" href={`/admin/vehicle-settlement/export?month=${month}${selected ? `&v=${selected.vehicleId}` : ""}`}>
-          {selected ? `${selected.plate} 정산표 다운로드` : "전체 요약 다운로드"}
-        </a>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {selected ? (
+            <a className="btn" href={`/admin/vehicle-settlement/xlsx?month=${month}&v=${selected.vehicleId}`}>{selected.plate} 정산서 엑셀</a>
+          ) : (
+            <a className="btn" href={`/admin/vehicle-settlement/xlsx?month=${month}`}>전체 차량 정산서 엑셀</a>
+          )}
+          <a className="btn-secondary" href={`/admin/vehicle-settlement/export?month=${month}${selected ? `&v=${selected.vehicleId}` : ""}`}>CSV</a>
+        </div>
       </form>
 
       {report.draftOnlyDates.length > 0 && (
@@ -116,6 +121,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                   <Link href={`/admin/vehicle-settlement?month=${report.month}&v=${v.vehicleId}`} className="font-medium text-blue-700 hover:underline">
                     {vehicleTitle(v.plate, v.driverName)}
                   </Link>
+                  {v.status === "confirmed" && <span className="badge ml-2 bg-green-100 text-green-800">확정</span>}
                 </td>
                 <td className="text-right">{v.total.workDays}일</td>
                 <CountCells c={v.total} />
@@ -183,12 +189,34 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
   const [, mon] = report.month.split("-").map(Number);
   const p = v.payout;
   const ex = v.expenses;
+  const locked = v.status === "confirmed";
+  const ids = (
+    <>
+      <input type="hidden" name="month" value={report.month} />
+      <input type="hidden" name="vehicleId" value={v.vehicleId} />
+    </>
+  );
   return (
     <>
-      <div className="flex flex-wrap items-baseline gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-xl font-bold">{[report.companyName, `${mon}월`].filter(Boolean).join(" ")} — {vehicleTitle(v.plate, v.driverName)}</h2>
+        <span className={`badge ${locked ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}`}>
+          {locked ? `확정${v.confirmedAt ? ` (${v.confirmedAt.slice(5, 10).replace("-", "/")})` : ""}` : "작성 중"}
+        </span>
         <Link href={`/admin/vehicle-settlement?month=${report.month}`} className="text-sm text-blue-700 hover:underline">← 전체 차량</Link>
+        <form action={setSettlementStatus} className="ml-auto">
+          {ids}
+          <input type="hidden" name="status" value={locked ? "draft" : "confirmed"} />
+          <SubmitButton className={locked ? "btn-secondary" : "btn"}>{locked ? "확정 해제" : "정산 확정"}</SubmitButton>
+        </form>
       </div>
+      {locked ? (
+        <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+          확정된 정산입니다. 금액·비용·항목이 잠겨 있고, 기사 화면에 이 내역이 보입니다. 고치려면 &quot;확정 해제&quot;를 누르세요.
+        </p>
+      ) : (
+        <p className="text-sm text-gray-500">금액·비용을 확인한 뒤 &quot;정산 확정&quot;을 누르면 잠기고 기사 화면에 정산서가 표시됩니다.</p>
+      )}
 
       {/* 정산 계산 */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -206,9 +234,8 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         </div>
         <form action={saveExpenses} className="card space-y-3">
           <h3 className="font-semibold">{mon}월 비용 {!ex && <span className="text-sm font-normal text-amber-600">(미입력)</span>}</h3>
-          <input type="hidden" name="month" value={report.month} />
-          <input type="hidden" name="vehicleId" value={v.vehicleId} />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {ids}
+          <fieldset disabled={locked} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {(Object.keys(EXPENSE_LABELS) as (keyof typeof EXPENSE_LABELS)[]).map((k) => (
               <div key={k}>
                 <label className="label" htmlFor={k}>{EXPENSE_LABELS[k]}</label>
@@ -219,8 +246,8 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
               <label className="label" htmlFor="memo">메모</label>
               <input id="memo" name="memo" defaultValue={ex?.memo ?? ""} placeholder="예: 8/9 과태료 3만2천" className="input" />
             </div>
-          </div>
-          <SubmitButton>비용 저장</SubmitButton>
+          </fieldset>
+          {!locked && <SubmitButton>비용 저장</SubmitButton>}
         </form>
       </div>
 
@@ -260,10 +287,13 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
 
       {/* 건별 내역 (엑셀 정산표와 같은 순서) */}
       <form action={saveAmounts} className="card space-y-3">
+        {ids}
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="font-semibold">건별 내역 ({v.rows.length}건)</h3>
-          <p className="text-xs text-gray-500">금액을 고친 뒤 저장하세요. 칸을 비우면 기본값(배차 지급액, 외부오더는 −{won(report.ownCallFee)})으로 돌아갑니다.</p>
-          <SubmitButton className="ml-auto">금액 저장</SubmitButton>
+          <p className="text-xs text-gray-500">
+            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −{won(report.ownCallFee)}).
+          </p>
+          {!locked && <SubmitButton className="ml-auto">금액 저장</SubmitButton>}
         </div>
         <div className="overflow-x-auto">
           <table className="table">
@@ -274,8 +304,14 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
               {v.rows.map((r) => {
                 const own = r.source === OWN_CALL;
                 return (
-                  <tr key={r.id} className={own ? "bg-violet-50" : ""}>
-                    <td className="whitespace-nowrap text-xs">{own ? "외부오더" : r.bookingNo}</td>
+                  <tr key={r.id} className={own ? "bg-violet-50" : r.manualSource ? "bg-sky-50" : ""}>
+                    <td className="whitespace-nowrap text-xs">
+                      {own ? "외부오더" : r.bookingNo}
+                      {r.manualSource && <span className="badge ml-1 bg-sky-100 text-sky-800">직접 추가</span>}
+                      {r.manualSource && !locked && (
+                        <button formAction={deleteManualItem} name="itemId" value={r.id} className="ml-1 text-red-600 hover:underline">삭제</button>
+                      )}
+                    </td>
                     <td className="text-xs">{r.flightNo}</td>
                     <td className="whitespace-nowrap">{inOutLabel(r)}</td>
                     <td className="whitespace-nowrap">{dayLabel(r.serviceDate)}</td>
@@ -290,6 +326,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                         type="number"
                         step="1000"
                         defaultValue={r.amount}
+                        disabled={locked}
                         className={`input !w-28 !py-1 text-right ${r.edited ? "border-blue-400 bg-blue-50" : ""} ${r.amount < 0 ? "text-red-600" : ""}`}
                       />
                     </td>
@@ -305,8 +342,39 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
             </tfoot>
           </table>
         </div>
-        <div className="flex justify-end"><SubmitButton>금액 저장</SubmitButton></div>
+        {!locked && <div className="flex justify-end"><SubmitButton>금액 저장</SubmitButton></div>}
       </form>
+
+      {/* 배차에 없는 콜 직접 추가 (TALIXO 등) */}
+      {!locked && (
+        <form action={addManualItem} className="card space-y-3">
+          {ids}
+          <h3 className="font-semibold">
+            항목 직접 추가 <span className="text-sm font-normal text-gray-500">TALIXO 등 다른 플랫폼 콜, 기타 가감(음수 가능)</span>
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            <input name="work_date" type="date" required defaultValue={`${report.month}-01`} min={`${report.month}-01`} max={`${report.month}-31`} className="input" />
+            <input name="work_time" placeholder="시간 (08:30)" className="input" />
+            <select name="source" defaultValue="TALIXO" className="input">
+              <option>TALIXO</option>
+              <option>KKday</option>
+              <option>기타</option>
+            </select>
+            <select name="trip_type" defaultValue="공항 픽업" className="input">
+              <option value="공항 픽업">픽업</option>
+              <option value="공항 샌딩">샌딩</option>
+              <option value="">기타 (가감)</option>
+            </select>
+            <input name="ref_no" placeholder="주문번호" className="input" />
+            <input name="flight_no" placeholder="항공편" className="input" />
+            <input name="vehicle_class" placeholder="차량스펙 (Business VAN 등)" className="input" />
+            <input name="pax" type="number" min={1} placeholder="인원" className="input" />
+            <input name="memo" placeholder="비고 (고객명 등)" className="input sm:col-span-2" />
+            <input name="amount" required inputMode="numeric" placeholder="금액 (예: 40000, -15000)" className="input sm:col-span-2" />
+          </div>
+          <SubmitButton>추가</SubmitButton>
+        </form>
+      )}
     </>
   );
 }

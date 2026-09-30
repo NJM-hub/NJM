@@ -13,7 +13,8 @@ import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
-import { dispatchOptionsOf, loadSettings } from "@/lib/settings";
+import { dispatchOptionsOf, fareRulesOf, loadSettings } from "@/lib/settings";
+import { fareFor } from "@/lib/settlement/fare";
 import { OWN_CALL_SOURCE, type SheetBooking } from "@/lib/kkday/sheet";
 import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
 import { saveBookings } from "../upload/actions";
@@ -37,6 +38,7 @@ type BookingRow = {
   pickup_geo: string | null;
   dropoff_geo: string | null;
   fixed_vehicle_id?: string | null;
+  memo?: string | null;
 };
 
 type VehicleRow = {
@@ -135,7 +137,7 @@ export async function runDispatch(formData: FormData) {
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
       .from("bookings")
-      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,fixed_vehicle_id,source")
+      .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,fixed_vehicle_id,source,memo")
       .eq("service_date", date),
     supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),
@@ -152,7 +154,8 @@ export async function runDispatch(formData: FormData) {
 
   const result = dispatch(bookings.map(toDispatchBooking), usable.map(toDispatchVehicle), opts);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
-  const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : b.fare ?? settings.fare_per_call]));
+  const rules = fareRulesOf(settings);
+  const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)]));
   // 시간이 없는 자체 콜(전세 등)은 동선 계산 없이 그 차량에 붙인다
   const usableIds = new Set(usable.map((v) => v.id));
   const fixedUntimed = new Map(
@@ -408,7 +411,7 @@ export async function importSheetDispatch(
     const sheetByNo = new Map(sheetRows.filter((r) => r.bookingNo).map((r) => [r.bookingNo!, r]));
     const { data: bookings, error: bErr } = await supabase
       .from("bookings")
-      .select("id,booking_no,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,source")
+      .select("id,booking_no,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,source,memo")
       .eq("service_date", date);
     if (bErr || !bookings) return { ok: false, error: bErr?.message ?? "예약을 불러오지 못했습니다." };
 
@@ -440,7 +443,7 @@ export async function importSheetDispatch(
         rowsOut.push({
           booking_id: b.id, vehicle_id: v.id, driver_id: driverOf.get(v.id) ?? null, seq: s?.seq ?? (idx >= 0 ? idx + 1 : null),
           ready_at: s ? new Date(s.readyAt).toISOString() : null, deadhead_km: s?.deadheadKm ?? null, deadhead_min: s?.deadheadMin ?? null,
-          unassigned_reason: null, fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : b.fare ?? settings.fare_per_call,
+          unassigned_reason: null, fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, fareRulesOf(settings)),
         });
       }
     }
@@ -450,7 +453,7 @@ export async function importSheetDispatch(
       const reason = d === undefined ? "NOT_IN_SHEET" : d?.kind === "external" ? "EXTERNAL" : "SHEET_EMPTY";
       rowsOut.push({
         booking_id: b.id, vehicle_id: null, driver_id: null, seq: null, ready_at: null, deadhead_km: null, deadhead_min: null,
-        unassigned_reason: reason, fare: d?.kind === "external" ? d.fare : b.fare ?? settings.fare_per_call,
+        unassigned_reason: reason, fare: d?.kind === "external" ? d.fare : fareFor(b, fareRulesOf(settings)),
       });
     }
 

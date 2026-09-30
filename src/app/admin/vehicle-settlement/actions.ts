@@ -2,20 +2,36 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth";
 import { isMonth } from "@/lib/format";
-import { EXPENSE_LABELS } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel } from "@/lib/settlement/vehicleMonthly";
+import { loadVehicleMonth, MANUAL_PREFIX } from "@/lib/settlement/vehicleMonthlyLoad";
+
+type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
 
 const won = (v: FormDataEntryValue | null) => {
   const n = Number(String(v ?? "").replace(/[,\s원]/g, "") || 0);
   if (!Number.isFinite(n) || Math.abs(n) > 1_000_000_000) throw new Error("금액이 올바르지 않습니다.");
   return Math.round(n);
 };
+const text = (v: FormDataEntryValue | null) => String(v ?? "").trim() || null;
+
+function target(formData: FormData) {
+  const month = String(formData.get("month"));
+  const vehicleId = String(formData.get("vehicleId"));
+  if (!isMonth(month) || !vehicleId) throw new Error("정산 월/차량이 올바르지 않습니다.");
+  return { month, vehicleId };
+}
+
+/** 확정된 정산은 수정할 수 없다 */
+async function assertUnlocked(db: Db, month: string, vehicleId: string) {
+  const { data } = await db.from("vehicle_month_expenses").select("status").eq("month", month).eq("vehicle_id", vehicleId).maybeSingle();
+  if (data?.status === "confirmed") throw new Error("확정된 정산입니다. 수정하려면 먼저 확정을 해제하세요.");
+}
 
 /** 차량 월 비용 (주유·과태료·통행료·엔진오일·기타) */
 export async function saveExpenses(formData: FormData) {
   const { supabase } = await assertAdmin();
-  const month = String(formData.get("month"));
-  const vehicleId = String(formData.get("vehicleId"));
-  if (!isMonth(month) || !vehicleId) throw new Error("정산 월/차량이 올바르지 않습니다.");
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
   const row: Record<string, unknown> = { vehicle_id: vehicleId, month, updated_at: new Date().toISOString() };
   for (const k of Object.keys(EXPENSE_LABELS)) row[k] = won(formData.get(k));
   row.memo = String(formData.get("memo") ?? "").trim() || null;
@@ -25,11 +41,13 @@ export async function saveExpenses(formData: FormData) {
 }
 
 /**
- * 건별 정산 금액 수정. 폼에는 amount_<배정id> 와 원래 값 orig_<배정id> 가 있고, 바뀐 것만 저장한다.
- * 비우면 기본값(배차 지급액, 외부오더는 −차감액)으로 되돌린다.
+ * 건별 정산 금액 수정. 폼에는 amount_<id> 와 원래 값 orig_<id> 가 있고, 바뀐 것만 저장한다.
+ * 배차 건은 비우면 기본값(콜 금액 규칙, 외부오더는 −차감액)으로 되돌린다. 직접 추가한 항목(m_…)은 그 금액을 고친다.
  */
 export async function saveAmounts(formData: FormData) {
   const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
   const updates: { id: string; value: number | null }[] = [];
   for (const [key, v] of formData.entries()) {
     if (!key.startsWith("amount_")) continue;
@@ -39,9 +57,101 @@ export async function saveAmounts(formData: FormData) {
     updates.push({ id, value: raw === "" ? null : won(raw) });
   }
   const results = await Promise.all(
-    updates.map((u) => supabase.from("dispatch_assignments").update({ settle_amount: u.value }).eq("id", u.id)),
+    updates.map((u) =>
+      u.id.startsWith(MANUAL_PREFIX)
+        ? supabase.from("vehicle_month_items").update({ amount: u.value ?? 0 }).eq("id", u.id.slice(MANUAL_PREFIX.length)).eq("vehicle_id", vehicleId)
+        : supabase.from("dispatch_assignments").update({ settle_amount: u.value }).eq("id", u.id).eq("vehicle_id", vehicleId),
+    ),
   );
   const failed = results.find((r) => r.error);
   if (failed?.error) throw new Error(failed.error.message);
+  revalidatePath("/admin/vehicle-settlement");
+}
+
+/** 배차에 없는 콜(TALIXO 등)이나 가감 항목을 정산에 직접 추가 */
+export async function addManualItem(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
+  const workDate = String(formData.get("work_date") ?? "");
+  if (!workDate.startsWith(month)) throw new Error(`날짜는 ${month} 안이어야 합니다.`);
+  const pax = Number(formData.get("pax"));
+  const { error } = await supabase.from("vehicle_month_items").insert({
+    vehicle_id: vehicleId,
+    month,
+    work_date: workDate,
+    work_time: text(formData.get("work_time")),
+    source: text(formData.get("source")) ?? "TALIXO",
+    ref_no: text(formData.get("ref_no")),
+    trip_type: text(formData.get("trip_type")),
+    flight_no: text(formData.get("flight_no")),
+    vehicle_class: text(formData.get("vehicle_class")),
+    pax: Number.isFinite(pax) && pax > 0 ? Math.round(pax) : null,
+    memo: text(formData.get("memo")),
+    amount: won(formData.get("amount")),
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/vehicle-settlement");
+}
+
+export async function deleteManualItem(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
+  const id = String(formData.get("itemId") ?? "").replace(MANUAL_PREFIX, "");
+  const { error } = await supabase.from("vehicle_month_items").delete().eq("id", id).eq("vehicle_id", vehicleId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/vehicle-settlement");
+}
+
+/**
+ * 정산 확정: 수정 잠금 + 확정 시점의 내역을 저장해 기사 화면에 보여준다.
+ * 확정 해제하면 다시 수정할 수 있다.
+ */
+export async function setSettlementStatus(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  const confirm = formData.get("status") === "confirmed";
+
+  if (!confirm) {
+    const { error } = await supabase
+      .from("vehicle_month_expenses")
+      .update({ status: "draft", confirmed_at: null, snapshot: null, updated_at: new Date().toISOString() })
+      .eq("month", month)
+      .eq("vehicle_id", vehicleId);
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/vehicle-settlement");
+    return;
+  }
+
+  const report = await loadVehicleMonth(supabase, month);
+  const v = report.vehicles.find((x) => x.vehicleId === vehicleId);
+  if (!v) throw new Error("이 달에 정산할 내역이 없습니다.");
+  const { data: driver } = await supabase.from("drivers").select("id").eq("vehicle_id", vehicleId).maybeSingle();
+  const snapshot = {
+    companyName: report.companyName,
+    plate: v.plate,
+    driverName: v.driverName,
+    total: v.total,
+    payout: v.payout,
+    expenses: v.expenses,
+    rows: v.rows.map((r) => ({
+      date: r.serviceDate, pickupAt: r.pickupAt ?? null, inOut: inOutLabel(r), ref: r.bookingNo ?? null,
+      flight: r.flightNo ?? null, vehicleClass: r.vehicleClass ?? null, pax: r.pax ?? null, amount: r.amount,
+    })),
+  };
+  const row: Record<string, unknown> = {
+    vehicle_id: vehicleId,
+    month,
+    status: "confirmed",
+    confirmed_at: new Date().toISOString(),
+    driver_id: driver?.id ?? null,
+    snapshot,
+    updated_at: new Date().toISOString(),
+  };
+  // 비용을 입력하지 않은 채 확정하면 0원으로 기록
+  if (!v.expenses) for (const k of Object.keys(EXPENSE_LABELS)) row[k] = 0;
+  const { error } = await supabase.from("vehicle_month_expenses").upsert(row, { onConflict: "vehicle_id,month" });
+  if (error) throw new Error(error.message);
   revalidatePath("/admin/vehicle-settlement");
 }

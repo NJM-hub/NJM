@@ -25,7 +25,9 @@ export default async function SettingsPage() {
       </section>
       <section className="card grid gap-4 sm:grid-cols-2">
         <h2 className="font-semibold sm:col-span-2">정산 · 세무</h2>
-        <F name="fare_per_call" label="콜당 기사 지급액(원)" value={s.fare_per_call} help="일정표에 기사 지급액 컬럼이 있으면 그 값 우선" />
+        <F name="fare_per_call" label="콜 기본 금액(원)" value={s.fare_per_call} help="일정표에 기사 지급액 컬럼이 있으면 그 값 우선. 정산 화면에서 건별 수정 가능" />
+        <F name="fare_gimpo" label="김포공항 콜 금액(원)" value={s.fare_gimpo ?? 37000} />
+        <F name="fare_picket_extra" label="피켓(공항 미팅) 추가금(원)" value={s.fare_picket_extra ?? 5000} help="KKday 추가 서비스 '공항에서 픽업' 또는 메모에 피켓이 있는 콜" />
         <F name="own_call_fee" label="외부오더(자체 콜) 1건당 차감액(원)" value={s.own_call_fee ?? 15000} help="차량별 월정산에서 기사가 직접 받은 콜마다 빼는 금액" />
         <F name="business_code" label="업종코드 (간이지급명세서)" value={s.business_code} help="기본 940909(기타자영업). 세무사와 확인 후 변경" />
         <F name="income_tax_rate_pct" label="소득세율(%)" value={s.income_tax_rate * 100} step="0.1" />

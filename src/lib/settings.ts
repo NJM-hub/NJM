@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_OPTIONS, type DispatchOptions } from "@/lib/dispatch/algorithm";
+import type { FareRules } from "@/lib/settlement/fare";
 import { DEFAULT_WITHHOLDING, type WithholdingOptions } from "@/lib/tax";
 
 export type AppSettings = {
@@ -18,7 +19,15 @@ export type AppSettings = {
   company_brn: string | null;
   /** 외부오더(기사 자체 콜) 1건당 차감액 */
   own_call_fee: number;
+  /** 김포공항 콜 금액 */
+  fare_gimpo: number;
+  /** 피켓(공항 미팅) 추가금 */
+  fare_picket_extra: number;
 };
+
+export function fareRulesOf(s: AppSettings): FareRules {
+  return { base: s.fare_per_call, gimpo: s.fare_gimpo ?? s.fare_per_call, picketExtra: s.fare_picket_extra ?? 0 };
+}
 
 export async function loadSettings(db: SupabaseClient): Promise<AppSettings> {
   const { data, error } = await db.from("app_settings").select("*").eq("id", 1).single();

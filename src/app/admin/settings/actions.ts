@@ -18,6 +18,8 @@ export async function saveSettings(formData: FormData) {
     unknown_travel_min: Math.round(n("unknown_travel_min", 0, 300)),
     fare_per_call: Math.round(n("fare_per_call", 0, 10_000_000)),
     own_call_fee: Math.round(n("own_call_fee", 0, 10_000_000)),
+    fare_gimpo: Math.round(n("fare_gimpo", 0, 10_000_000)),
+    fare_picket_extra: Math.round(n("fare_picket_extra", 0, 10_000_000)),
     income_tax_rate: n("income_tax_rate_pct", 0, 50) / 100,
     local_tax_rate: n("local_tax_rate_pct", 0, 100) / 100,
     business_code: String(formData.get("business_code") ?? "").trim() || "940909",

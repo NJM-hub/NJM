@@ -18,6 +18,14 @@ type Row = {
   };
 };
 
+/** 정산 확정 시 저장한 내역 (admin/vehicle-settlement 의 setSettlementStatus) */
+type Statement = {
+  plate: string;
+  payout: { amount: number; expenses: number; diff: number; tax: number; pay: number };
+  expenses: { memo?: string | null } | null;
+  rows: { date: string; pickupAt: string | null; inOut: string; ref: string | null; flight: string | null; amount: number }[];
+};
+
 export default async function DriverHome({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { supabase, user } = await requireUser();
   const { data: me } = await supabase.from("drivers").select("name,status").eq("id", user.id).maybeSingle();
@@ -40,6 +48,17 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
   const upcoming = rows.filter((r) => r.dispatch_runs.service_date >= today);
   const monthRows = rows.filter((r) => r.dispatch_runs.service_date >= from && r.dispatch_runs.service_date <= to);
   const tax = computeWithholding(monthRows.reduce((s, r) => s + r.fare, 0));
+
+  // 관리자가 확정한 본인 정산서 (RLS: 확정 + 본인 것만 조회됨). 확정 시점의 내역을 그대로 보여준다
+  const { data: stData } = await supabase
+    .from("vehicle_month_expenses")
+    .select("snapshot")
+    .eq("month", month)
+    .eq("driver_id", user.id)
+    .eq("status", "confirmed");
+  const statements = (stData ?? [])
+    .map((s) => s.snapshot as Statement | null)
+    .filter((s): s is Statement => !!s);
 
   const byDate = new Map<string, Row[]>();
   for (const r of upcoming) byDate.set(r.dispatch_runs.service_date, [...(byDate.get(r.dispatch_runs.service_date) ?? []), r]);
@@ -91,14 +110,51 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
           <input type="month" name="month" defaultValue={month} className="input !w-40" />
           <button className="btn-secondary">조회</button>
         </form>
-        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-          <div><dt className="text-gray-500">운행</dt><dd className="font-bold">{monthRows.length}콜</dd></div>
-          <div><dt className="text-gray-500">지급액</dt><dd className="font-bold">{won(tax.gross)}</dd></div>
-          <div><dt className="text-gray-500">소득세(3%)</dt><dd>{won(tax.incomeTax)}</dd></div>
-          <div><dt className="text-gray-500">지방소득세</dt><dd>{won(tax.localTax)}</dd></div>
-          <div><dt className="text-gray-500">실수령액</dt><dd className="font-bold text-blue-700">{won(tax.net)}</dd></div>
-        </dl>
-        <p className="mt-2 text-xs text-gray-500">확정된 배차 기준 예상 금액이며, 실제 지급액은 관리자 정산에 따릅니다. <Link href="/driver/profile" className="text-blue-600">계좌 정보 확인</Link></p>
+        {statements.length > 0 ? (
+          statements.map((st) => (
+            <div key={st.plate} className="space-y-2">
+              <p className="text-sm font-medium">
+                {st.plate} <span className="badge bg-green-100 text-green-800">정산 확정</span>
+              </p>
+              <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+                <div><dt className="text-gray-500">금액 합계 ({st.rows.length}건)</dt><dd className="font-bold">{won(st.payout.amount)}</dd></div>
+                <div><dt className="text-gray-500">비용</dt><dd>− {won(st.payout.expenses)}</dd></div>
+                <div><dt className="text-gray-500">차액</dt><dd>{won(st.payout.diff)}</dd></div>
+                <div><dt className="text-gray-500">세액(3.3%)</dt><dd>− {won(st.payout.tax)}</dd></div>
+                <div><dt className="text-gray-500">지급액</dt><dd className="font-bold text-blue-700">{won(st.payout.pay)}</dd></div>
+              </dl>
+              {st.expenses?.memo && <p className="text-xs text-gray-500">비용 메모: {st.expenses.memo}</p>}
+              <details>
+                <summary className="cursor-pointer text-sm text-blue-700">건별 내역 보기</summary>
+                <table className="table mt-2">
+                  <thead><tr><th>날짜</th><th>시간</th><th>구분</th><th>예약</th><th className="text-right">금액</th></tr></thead>
+                  <tbody>
+                    {st.rows.map((r, i) => (
+                      <tr key={i}>
+                        <td>{r.date.slice(5)}</td>
+                        <td>{r.pickupAt ? fmtTime(r.pickupAt) : ""}</td>
+                        <td>{r.inOut}</td>
+                        <td className="text-xs">{r.ref}{r.flight ? ` ✈${r.flight}` : ""}</td>
+                        <td className={`text-right ${r.amount < 0 ? "text-red-600" : ""}`}>{won(r.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            </div>
+          ))
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+              <div><dt className="text-gray-500">확정 배차</dt><dd className="font-bold">{monthRows.length}콜</dd></div>
+              <div><dt className="text-gray-500">콜 금액 합계 (예상)</dt><dd className="font-bold">{won(tax.gross)}</dd></div>
+            </dl>
+            <p className="mt-2 text-xs text-gray-500">
+              아직 확정된 정산서가 없어 배차 기준 예상 금액만 표시합니다. 비용(주유·통행료 등)과 세액은 관리자가 정산을 확정하면 표시됩니다.
+            </p>
+          </>
+        )}
+        <p className="mt-2 text-xs text-gray-500"><Link href="/driver/profile" className="text-blue-600">계좌 정보 확인</Link></p>
       </div>
     </div>
   );
