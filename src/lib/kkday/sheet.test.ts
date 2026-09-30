@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { describe, expect, it } from "vitest";
 import { isKkdayScm } from "./scm";
 import {
-  findDispatchSheetHeader, findTime, isDispatchSheet, parseDispatchSheet, parseDriverCell, parseOwnCallText, sheetExtras, vehicleClassOf,
+  findDispatchSheetHeader, findTime, isCancelledCell, isDispatchSheet, parseDispatchSheet, parseDriverCell, parseOwnCallText, sheetExtras, vehicleClassOf,
 } from "./sheet";
 
 // samples/dispatch-sheet-sample.csv: 구글 시트 배차표와 같은 컬럼, 가짜 데이터
@@ -73,6 +73,13 @@ describe("구글 시트 배차표", () => {
     expect(parseDriverCell("60,000")).toMatchObject({ kind: "external", fare: 60000 });
     expect(parseDriverCell("JACKY")).toEqual({ kind: "vehicle", driverName: "JACKY", plateSuffix: null, label: "JACKY" });
     expect(parseDriverCell("  ")).toBeNull();
+    expect(parseDriverCell("9772 Henry")).toMatchObject({ kind: "vehicle", driverName: "Henry", plateSuffix: "9772" });
+    expect(parseDriverCell("金龙喆 9778")).toMatchObject({ kind: "vehicle", driverName: "金龙喆", plateSuffix: "9778" });
+  });
+
+  it("취소 표시: 퍼센트 서식 숫자(1=100%, 0.5=50%), 비율 문구", () => {
+    for (const c of [1, 0.5, "1", "0.5", "100%", "50%", "USD 20.38 (50%)", "100%取消", "50%취소"]) expect(isCancelledCell(c)).toBe(true);
+    for (const c of [55000, "55000", "60,000", "金基峰9763", "9772 Henry", null, ""]) expect(isCancelledCell(c)).toBe(false);
     expect(vehicleClassOf("经济型5座")).toBe("이코노미 5인승");
     expect(sheetExtras("儿童座椅*0，举牌接机*0")).toBeNull();
   });
