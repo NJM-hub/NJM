@@ -142,7 +142,7 @@ export function UploadClient() {
     setBatch(items);
     startTransition(async () => {
       for (const [i, t] of dispatchTabs.entries()) {
-        const result = await importSheetDispatch(`${base} [${t.name}]`, [...t.parsed.bookings, ...t.parsed.ownCalls]);
+        const result = await importSheetDispatch(`${base} [${t.name}]`, [...t.parsed.bookings, ...t.parsed.ownCalls], t.parsed.cancelled.map((x) => x.bookingNo));
         items[i] = { ...items[i], result };
         setBatch([...items]);
       }
@@ -160,7 +160,7 @@ export function UploadClient() {
 
   function onSave() {
     startTransition(async () => {
-      if (dispatchSheet) setSheetResult(await importSheetDispatch(filename, [...dispatchSheet.bookings, ...dispatchSheet.ownCalls]));
+      if (dispatchSheet) setSheetResult(await importSheetDispatch(filename, [...dispatchSheet.bookings, ...dispatchSheet.ownCalls], dispatchSheet.cancelled.map((x) => x.bookingNo)));
       else setResult(await saveBookings(filename, parsed));
     });
   }
@@ -249,6 +249,12 @@ export function UploadClient() {
                 </ul>
               )}
             </li>
+            {dispatchSheet.cancelled.length > 0 && (
+              <li>
+                취소 표시된 예약 {dispatchSheet.cancelled.length}건은 제외(전산에 있으면 삭제):{" "}
+                {dispatchSheet.cancelled.map((x) => `${x.bookingNo} (${x.text.trim()})`).join(", ")}
+              </li>
+            )}
             {dispatchSheet.unparsed.length > 0 && (
               <li className="text-amber-700">
                 시간을 읽지 못해 빠지는 행 {dispatchSheet.unparsed.length}건 (시트에서 고친 뒤 다시 불러오세요):

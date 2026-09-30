@@ -94,6 +94,12 @@ describe("손으로 고친 행, 다른 출처, 엑셀 셀", () => {
     });
   });
 
+  it("기사 칸에 취소 표시가 있으면 예약에서 빼고 따로", () => {
+    const { cancelled } = parseDispatchSheet(rows, h);
+    expect(cancelled).toEqual([{ rowIndex: 12, bookingNo: "26KK90000010", text: "100%取消 12:00 공항 샌딩" }]);
+    expect(bookings.some((b) => b.bookingNo === "26KK90000010")).toBe(false);
+  });
+
   it("시간을 읽지 못한 예약 행은 확인용으로 따로", () => {
     expect(parseDispatchSheet(rows, h).unparsed.map((u) => u.rowIndex)).toEqual([11]);
   });

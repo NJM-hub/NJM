@@ -61,6 +61,11 @@ export function findDispatchSheetHeader(rows: Cell[][]): number {
   return rows.slice(0, 10).findIndex((r) => isDispatchSheet(r ?? []));
 }
 
+/** 기사 칸에 "100%取消" 처럼 취소 표시가 있으면 취소된 예약 */
+export function isCancelledCell(c: Cell): boolean {
+  return /取消|취소|cancel/i.test(String(c ?? ""));
+}
+
 /** "金基峰9763" → 차량 배차, "55000" → 외부 콜, 빈칸 → null */
 export function parseDriverCell(c: Cell): SheetDriver | null {
   const s = String(c ?? "").trim();
@@ -152,6 +157,8 @@ export type SheetParseResult = {
   notes: DriverNote[];
   /** 예약처럼 보이지만 시간을 읽지 못해 빠진 행 (화면에서 확인용) */
   unparsed: { rowIndex: number; text: string }[];
+  /** 기사 칸에 취소 표시가 있는 예약 (전산에 있으면 지운다) */
+  cancelled: { rowIndex: number; bookingNo: string; text: string }[];
   skipped: number;
 };
 
@@ -266,11 +273,17 @@ export function parseDispatchSheet(rows: Cell[][], headerRow: number): SheetPars
 
   const bookings: SheetBooking[] = [];
   const unparsed: SheetParseResult["unparsed"] = [];
+  const cancelled: SheetParseResult["cancelled"] = [];
   let skipped = 0;
   for (let r = headerRow + 1; r < end; r++) {
     const row = rows[r] ?? [];
     if (!row.some((x) => text(x))) continue;
     const pickupAt = pickupTimeOf(row[c.useTime], date);
+    if (pickupAt && isCancelledCell(row[c.driver])) {
+      const b = parseBookingRow(row, r, pickupAt, headers, c, tailFrom);
+      if (b.bookingNo) cancelled.push({ rowIndex: r + 1, bookingNo: b.bookingNo, text: `${text(row[c.driver])} ${pickupAt.slice(11, 16)} ${b.tripType ?? ""}` });
+      continue;
+    }
     if (pickupAt) {
       bookings.push(parseBookingRow(row, r, pickupAt, headers, c, tailFrom));
       continue;
@@ -282,7 +295,7 @@ export function parseDispatchSheet(rows: Cell[][], headerRow: number): SheetPars
   }
 
   const own = date && gridHeader >= 0 ? parseOwnCalls(rows, gridHeader, date) : { calls: [], notes: [] };
-  return { bookings, ownCalls: own.calls, notes: own.notes, unparsed, skipped };
+  return { bookings, ownCalls: own.calls, notes: own.notes, unparsed, cancelled, skipped };
 }
 
 // ─────────────────────────────────────────────

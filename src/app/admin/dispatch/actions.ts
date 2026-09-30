@@ -347,10 +347,19 @@ export type SheetImportResult =
  * 날짜별로 시트와 똑같은 배차를 만들어 확정한다. 금액만 적힌 건은 외부 배차로 기록한다.
  * 표 아래 기사별 칸의 자체 콜은 출처(driver_own)를 달아 그 기사 차량에 고정한다.
  */
-export async function importSheetDispatch(filename: string, rows: SheetBooking[]): Promise<SheetImportResult> {
+export async function importSheetDispatch(
+  filename: string,
+  rows: SheetBooking[],
+  cancelledNos: string[] = [],
+): Promise<SheetImportResult> {
   const saved = await saveBookings(filename, rows);
   if (!saved.ok) return saved;
   const { supabase, user } = await assertAdmin();
+  // 시트에서 취소 표시된 예약은 전산에서도 지운다 (배차 내역은 함께 삭제됨)
+  if (cancelledNos.length) {
+    const { error } = await supabase.from("bookings").delete().in("booking_no", cancelledNos).in("service_date", saved.dates);
+    if (error) return { ok: false, error: error.message };
+  }
   const settings = await loadSettings(supabase);
   const opts: DispatchOptions = dispatchOptionsOf(settings);
   const valid = rows.filter((r) => r.serviceDate);
