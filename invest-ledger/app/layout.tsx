@@ -6,7 +6,7 @@ import { roleLabel } from "@/lib/permissions";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "투자 회수 장부",
+  title: "(주)우정파트너스",
   description: "투자 실행 및 회수 관리 장부",
 };
 
