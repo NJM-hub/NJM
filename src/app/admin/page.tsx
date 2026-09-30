@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { todayKst } from "@/lib/format";
+import { ScheduleManager } from "./schedule/ScheduleManager";
 
 export default async function AdminHome() {
   const { supabase } = await requireAdmin();
@@ -56,6 +57,7 @@ export default async function AdminHome() {
           </table>
         ) : <p className="text-sm text-gray-500">아직 배차 기록이 없습니다.</p>}
       </div>
+      <ScheduleManager supabase={supabase} />
     </div>
   );
 }

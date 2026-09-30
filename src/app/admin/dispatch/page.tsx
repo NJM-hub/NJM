@@ -6,6 +6,8 @@ import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { confirmRun, moveAssignment, runDispatch, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
+import { deleteBooking } from "../schedule/actions";
+import { DeleteDateButton } from "../schedule/DeleteControls";
 
 type Booking = {
   id: string;
@@ -140,6 +142,11 @@ export default async function DispatchPage({
             {!!noCoordCount && <span className="ml-2 text-amber-700">(위치 미확인 {noCoordCount}건 — 자동 배차 시 주소로 위치를 찾습니다)</span>}
           </div>
         </form>
+        {!!bookingCount && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+            이 날짜 일정 전체 삭제: <DeleteDateButton date={date} count={bookingCount} />
+          </div>
+        )}
 
         <form action={runDispatch} className="space-y-3 border-t border-gray-100 pt-4">
           <input type="hidden" name="date" value={date} />
@@ -368,6 +375,8 @@ function AssignmentTable({
                         ))}
                       </select>
                       <SubmitButton className="btn-secondary !px-2 !py-1 text-xs" pendingText="...">이동</SubmitButton>
+                      <input type="hidden" name="bookingId" value={a.booking_id} />
+                      <button formAction={deleteBooking} className="px-1 text-xs text-red-600 hover:underline" title="이 예약을 일정에서 삭제">예약삭제</button>
                     </form>
                   </td>
                 )}

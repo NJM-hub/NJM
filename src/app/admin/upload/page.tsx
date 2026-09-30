@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { fmtDateTime } from "@/lib/format";
+import { DeleteUploadButton } from "../schedule/DeleteControls";
+import { ScheduleManager } from "../schedule/ScheduleManager";
 import { UploadClient } from "./UploadClient";
 
 export default async function UploadPage() {
@@ -18,7 +20,7 @@ export default async function UploadPage() {
       <div className="card">
         <h2 className="mb-3 font-semibold">최근 업로드</h2>
         <table className="table">
-          <thead><tr><th>파일</th><th>이용일(첫날)</th><th>건수</th><th>업로드 시각</th></tr></thead>
+          <thead><tr><th>파일</th><th>이용일(첫날)</th><th>건수</th><th>업로드 시각</th><th>삭제</th></tr></thead>
           <tbody>
             {uploads?.map((u) => (
               <tr key={u.id}>
@@ -26,12 +28,15 @@ export default async function UploadPage() {
                 <td>{u.service_date ? <Link className="text-blue-600" href={`/admin/dispatch?date=${u.service_date}`}>{u.service_date}</Link> : "-"}</td>
                 <td>{u.row_count}</td>
                 <td>{fmtDateTime(u.created_at)}</td>
+                <td><DeleteUploadButton uploadId={u.id} /></td>
               </tr>
             ))}
-            {!uploads?.length && <tr><td colSpan={4} className="text-gray-500">업로드 기록이 없습니다.</td></tr>}
+            {!uploads?.length && <tr><td colSpan={5} className="text-gray-500">업로드 기록이 없습니다.</td></tr>}
           </tbody>
         </table>
+        <p className="mt-2 text-xs text-gray-500">업로드 삭제 시 그 파일로 들어온 예약과 배차가 함께 지워집니다.</p>
       </div>
+      <ScheduleManager supabase={supabase} />
     </div>
   );
 }
