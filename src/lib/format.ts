@@ -38,7 +38,7 @@ export function monthRange(month: string): { from: string; to: string } {
 /** KKday 여정 유형 → 짧은 표시 (픽업: 공항 → 도심, 샌딩: 도심 → 공항) */
 export function tripLabel(tripType: string | null | undefined): { label: string; className: string } | null {
   if (!tripType) return null;
-  if (/샌딩|sending|drop/i.test(tripType)) return { label: "샌딩", className: "bg-emerald-100 text-emerald-800" };
-  if (/픽업|pick/i.test(tripType)) return { label: "픽업", className: "bg-sky-100 text-sky-800" };
+  if (/샌딩|送机|送機|sending|drop/i.test(tripType)) return { label: "샌딩", className: "bg-emerald-100 text-emerald-800" };
+  if (/픽업|接机|接機|pick/i.test(tripType)) return { label: "픽업", className: "bg-sky-100 text-sky-800" };
   return { label: tripType, className: "bg-gray-100 text-gray-700" };
 }

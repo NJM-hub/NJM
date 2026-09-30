@@ -2,6 +2,7 @@
  * KKday 등에서 받은 일정표(엑셀/CSV)를 공통 예약 형식으로 변환한다.
  * 파일마다 컬럼명이 다를 수 있으므로 별칭으로 자동 매핑하고, 화면에서 수정할 수 있게 한다.
  */
+import { normalizeTripType } from "@/lib/trip";
 
 export const FIELDS = {
   bookingNo: "예약번호",
@@ -20,6 +21,7 @@ export const FIELDS = {
   dropoffAddress: "하차장소",
   flightNo: "항공편",
   vehicleClass: "차급(차량 모델)",
+  tripType: "구분(픽업/샌딩)",
   memo: "메모",
   fare: "기사 지급액",
   pickupLat: "픽업 위도",
@@ -47,6 +49,7 @@ const ALIASES: Record<FieldKey, string[]> = {
   pickupAddress: ["픽업장소", "픽업지", "출발지", "픽업주소", "승차장소", "숙소", "호텔", "pickuplocation", "pickupaddress", "pickup", "pickuppoint", "hotel", "meetingpoint", "from", "上車地點", "接送地點"],
   dropoffAddress: ["하차장소", "하차지", "도착지", "목적지", "하차주소", "dropofflocation", "dropoffaddress", "dropoff", "destination", "to", "下車地點"],
   vehicleClass: ["차량모델명", "차량모델", "차종", "차급", "vehiclemodel", "vehicletype", "cartype"],
+  tripType: ["구분", "여정유형", "인아웃", "픽업샌딩", "픽업/샌딩", "triptype", "journeytype", "inout", "行程类型", "行程類型"],
   flightNo: ["항공편", "편명", "flight", "flightno", "flightnumber", "航班"],
   memo: ["메모", "비고", "요청사항", "특이사항", "remark", "remarks", "note", "notes", "specialrequest", "comment", "備註"],
   fare: ["기사단가", "기사지급액", "지급액", "운행단가", "driverfare", "fare"],
@@ -274,6 +277,7 @@ export function parseRows(
       durationMin = d;
     }
     durationMin ??= durationFromText(productName);
+    const tripType = normalizeTripType(str(get(row, "tripType")), str(get(row, "pickupAddress")), str(get(row, "dropoffAddress")));
 
     const raw: Record<string, string> = {};
     headers.forEach((h, i) => {
@@ -296,9 +300,10 @@ export function parseRows(
       flightNo: str(get(row, "flightNo")),
       memo: str(get(row, "memo")),
       fare: num(get(row, "fare")),
-      tripType: null,
+      tripType,
       vehicleClass: str(get(row, "vehicleClass")),
-      waitMin: null,
+      // KKday 공급사 주문과 같은 기준: 공항 픽업 90분, 샌딩 30분 대기
+      waitMin: tripType === "공항 픽업" ? 90 : tripType === "공항 샌딩" ? 30 : null,
       pickupPlace: null,
       dropoffPlace: null,
       pickupLat: num(get(row, "pickupLat")),

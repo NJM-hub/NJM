@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { monthRange } from "@/lib/format";
 import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
+import { normalizeTripType } from "@/lib/trip";
 import { fareFor } from "./fare";
 import {
   OWN_CALL, computePayout, summarizeVehicleMonth, tripKind,
@@ -83,7 +84,8 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         vehicleId: r.vehicle_id!,
         plate: r.vehicles?.plate_number ?? "(삭제된 차량)",
         driverName: r.drivers?.name ?? r.vehicles?.driver_name ?? null,
-        tripType: r.bookings?.trip_type ?? null,
+        // 구분이 비어 있으면 주소로 판단 (출발지 공항 = 픽업, 도착지 공항 = 샌딩)
+        tripType: normalizeTripType(r.bookings?.trip_type, r.bookings?.pickup_address, r.bookings?.dropoff_address),
         source: r.bookings?.source ?? null,
         amount: r.settle_amount ?? base,
         edited: r.settle_amount != null,
@@ -133,7 +135,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     const date = r.dispatch_runs.service_date;
     const d = ext.get(date) ?? { date, pickup: 0, sending: 0, other: 0, fare: 0 };
     ext.set(date, d);
-    d[tripKind(r.bookings?.trip_type ?? null)]++;
+    d[tripKind(normalizeTripType(r.bookings?.trip_type, r.bookings?.pickup_address, r.bookings?.dropoff_address))]++;
     d.fare += r.fare ?? 0;
   }
 

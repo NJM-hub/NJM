@@ -56,8 +56,8 @@ export type TripKind = "pickup" | "sending" | "other";
 export const OWN_CALL = "driver_own";
 
 export function tripKind(tripType: string | null): TripKind {
-  if (/샌딩|sending|drop/i.test(tripType ?? "")) return "sending";
-  if (/픽업|pick/i.test(tripType ?? "")) return "pickup";
+  if (/샌딩|送机|送機|sending|drop/i.test(tripType ?? "")) return "sending";
+  if (/픽업|接机|接機|pick/i.test(tripType ?? "")) return "pickup";
   return "other";
 }
 
