@@ -196,6 +196,8 @@ SQL Editor 로 이미 실행해 둔 경우에도 기존 데이터를 건드리�
 5. 새 주소로 들어가 **처음 설정**에서 관리자 계정 만들기
 
 > 같은 저장소를 쓰므로 프로그램을 고치면 두 사이트에 함께 반영됩니다.
+>
+> 새 프로젝트 카드에 "No Production Deployment" 가 계속 보이면: Settings → Build and Deployment → **Root Directory** 가 `./` 로 비어 있지 않은지 확인하고 `invest-ledger` 로 저장한 뒤 다시 배포하세요. 비어 있으면 같은 저장소의 다른 앱(렌트카)을 배포하려다 실패합니다.
 
 ---
 
