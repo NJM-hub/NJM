@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from "next";
 import { logoutAction } from "@/app/login/actions";
 import AppShell from "@/components/AppShell";
 import { getCurrentUser } from "@/lib/auth";
+import { APP_NAME } from "@/lib/brand";
 import { roleLabel } from "@/lib/permissions";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "(주)우정파트너스",
+  title: APP_NAME,
   description: "투자 실행 및 회수 관리 장부",
 };
 

@@ -192,7 +192,7 @@ SQL Editor 로 이미 실행해 둔 경우에도 기존 데이터를 건드리�
 1. Supabase → **New project** (기존 Pro 조직 선택, Region: Seoul) → SQL Editor 에 `supabase/setup_all.sql` 전체를 붙여넣고 **Run** 한 번
 2. 새 프로젝트의 Project URL 과 Secret(service_role) 키 복사
 3. Vercel → **Add New → Project** → 같은 저장소 Import → Project Name 을 다르게 (예: `invest-ledger-2`) → Root Directory `invest-ledger`
-4. 환경변수 3개 (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BASIC_AUTH_PASSWORD`) → **Deploy**
+4. 환경변수 (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BASIC_AUTH_PASSWORD`, 이름을 다르게 하려면 `NEXT_PUBLIC_APP_NAME`) → **Deploy**
 5. 새 주소로 들어가 **처음 설정**에서 관리자 계정 만들기
 
 > 같은 저장소를 쓰므로 프로그램을 고치면 두 사이트에 함께 반영됩니다.

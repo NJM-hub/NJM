@@ -1,3 +1,5 @@
+import { APP_NAME } from "@/lib/brand";
+
 /** 로그인·처음 설정 화면의 가운데 카드 */
 export default function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -5,7 +7,7 @@ export default function AuthCard({ title, subtitle, children }: { title: string;
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-2 text-white">
           <span className="grid size-9 place-items-center rounded-lg bg-white text-base font-black text-navy-900">₩</span>
-          <span className="text-lg font-bold tracking-tight">(주)우정파트너스</span>
+          <span className="text-lg font-bold tracking-tight">{APP_NAME}</span>
         </div>
         <div className="rounded-2xl bg-white p-6 shadow-xl">
           <h1 className="text-lg font-bold text-navy-900">{title}</h1>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { APP_NAME } from "@/lib/brand";
 
 type NavItem = { href: string; label: string; ready: boolean; admin?: boolean };
 
@@ -57,7 +58,7 @@ function Brand() {
   return (
     <Link href="/" className="flex items-center gap-2 text-white">
       <span className="grid size-8 place-items-center rounded-lg bg-white text-sm font-black text-navy-900">₩</span>
-      <span className="text-base font-bold tracking-tight">(주)우정파트너스</span>
+      <span className="text-base font-bold tracking-tight">{APP_NAME}</span>
     </Link>
   );
 }
