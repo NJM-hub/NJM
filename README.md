@@ -1,6 +1,8 @@
 # 렌트카 배차 관리
 
 > 📁 이 저장소의 [`invest-ledger/`](invest-ledger/README.md) 폴더에는 별도 앱인 **투자 회수 장부**가 들어 있습니다. (Vercel 에서 Root Directory 를 `invest-ledger` 로 지정해 따로 배포)
+>
+> 🏢 [`rental-erp/`](rental-erp/README.md) 폴더에는 **임대관리 ERP (임대사업 관리 + 수익분석)** 가 들어 있습니다. (Root Directory `rental-erp`)
 
 KKday 일정표를 올리면 보유 차량 수에 맞춰 **시간·거리 기준으로 자동 배차**하고(차량당 기본 4콜), 배차가 안 되는 건은 사유별로 따로 요약합니다.
 기사 회원가입·신상정보 저장, 월별 **사업소득 원천징수(3.3%) 계산과 세무신고 자료 다운로드**까지 한 곳에서 처리합니다.
