@@ -152,7 +152,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
                   <th className="num">입금액</th>
                   <th className="num">미납</th>
                   <th>상태</th>
-                  {can.editLeasing && <th />}
+                  {can.editLeasing && <th className="w-full" />}
                 </tr>
               </thead>
               <tbody>
@@ -172,7 +172,6 @@ export default async function ContractPage({ params, searchParams }: { params: P
                             <Badge tone="red">미납 고정</Badge>
                           </span>
                         )}
-                        {x.memo && <div className="text-[11px] text-slate-400">{x.memo}</div>}
                       </td>
                       {can.editLeasing && (
                         <td className="whitespace-nowrap">
