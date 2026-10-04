@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authorize } from "@/lib/auth";
 import { CONTRACT_STATUS, PAYMENT_METHODS } from "@/lib/constants";
-import { invalidateSync, reallocateContract, syncBilling } from "@/lib/data";
+import { invalidateSync, pinPayments, reallocateContract, syncBilling } from "@/lib/data";
 import { audit, q, q1, tx } from "@/lib/db";
-import { addDays, monthStart, todayKST } from "@/lib/dates";
+import { addDays, dueDateOf, monthStart, todayKST } from "@/lib/dates";
 import { dbError, FormReader } from "@/lib/form";
 import { nextContractNo } from "@/lib/importer";
 import type { Contract, FormState } from "@/lib/types";
@@ -273,12 +273,61 @@ export async function adjustChargeAction(chargeId: string, value?: string): Prom
   const ch = await q1<{ contract_id: string; amount: number }>("select contract_id, amount from rent_charges where id = $1", [chargeId]);
   if (!ch) return { error: "청구를 찾을 수 없습니다." };
   await tx(async (c) => {
+    if (amount > ch.amount) await pinPayments(ch.contract_id, c);
     await q("update rent_charges set amount = $2, memo = concat_ws(' / ', memo, $3::text) where id = $1", [chargeId, Math.round(amount), `금액 조정 ${ch.amount.toLocaleString()} → ${Math.round(amount).toLocaleString()}`], c);
     await reallocateContract(ch.contract_id, c);
   });
   await audit(a.user.id, "adjust", "charge", chargeId, { from: ch.amount, to: amount });
   revalidatePath("/", "layout");
   return { ok: "청구 금액을 바꿨습니다." };
+}
+
+/**
+ * 빠진 달 청구 추가 (예: 자동 청구 시작 월 이전의 미납, 실수로 면제한 달).
+ * 이미 그 달 청구가 있으면 금액만 바꾼다. 기존 입금은 지금 채운 달에 그대로 둔다.
+ */
+export async function addChargeAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const f = new FormReader(fd);
+  const contractId = f.uuid("contract_id", { required: "잘못된 요청" });
+  const ym = f.raw("month");
+  if (!/^\d{4}-\d{2}$/.test(ym)) f.errors.month = "청구 월을 선택하세요.";
+  const amount = f.money("amount", { required: "청구액을 입력하세요.", min: 1 });
+  if (!f.ok) return f.fail();
+  const ct = await q1<Contract>("select * from contracts where id = $1", [contractId]);
+  if (!ct) return { error: "계약을 찾을 수 없습니다." };
+  const month = `${ym}-01`;
+  const today = todayKST();
+  if (month < monthStart(ct.start_date)) return { fieldErrors: { month: `계약 시작(${ct.start_date.slice(0, 7)}) 이전 달입니다.` } };
+  if (month > monthStart(today)) return { fieldErrors: { month: "다음 달 이후 청구는 매월 자동으로 만들어집니다." } };
+  const end = ct.status === "terminated" && ct.terminated_on ? ct.terminated_on : ct.end_date;
+  if (month > monthStart(end)) return { fieldErrors: { month: `계약 종료(${end.slice(0, 7)}) 이후 달입니다.` } };
+  const dueDate = dueDateOf(month, ct.pay_day);
+  const rent = Math.min(amount!, ct.monthly_rent);
+  const maint = Math.min(amount! - rent, ct.maintenance_fee);
+  const vat = amount! - rent - maint;
+  let action = "";
+  await tx(async (c) => {
+    await pinPayments(contractId!, c);
+    const existing = await q1<{ id: string; amount: number }>("select id, amount from rent_charges where contract_id = $1 and billing_month = $2", [contractId, month], c);
+    if (existing) {
+      await q("update rent_charges set amount = $2, memo = concat_ws(' / ', memo, $3::text) where id = $1", [existing.id, amount, `금액 조정 ${existing.amount.toLocaleString()} → ${amount!.toLocaleString()}`], c);
+      action = `이미 있던 청구 금액을 ${existing.amount.toLocaleString()}원 → ${amount!.toLocaleString()}원으로 바꿨습니다`;
+    } else {
+      await q(
+        `insert into rent_charges (contract_id, billing_month, due_date, rent_amount, maintenance_amount, vat_amount, amount, memo)
+         values ($1,$2,$3,$4,$5,$6,$7,'수동 추가')`,
+        [contractId, month, dueDate, rent, maint, vat, amount],
+        c,
+      );
+      action = `청구를 추가했습니다 (${amount!.toLocaleString()}원, 납부일 ${dueDate})`;
+    }
+    await reallocateContract(contractId!, c);
+  });
+  await audit(a.user.id, "add_charge", "contract", contractId, { month, amount });
+  revalidatePath("/", "layout");
+  return { ok: `${ym.slice(0, 4)}년 ${Number(ym.slice(5))}월 ${action}. 입금이 없으면 납부일이 지난 뒤 미납으로 표시됩니다.` };
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteDocumentAction } from "@/app/actions/documents";
 import {
+  addChargeAction,
   adjustChargeAction,
   deleteContractAction,
   deletePaymentAction,
@@ -191,6 +192,32 @@ export default async function ContractPage({ params, searchParams }: { params: P
                 </tr>
               </tfoot>
             </Table>
+            {can.editLeasing && (
+              <details className="mt-4">
+                <summary className="btn-secondary cursor-pointer">+ 빠진 달 청구 추가 (지난 미납 등록)</summary>
+                <div className="mt-3 rounded-xl bg-slate-50 p-4">
+                  <p className="mb-3 text-xs text-slate-600">
+                    표에 없는 지난 달(자동 청구 시작 전 미납 등)이나 0원으로 바꾼 달을 다시 청구합니다. 이미 있는 달이면 금액만 바뀌고, 기존 입금은 지금 채워진 달에 그대로 남습니다.
+                  </p>
+                  <SmartForm
+                    action={addChargeAction}
+                    cols={3}
+                    resetOnSuccess
+                    submitLabel="청구 추가"
+                    initial={{ contract_id: id, amount: String(c.monthly_rent + c.maintenance_fee + c.vat_amount) }}
+                    sections={[
+                      {
+                        fields: [
+                          { name: "contract_id", type: "hidden" },
+                          { name: "month", label: "청구 월", type: "month", required: true },
+                          { name: "amount", label: "청구액 (월세+관리비+부가세)", type: "money", required: true },
+                        ],
+                      },
+                    ]}
+                  />
+                </div>
+              </details>
+            )}
           </Card>
           <Card title="입금 내역">
             <PaymentsTable
