@@ -283,6 +283,31 @@ export async function adjustChargeAction(chargeId: string, value?: string): Prom
 }
 
 /**
+ * 미납으로 고정 / 해제.
+ * 고정하면 월을 지정하지 않은 입금(여러 달 치를 한 번에 넣은 입금 등)이 이 달을 건너뛰고 다음 달부터 채운다.
+ * 이 달을 지정해 둔 입금은 '지정 없음'으로 바꿔 다른 달로 옮긴다 (실제로 이 달은 안 받았으므로).
+ */
+export async function holdChargeAction(chargeId: string, hold: boolean): Promise<FormState> {
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const ch = await q1<{ contract_id: string; billing_month: string }>("select contract_id, billing_month::text from rent_charges where id = $1", [chargeId]);
+  if (!ch) return { error: "청구를 찾을 수 없습니다." };
+  await tx(async (c) => {
+    if (hold) await q("update payments set charge_id = null where charge_id = $1", [chargeId], c);
+    await q("update rent_charges set hold_unpaid = $2 where id = $1", [chargeId, hold], c);
+    await reallocateContract(ch.contract_id, c);
+  });
+  await audit(a.user.id, hold ? "hold_unpaid" : "release_hold", "charge", chargeId, { month: ch.billing_month });
+  revalidatePath("/", "layout");
+  const m = `${ch.billing_month.slice(0, 4)}년 ${Number(ch.billing_month.slice(5, 7))}월`;
+  return {
+    ok: hold
+      ? `${m}을(를) 미납으로 고정했습니다. 입금은 그 다음 달들부터 다시 채웠습니다.`
+      : `${m} 미납 고정을 풀었습니다. 입금이 오래된 달부터 다시 채워집니다.`,
+  };
+}
+
+/**
  * 빠진 달 청구 추가 (예: 자동 청구 시작 월 이전의 미납, 실수로 면제한 달).
  * 이미 그 달 청구가 있으면 금액만 바꾼다. 기존 입금은 지금 채운 달에 그대로 둔다.
  */
