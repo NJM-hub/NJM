@@ -201,15 +201,44 @@ export async function setContractStatusAction(contractId: string, status: string
   redirect(`/contracts/${contractId}?tab=info&saved=status`);
 }
 
-export async function deleteContractAction(contractId: string): Promise<FormState> {
+/**
+ * 계약 완전 삭제 (잘못 입력해서 처음부터 다시 넣을 때). 관리자만.
+ * 계약과 그 계약의 월 청구·입금·보증금 기록·알림을 모두 지운다. 임차인·호실·서류 파일은 남긴다.
+ * 확인을 위해 '삭제' 를 입력해야 한다.
+ */
+export async function deleteContractAction(contractId: string, confirmText?: string): Promise<FormState> {
   const a = await authorize("admin");
   if ("denied" in a) return a.denied;
-  const paid = await q1<{ n: number }>("select count(*)::int as n from payments where contract_id = $1", [contractId]);
-  if ((paid?.n ?? 0) > 0) return { error: "입금 기록이 있는 계약은 삭제할 수 없습니다. 중도해지 또는 만료로 바꾸세요." };
-  await q("delete from contracts where id = $1", [contractId]);
-  await audit(a.user.id, "delete", "contract", contractId);
+  if ((confirmText ?? "").trim() !== "삭제") return { error: "취소했습니다. 지우려면 '삭제' 라고 정확히 입력하세요." };
+  const ct = await q1<Contract>("select * from contracts where id = $1", [contractId]);
+  if (!ct) return { error: "계약을 찾을 수 없습니다." };
+  const today = todayKST();
+  const removed = await tx(async (c) => {
+    const pay = await q1<{ n: number; sum: number }>("select count(*)::int as n, coalesce(sum(amount),0)::bigint as sum from payments where contract_id = $1", [contractId], c);
+    const chg = await q1<{ n: number }>("select count(*)::int as n from rent_charges where contract_id = $1", [contractId], c);
+    await q("delete from payments where contract_id = $1", [contractId], c);
+    await q("delete from notifications where ref_id = $1", [contractId], c);
+    await q("delete from contracts where id = $1", [contractId], c); // 청구·보증금은 함께 지워지고, 서류는 남는다
+    // 이 계약이 갱신 계약이었다면 이전 계약을 '갱신' 상태에서 되돌린다
+    if (ct.previous_contract_id) {
+      await q(
+        "update contracts set status = case when end_date >= $2 then 'active' else 'expired' end where id = $1 and status = 'renewed'",
+        [ct.previous_contract_id, today],
+        c,
+      );
+    }
+    // 호실에 남은 계약이 없으면 오늘부터 공실로
+    await q(
+      "update units set vacant_since = coalesce(vacant_since, $2::date) where id = $1 and not exists (select 1 from contracts where unit_id = $1)",
+      [ct.unit_id, today],
+      c,
+    );
+    return { payments: pay?.n ?? 0, paymentSum: Number(pay?.sum ?? 0), charges: chg?.n ?? 0 };
+  });
+  await audit(a.user.id, "delete", "contract", contractId, { contract_no: ct.contract_no, tenant_id: ct.tenant_id, unit_id: ct.unit_id, ...removed });
+  invalidateSync();
   revalidatePath("/", "layout");
-  redirect("/contracts");
+  redirect(`/contracts?deleted=${encodeURIComponent(ct.contract_no)}`);
 }
 
 // ---------------------------------------------------------------------------
