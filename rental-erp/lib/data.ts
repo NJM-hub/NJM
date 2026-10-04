@@ -82,6 +82,21 @@ export async function reallocateContract(contractId: string, c: Queryable) {
 }
 
 /**
+ * 월을 지정하지 않고 넣은 입금을 지금 채우고 있는 청구월에 고정한다.
+ * 지난 달 청구를 새로 만들거나 금액을 올릴 때, 기존 입금이 '오래된 미납부터' 다시 배분되며
+ * 엉뚱한 달이 미납으로 바뀌는 것을 막는다. (여러 달에 나눠진 입금은 그대로 둔다)
+ */
+export async function pinPayments(contractId: string, c: Queryable) {
+  await q(
+    `update payments p set charge_id = a.charge_id
+     from (select payment_id, min(charge_id::text)::uuid as charge_id from payment_allocations group by payment_id having count(*) = 1) a
+     where p.id = a.payment_id and p.contract_id = $1 and p.charge_id is null`,
+    [contractId],
+    c,
+  );
+}
+
+/**
  * 매월 월세 청구를 자동 생성한다 (이미 있는 달은 건너뜀).
  * 새 청구가 생긴 계약은 선납금이 있을 수 있으므로 배분을 다시 계산한다.
  */
