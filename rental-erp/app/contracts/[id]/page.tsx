@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { deleteDocumentAction } from "@/app/actions/documents";
 import {
   addChargeAction,
-  adjustChargeAction,
   holdChargeAction,
   deleteContractAction,
   deletePaymentAction,
@@ -177,9 +176,6 @@ export default async function ContractPage({ params, searchParams }: { params: P
                       </td>
                       {can.editLeasing && (
                         <td className="whitespace-nowrap">
-                          <ActionButton action={adjustChargeAction.bind(null, x.id)} className="btn-ghost text-xs" prompt={`${monthLabel(x.billing_month)} 청구 금액을 얼마로 바꿀까요? (감면·할인, 0 = 면제)`}>
-                            금액 조정
-                          </ActionButton>
                           {x.hold_unpaid ? (
                             <ActionButton action={holdChargeAction.bind(null, x.id, false)} className="btn-ghost text-xs" confirm={`${monthLabel(x.billing_month)} 미납 고정을 풀까요? 입금이 오래된 달부터 다시 채워집니다.`}>
                               고정 해제

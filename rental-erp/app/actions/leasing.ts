@@ -264,24 +264,6 @@ export async function deletePaymentAction(paymentId: string): Promise<FormState>
   return { ok: "입금 기록을 취소했습니다. 미납금이 다시 계산되었습니다." };
 }
 
-/** 청구 금액 조정 (할인·감면). 0 이면 청구 면제 */
-export async function adjustChargeAction(chargeId: string, value?: string): Promise<FormState> {
-  const a = await authorize("staff");
-  if ("denied" in a) return a.denied;
-  const amount = Number(String(value ?? "").replace(/[,원\s]/g, ""));
-  if (!Number.isFinite(amount) || amount < 0) return { error: "금액을 숫자로 입력하세요." };
-  const ch = await q1<{ contract_id: string; amount: number }>("select contract_id, amount from rent_charges where id = $1", [chargeId]);
-  if (!ch) return { error: "청구를 찾을 수 없습니다." };
-  await tx(async (c) => {
-    if (amount > ch.amount) await pinPayments(ch.contract_id, c);
-    await q("update rent_charges set amount = $2, memo = concat_ws(' / ', memo, $3::text) where id = $1", [chargeId, Math.round(amount), `금액 조정 ${ch.amount.toLocaleString()} → ${Math.round(amount).toLocaleString()}`], c);
-    await reallocateContract(ch.contract_id, c);
-  });
-  await audit(a.user.id, "adjust", "charge", chargeId, { from: ch.amount, to: amount });
-  revalidatePath("/", "layout");
-  return { ok: "청구 금액을 바꿨습니다." };
-}
-
 /**
  * 미납으로 고정 / 해제.
  * 고정하면 월을 지정하지 않은 입금(여러 달 치를 한 번에 넣은 입금 등)이 이 달을 건너뛰고 다음 달부터 채운다.
