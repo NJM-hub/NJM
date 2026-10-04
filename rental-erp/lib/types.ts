@@ -109,6 +109,7 @@ export type Charge = {
   vat_amount: number;
   amount: number;
   paid_amount: number;
+  hold_unpaid?: boolean; // 미납으로 고정 (자동 배분에서 건너뜀)
   memo: string | null;
 };
 

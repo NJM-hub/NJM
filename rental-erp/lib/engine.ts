@@ -107,7 +107,7 @@ export function planCharges(c: Contract, today: ISODate): PlannedCharge[] {
 
 export function allocate(
   payments: Pick<Payment, "id" | "charge_id" | "paid_date" | "amount" | "created_at">[],
-  charges: Pick<Charge, "id" | "due_date" | "billing_month" | "amount">[],
+  charges: (Pick<Charge, "id" | "due_date" | "billing_month" | "amount"> & { hold_unpaid?: boolean })[],
 ): { allocations: Allocation[]; paid: Map<string, number>; credit: number } {
   const order = [...charges].sort((a, b) => a.billing_month.localeCompare(b.billing_month));
   const remaining = new Map(order.map((c) => [c.id, c.amount]));
@@ -131,6 +131,7 @@ export function allocate(
     if (p.charge_id && remaining.has(p.charge_id)) take(p.charge_id);
     for (const c of order) {
       if (left <= 0) break;
+      if (c.hold_unpaid) continue; // 미납으로 고정한 달은 그 달을 지정한 입금만 채운다
       take(c.id);
     }
     credit += left;

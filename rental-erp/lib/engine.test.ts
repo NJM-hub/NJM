@@ -173,6 +173,17 @@ describe("입금 배분 / 미납", () => {
     expect(r.paid.get("01")).toBe(2_000_000);
     expect(r.credit).toBe(1_000_000);
   });
+  it("여러 달 치를 한 번에 입금했는데 중간 달이 실제 미납: 그 달을 미납으로 고정하면 건너뛰고 다음 달을 채움", () => {
+    const held = charges.map((c) => (c.id === "02" ? { ...c, hold_unpaid: true } : c));
+    const r = allocate([pay("a", "2026-05-01", 6_000_000)], held);
+    expect(r.paid.get("01")).toBe(2_000_000);
+    expect(r.paid.get("02")).toBe(0);
+    expect(r.paid.get("03")).toBe(2_000_000);
+    expect(r.paid.get("04")).toBe(2_000_000);
+    // 그 달을 지정한 입금은 채운다
+    const r2 = allocate([pay("b", "2026-06-01", 2_000_000, "02")], held);
+    expect(r2.paid.get("02")).toBe(2_000_000);
+  });
   it("청구 상태와 미납 기간 구분", () => {
     expect(chargeState({ amount: 100, paid_amount: 100, due_date: "2026-01-01" }, "2026-10-02")).toBe("paid");
     expect(chargeState({ amount: 100, paid_amount: 50, due_date: "2026-01-01" }, "2026-10-02")).toBe("overdue");

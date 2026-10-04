@@ -4,6 +4,7 @@ import { deleteDocumentAction } from "@/app/actions/documents";
 import {
   addChargeAction,
   adjustChargeAction,
+  holdChargeAction,
   deleteContractAction,
   deletePaymentAction,
   recordPaymentAction,
@@ -167,13 +168,33 @@ export default async function ContractPage({ params, searchParams }: { params: P
                       <td className={`num font-semibold ${un > 0 && x.due_date < today ? "text-red-600" : "text-slate-400"}`}>{num(un)}</td>
                       <td>
                         <ChargeBadge c={x} today={today} />
+                        {x.hold_unpaid && (
+                          <span className="ml-1">
+                            <Badge tone="red">미납 고정</Badge>
+                          </span>
+                        )}
                         {x.memo && <div className="text-[11px] text-slate-400">{x.memo}</div>}
                       </td>
                       {can.editLeasing && (
-                        <td>
+                        <td className="whitespace-nowrap">
                           <ActionButton action={adjustChargeAction.bind(null, x.id)} className="btn-ghost text-xs" prompt={`${monthLabel(x.billing_month)} 청구 금액을 얼마로 바꿀까요? (감면·할인, 0 = 면제)`}>
                             금액 조정
                           </ActionButton>
+                          {x.hold_unpaid ? (
+                            <ActionButton action={holdChargeAction.bind(null, x.id, false)} className="btn-ghost text-xs" confirm={`${monthLabel(x.billing_month)} 미납 고정을 풀까요? 입금이 오래된 달부터 다시 채워집니다.`}>
+                              고정 해제
+                            </ActionButton>
+                          ) : (
+                            x.amount > 0 && (
+                              <ActionButton
+                                action={holdChargeAction.bind(null, x.id, true)}
+                                className="btn-ghost text-xs !text-red-600"
+                                confirm={`${monthLabel(x.billing_month)}을(를) 미납으로 고정할까요?\n이 달에 들어간 입금은 그 다음 달들로 옮겨집니다. (여러 달 치를 한 번에 입금했는데 이 달만 실제로 미납인 경우)`}
+                              >
+                                미납으로 표시
+                              </ActionButton>
+                            )
+                          )}
                         </td>
                       )}
                     </tr>
