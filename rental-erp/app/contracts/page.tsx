@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/panels";
-import { Empty, PageHeader, Table } from "@/components/ui";
+import { Empty, Notice, PageHeader, Table } from "@/components/ui";
 import { requirePage } from "@/lib/auth";
 import { EFFECTIVE_STATUS, type EffectiveStatus } from "@/lib/constants";
 import { getSnapshot } from "@/lib/data";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const FILTERS: Record<string, string> = { current: "진행 중", all: "전체", ...EFFECTIVE_STATUS };
 
-export default async function ContractsPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+export default async function ContractsPage({ searchParams }: { searchParams: Promise<{ filter?: string; deleted?: string }> }) {
   const { can } = await requirePage();
   const sp = await searchParams;
   const filter = sp.filter && sp.filter in FILTERS ? sp.filter : "current";
@@ -36,6 +36,13 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
         desc="계약 종료일이 가까워지면 🔴 30일 · 🟠 60일 · 🟡 90일 이내로 표시합니다."
         actions={can.editLeasing && <Link href="/contracts/new" className="btn">+ 계약 등록 (계약서 AI 인식)</Link>}
       />
+      {sp.deleted && (
+        <div className="mb-4">
+          <Notice tone="green">
+            계약 {sp.deleted} 와(과) 그 입금·청구·보증금 기록을 삭제했습니다. <Link href="/contracts/new" className="link">새로 계약 등록 →</Link>
+          </Notice>
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap gap-1.5">
         {Object.entries(FILTERS).map(([k, v]) => (
           <Link

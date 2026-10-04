@@ -92,6 +92,15 @@ export default async function ContractPage({ params, searchParams }: { params: P
                   계약 갱신
                 </Link>
               )}
+              {can.admin && (
+                <ActionButton
+                  action={deleteContractAction.bind(null, id)}
+                  className="btn-secondary !text-red-600"
+                  prompt={`계약 ${c.contract_no} (${t?.name ?? ""})을 완전히 삭제합니다.\n\n이 계약의 월 청구 ${charges.length}건, 입금 ${payments.length}건(${totalPaid.toLocaleString()}원), 보증금 기록이 모두 지워지고 되돌릴 수 없습니다. (임차인·호실·서류 파일은 남습니다)\n\n계속하려면 '삭제'라고 입력하세요.`}
+                >
+                  계약 삭제
+                </ActionButton>
+              )}
             </>
           )
         }
@@ -299,11 +308,6 @@ export default async function ContractPage({ params, searchParams }: { params: P
               )}
               {c.status === "planned" && (
                 <ActionButton action={setContractStatusAction.bind(null, id, "active")}>정상 계약으로 변경</ActionButton>
-              )}
-              {can.admin && (
-                <ActionButton action={deleteContractAction.bind(null, id)} className="btn-ghost !text-red-600" confirm="계약을 삭제할까요? (입금 기록이 있으면 삭제되지 않습니다)">
-                  계약 삭제
-                </ActionButton>
               )}
             </div>
           )}
