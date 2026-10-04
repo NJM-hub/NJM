@@ -48,8 +48,9 @@ async function shrinkImage(file: File): Promise<File> {
 }
 
 async function shrinkPdf(file: File, onProgress?: (msg: string) => void): Promise<{ file: File; pages: number; total: number }> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerPort ??= new Worker(new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { type: "module" });
+  // legacy 빌드: 조금 오래된 브라우저(휴대폰 포함)에서도 동작하도록 최신 문법을 보완한 버전
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerPort ??= new Worker(new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url), { type: "module" });
   const { PDFDocument } = await import("pdf-lib");
 
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
