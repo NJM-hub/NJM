@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { DOCUMENT_CATEGORIES, MAX_UPLOAD_BYTES } from "@/lib/constants";
+import { DOCUMENT_CATEGORIES } from "@/lib/constants";
+import { prepareUpload } from "@/lib/shrink";
 
-/** 문서 올리기 (PDF/JPG/PNG, 4MB 이하) */
+/** 문서 올리기 (PDF/JPG/PNG, 최대 1GB — 4MB 넘으면 자동 압축) */
 export default function DocumentUpload({
   context,
   defaultCategory = "etc",
@@ -25,11 +26,18 @@ export default function DocumentUpload({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return setMsg({ error: "파일을 선택하세요." });
-    if (file.size > MAX_UPLOAD_BYTES) return setMsg({ error: "4MB 이하 파일만 올릴 수 있습니다. (스캔 해상도를 낮춰 주세요)" });
     setBusy(true);
     setMsg({});
+    let prepared;
+    try {
+      prepared = await prepareUpload(file, (m) => setMsg({ ok: m }));
+    } catch (err) {
+      setBusy(false);
+      return setMsg({ error: err instanceof Error ? err.message : String(err) });
+    }
+    setMsg({ ok: "올리는 중..." });
     const fd = new FormData();
-    fd.set("file", file);
+    fd.set("file", prepared.file);
     fd.set("category", category);
     fd.set("title", title);
     for (const [k, v] of Object.entries({ ...context, property_id: propertyId || context.property_id })) if (v) fd.set(k, v);
@@ -37,7 +45,7 @@ export default function DocumentUpload({
     const j = await r.json().catch(() => ({ error: `업로드 실패 (${r.status})` }));
     setBusy(false);
     if (!r.ok) return setMsg({ error: j.error ?? "업로드 실패" });
-    setMsg({ ok: "저장했습니다." });
+    setMsg({ ok: prepared.note ? `저장했습니다. ${prepared.note}` : "저장했습니다." });
     setFile(null);
     setTitle("");
     (e.target as HTMLFormElement).reset();
@@ -73,7 +81,7 @@ export default function DocumentUpload({
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 2026 등기부등본" />
       </div>
       <div>
-        <label className="label">파일 (PDF·JPG·PNG, 4MB 이하)</label>
+        <label className="label">파일 (PDF·JPG·PNG, 최대 1GB)</label>
         <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="input !py-1.5" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </div>
       <button className="btn" disabled={busy}>

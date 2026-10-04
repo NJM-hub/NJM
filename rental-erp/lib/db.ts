@@ -25,6 +25,8 @@ function pool(): pg.Pool {
     max: process.env.VERCEL ? 3 : 10,
     idleTimeoutMillis: 10_000,
   });
+  // 쉬고 있는 연결을 DB 가 끊어도(Neon 자동 절전 등) 서버가 죽지 않도록. 다음 요청 때 새로 연결한다
+  p.on("error", (e) => console.error("[db] idle connection closed:", e.message));
   globalForPg.__rentalPool = p;
   return p;
 }

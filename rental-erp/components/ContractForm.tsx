@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SmartForm, { normalize, type Section } from "@/components/Form";
-import { MAX_UPLOAD_BYTES } from "@/lib/constants";
+import { prepareUpload } from "@/lib/shrink";
 import type { FormState } from "@/lib/types";
 
 type Values = Record<string, string | boolean>;
@@ -55,10 +55,20 @@ export default function ContractForm({
   const [ocr, setOcr] = useState<{ json: string; docId: string; x: Extraction | null } | null>(null);
   const [docId, setDocId] = useState("");
   const [reviewed, setReviewed] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  async function upload(file: File) {
-    if (file.size > MAX_UPLOAD_BYTES) return setMsg({ error: "4MB 이하 파일만 올릴 수 있습니다." });
+  async function upload(original: File) {
     setBusy(true);
+    setNote(null);
+    let file: File;
+    try {
+      const r = await prepareUpload(original, (m) => setMsg({ info: m }));
+      file = r.file;
+      setNote(r.note);
+    } catch (e) {
+      setBusy(false);
+      return setMsg({ error: e instanceof Error ? e.message : String(e) });
+    }
     setMsg({ info: "AI 가 계약서를 읽고 있습니다... (20초~1분)" });
     const fd = new FormData();
     fd.set("file", file);
@@ -112,7 +122,7 @@ export default function ContractForm({
       {!edit && (
         <div className="rounded-2xl border-2 border-dashed border-navy-200 bg-navy-50/50 p-4">
           <div className="text-sm font-bold text-navy-900">📄 임대차계약서 올리기 (AI 자동 입력)</div>
-          <p className="mt-1 text-xs text-slate-600">PDF·JPG·PNG 계약서를 올리면 임대인·임차인·연락처·사업자번호·주소·호실·계약일·기간·보증금·월세·관리비·부가세·납부일·특약사항을 자동으로 채웁니다. 원본은 문서함에 함께 저장됩니다.</p>
+          <p className="mt-1 text-xs text-slate-600">PDF·JPG·PNG 계약서(최대 1GB)를 올리면 임대인·임차인·연락처·사업자번호·주소·호실·계약일·기간·보증금·월세·관리비·부가세·납부일·특약사항을 자동으로 채웁니다. 계약서는 문서함에 함께 저장됩니다. 4MB가 넘는 파일은 올리기 전에 자동으로 줄입니다 (PDF는 앞 50쪽까지).</p>
           <input
             type="file"
             accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -124,6 +134,7 @@ export default function ContractForm({
             }}
           />
           {msg.info && <p className="mt-2 animate-pulse text-sm text-navy-700">{msg.info}</p>}
+          {note && !msg.info && <p className="mt-2 text-xs text-slate-600">ℹ️ {note}</p>}
           {msg.error && <p className="mt-2 text-sm text-red-600">{msg.error}</p>}
         </div>
       )}

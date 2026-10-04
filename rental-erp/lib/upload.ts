@@ -4,7 +4,7 @@ import { MAX_UPLOAD_BYTES, UPLOAD_MIME } from "@/lib/constants";
 /** 업로드 파일 검사: 형식(파일 앞부분 서명까지 확인)·크기 */
 export async function readUpload(file: FormDataEntryValue | null): Promise<{ name: string; mime: string; bytes: Buffer } | { error: string }> {
   if (!(file instanceof File) || file.size === 0) return { error: "파일을 선택하세요." };
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "4MB 이하 파일만 올릴 수 있습니다." };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: "파일이 너무 큽니다. 화면을 새로고침한 뒤 다시 올려 주세요 (큰 파일은 자동으로 줄여서 올립니다)." };
   const bytes = Buffer.from(await file.arrayBuffer());
   const mime = sniff(bytes);
   if (!mime || !(UPLOAD_MIME as readonly string[]).includes(mime)) return { error: "PDF, JPG, PNG 파일만 올릴 수 있습니다." };
