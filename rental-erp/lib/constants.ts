@@ -103,7 +103,8 @@ export type AgingBucket = (typeof AGING_BUCKETS)[number];
 
 /** 업로드 가능한 파일 */
 export const UPLOAD_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
-export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // Vercel 요청 크기 제한(4.5MB) 안쪽
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // 서버로 보내는 한 번의 크기 (Vercel 요청 크기 제한 4.5MB 안쪽)
+export const MAX_SOURCE_BYTES = 1024 * 1024 * 1024; // 고를 수 있는 원본 파일 최대 1GB (4MB 넘으면 브라우저에서 자동 압축)
 
 export function label<T extends Record<string, string>>(map: T, key: string | null | undefined): string {
   return key && key in map ? map[key as keyof T] : (key ?? "-");
