@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
 import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
 import {
-  addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, resetVehicleSettlement,
+  addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, deleteVehicleMonthQuick, deleteWholeMonth, resetVehicleSettlement,
   saveAmounts, saveExpenses, setSettlementStatus,
 } from "./actions";
 import { SelectAll } from "./SelectAll";
@@ -117,7 +117,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
             <tr>
               <th>차량 · 기사</th><th className="text-right">운행일</th>{COUNT_HEAD}
               <th className="text-right">금액 합계</th><th className="text-right">비용</th><th className="text-right">차액</th>
-              <th className="text-right">세액</th><th className="text-right">지급액</th>
+              <th className="text-right">세액</th><th className="text-right">지급액</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -136,9 +136,21 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="text-right">{won(v.payout.diff)}</td>
                 <td className="text-right">{won(v.payout.tax)}</td>
                 <td className="text-right font-semibold">{won(v.payout.pay)}</td>
+                <td>
+                  {v.status === "confirmed" ? (
+                    <span className="text-xs text-gray-400" title="확정 해제 후 삭제할 수 있습니다">확정됨</span>
+                  ) : (
+                    <form action={deleteVehicleMonthQuick} className="flex items-center gap-1">
+                      <input type="hidden" name="month" value={report.month} />
+                      <input type="hidden" name="vehicleId" value={v.vehicleId} />
+                      <label className="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" name="confirm" /> 확인</label>
+                      <SubmitButton className="btn-danger !px-2 !py-1 text-xs" pendingText="...">삭제</SubmitButton>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
-            {!report.vehicles.length && <tr><td colSpan={12} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
+            {!report.vehicles.length && <tr><td colSpan={13} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
           </tbody>
           {report.vehicles.length > 0 && (
             <tfoot>
@@ -155,11 +167,24 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.diff))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.tax))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.pay))}</td>
+                <td />
               </tr>
             </tfoot>
           )}
         </table>
       </div>
+
+      <form action={deleteWholeMonth} className="card flex flex-wrap items-center gap-3 border-red-200">
+        <input type="hidden" name="month" value={report.month} />
+        <div className="text-sm">
+          <b className="text-red-700">{mon}월 전체 삭제</b>
+          <span className="ml-2 text-gray-600">
+            {mon}월의 예약·배차(외부 콜 포함), 직접 추가 항목, 비용·확정 정산을 모두 지웁니다. 차량·기사·설정은 남습니다. 되돌릴 수 없습니다.
+          </span>
+        </div>
+        <input name="confirmWord" placeholder="'삭제' 입력" className="input !w-28" autoComplete="off" />
+        <SubmitButton className="btn-danger">{mon}월 전체 삭제</SubmitButton>
+      </form>
 
       {report.external.length > 0 && (
         <details className="card">

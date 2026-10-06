@@ -256,3 +256,50 @@ export async function deleteVehicleMonth(formData: FormData) {
   refreshAll();
   redirect(`/admin/vehicle-settlement?month=${month}&msg=${encodeURIComponent(`${month} 해당 차량 운행 ${rows.length}건과 정산 입력을 삭제했습니다.`)}`);
 }
+
+/** 목록 화면: 차량 한 대의 그 달 운행·정산 입력 삭제 (확인 체크) */
+export async function deleteVehicleMonthQuick(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  const list = `/admin/vehicle-settlement?month=${month}`;
+  if (formData.get("confirm") !== "on") redirect(`${list}&msg=${encodeURIComponent("삭제하려면 그 줄의 확인에 체크하세요.")}`);
+  await assertUnlocked(supabase, month, vehicleId);
+  const rows = await confirmedAssignments(supabase, month, vehicleId);
+  if (rows.length) {
+    const { error } = await supabase.from("bookings").delete().in("id", rows.map((a) => a.bookingId));
+    if (error) throw new Error(error.message);
+    await dropEmptyRuns(supabase, rows.map((a) => a.date));
+  }
+  await Promise.all([
+    supabase.from("vehicle_month_items").delete().eq("month", month).eq("vehicle_id", vehicleId),
+    supabase.from("vehicle_month_expenses").delete().eq("month", month).eq("vehicle_id", vehicleId),
+  ]);
+  refreshAll();
+  redirect(`${list}&msg=${encodeURIComponent(`차량 운행 ${rows.length}건과 정산 입력을 삭제했습니다.`)}`);
+}
+
+/**
+ * 목록 화면: 그 달 전체 삭제 ('삭제' 입력 확인).
+ * 그 달의 예약·배차(외부 콜 포함), 직접 추가 항목, 비용·확정 정산을 모두 지운다. 차량·기사·설정은 남긴다.
+ */
+export async function deleteWholeMonth(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const month = String(formData.get("month"));
+  if (!isMonth(month)) throw new Error("정산 월이 올바르지 않습니다.");
+  const list = `/admin/vehicle-settlement?month=${month}`;
+  if (String(formData.get("confirmWord") ?? "").trim() !== "삭제") {
+    redirect(`${list}&msg=${encodeURIComponent("전체 삭제하려면 확인란에 '삭제'라고 입력하세요.")}`);
+  }
+  const { from, to } = monthRange(month);
+  const { error: e1, count } = await supabase.from("bookings").delete({ count: "exact" }).gte("service_date", from).lte("service_date", to);
+  if (e1) throw new Error(e1.message);
+  const results = await Promise.all([
+    supabase.from("dispatch_runs").delete().gte("service_date", from).lte("service_date", to),
+    supabase.from("vehicle_month_items").delete().eq("month", month),
+    supabase.from("vehicle_month_expenses").delete().eq("month", month),
+  ]);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw new Error(failed.error.message);
+  refreshAll();
+  redirect(`${list}&msg=${encodeURIComponent(`${month} 예약·배차 ${count ?? 0}건과 정산 입력을 모두 삭제했습니다.`)}`);
+}
