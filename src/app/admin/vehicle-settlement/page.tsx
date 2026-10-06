@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, OWN_CALL, summarizeOperators, type DayCount } from "@/lib/settlement/vehicleMonthly";
 import {
   addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, deleteVehicleMonthQuick, deleteWholeMonth, resetVehicleSettlement,
   saveAmounts, saveExpenses, setSettlementStatus,
@@ -127,6 +127,14 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                   <Link href={`/admin/vehicle-settlement?month=${report.month}&v=${v.vehicleId}`} className="font-medium text-blue-700 hover:underline">
                     {vehicleTitle(v.plate, v.driverName)}
                   </Link>
+                  {(() => {
+                    const others = summarizeOperators(v.rows, v.driverName).filter((o) => o.name !== v.driverName);
+                    return others.length > 0 ? (
+                      <div className="text-xs text-amber-700">
+                        다른 기사 운행: {others.map((o) => `${o.name} ${o.calls + o.own}건`).join(", ")}
+                      </div>
+                    ) : null;
+                  })()}
                   {v.status === "confirmed" && <span className="badge ml-2 bg-green-100 text-green-800">확정</span>}
                 </td>
                 <td className="text-right">{v.total.workDays}일</td>
@@ -281,6 +289,33 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
           {!locked && <SubmitButton>비용 저장</SubmitButton>}
         </form>
       </div>
+
+      {/* 같은 차량번호를 운행한 기사별 */}
+      {(() => {
+        const ops = summarizeOperators(v.rows, v.driverName);
+        return (
+          <div className="card">
+            <h3 className="mb-2 font-semibold">
+              운행 기사별 <span className="text-sm font-normal text-gray-500">같은 차량({v.plate})을 운행한 기사를 시트 기사 칸 기준으로 나눕니다</span>
+            </h3>
+            <table className="table">
+              <thead><tr><th>기사</th><th className="text-right">픽업</th><th className="text-right">샌딩</th><th className="text-right">외부오더</th><th className="text-right">합계</th><th className="text-right">금액</th></tr></thead>
+              <tbody>
+                {ops.map((o) => (
+                  <tr key={o.name} className={o.name !== v.driverName ? "bg-amber-50" : ""}>
+                    <td className="font-medium">{o.name}{o.name === v.driverName ? <span className="ml-1 text-xs text-gray-500">(담당)</span> : <span className="ml-1 text-xs text-amber-700">(차량 빌려 운행)</span>}</td>
+                    <td className="text-right">{num(o.pickup)}</td>
+                    <td className="text-right">{num(o.sending)}</td>
+                    <td className="text-right text-violet-700">{num(o.own)}</td>
+                    <td className="text-right font-semibold">{num(o.calls + o.own)}</td>
+                    <td className="text-right">{won(o.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* 날짜별 건수 */}
       <details className="card" open>

@@ -1,6 +1,6 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DEFAULT_WITHHOLDING } from "@/lib/tax";
-import { computePayout, inOutLabel, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
+import { computePayout, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
 
 let n = 0;
 const row = (date: string, plate: string, tripType: string | null, extra: Partial<VehicleMonthRow> = {}): VehicleMonthRow => ({
@@ -36,4 +36,21 @@ it("8월 차수영 정산표와 같은 계산: 금액 합계 − 비용 = 차액
     incomeTax: 92_510, localTax: 9_250, tax: 101_760, pay: 2_982_047,
   });
   expect(computePayout(100_000, null, DEFAULT_WITHHOLDING)).toMatchObject({ expenses: 0, diff: 100_000, tax: 3_300, pay: 96_700 });
+});
+
+describe("summarizeOperators", () => {
+  it("같은 차량번호를 여러 기사가 운행하면 기사별로 나눈다", () => {
+    const base = { serviceDate: "2026-10-01", vehicleId: "v", plate: "161하9754", driverName: "车秀荣", source: null };
+    const rows = [
+      { ...base, id: "1", tripType: "공항 픽업", amount: 40000, operator: "车秀荣" },
+      { ...base, id: "2", tripType: "공항 샌딩", amount: 40000, operator: "김기봉" },
+      { ...base, id: "3", tripType: "공항 샌딩", amount: 45000, operator: "车秀荣" },
+      { ...base, id: "4", tripType: null, amount: -15000, operator: "车秀荣", source: OWN_CALL },
+      { ...base, id: "5", tripType: null, amount: 30000, manualSource: "TALIXO" },
+    ];
+    expect(summarizeOperators(rows, "车秀荣")).toEqual([
+      { name: "车秀荣", calls: 2, pickup: 1, sending: 1, own: 1, amount: 100000 },
+      { name: "김기봉", calls: 1, pickup: 0, sending: 1, own: 0, amount: 40000 },
+    ]);
+  });
 });

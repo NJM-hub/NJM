@@ -122,3 +122,30 @@ export function computePayout(amount: number, ex: Expenses | null, opts: Withhol
   const w = computeWithholding(Math.max(0, diff), opts);
   return { amount, expenses, diff, tax: w.totalTax, incomeTax: w.incomeTax, localTax: w.localTax, pay: diff - w.totalTax };
 }
+
+export type OperatorSummary = { name: string; calls: number; pickup: number; sending: number; own: number; amount: number };
+
+/**
+ * 같은 차량번호 안에서 운행 기사별로 나눈다 (차량을 빌려 운행한 기사 구분).
+ * 시트에 운행 기사가 없는 건(직접 추가 항목 등)은 차량 담당 기사로 본다.
+ */
+export function summarizeOperators(rows: VehicleMonthRow[], vehicleDriver: string | null): OperatorSummary[] {
+  const by = new Map<string, OperatorSummary>();
+  for (const r of rows) {
+    const name = r.operator ?? vehicleDriver ?? "(기사 미상)";
+    const o = by.get(name) ?? { name, calls: 0, pickup: 0, sending: 0, own: 0, amount: 0 };
+    by.set(name, o);
+    if (r.source === OWN_CALL) o.own++;
+    else {
+      const k = tripKind(r.tripType);
+      if (k === "pickup") o.pickup++;
+      if (k === "sending") o.sending++;
+      if (!(r.manualSource && k === "other")) o.calls++;
+    }
+    o.amount += r.amount ?? 0;
+  }
+  // 담당 기사 먼저, 나머지는 건수 많은 순
+  return [...by.values()].sort(
+    (a, b) => Number(b.name === vehicleDriver) - Number(a.name === vehicleDriver) || b.calls + b.own - (a.calls + a.own),
+  );
+}

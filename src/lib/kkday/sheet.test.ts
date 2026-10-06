@@ -73,6 +73,7 @@ describe("구글 시트 배차표", () => {
     expect(parseDriverCell("60,000")).toMatchObject({ kind: "external", fare: 60000 });
     expect(parseDriverCell("JACKY")).toEqual({ kind: "vehicle", driverName: "JACKY", plateSuffix: null, label: "JACKY" });
     expect(parseDriverCell("  ")).toBeNull();
+    expect(parseDriverCell("投诉지각")).toBeNull();
     expect(parseDriverCell("9772 Henry")).toMatchObject({ kind: "vehicle", driverName: "Henry", plateSuffix: "9772" });
     expect(parseDriverCell("金龙喆 9778")).toMatchObject({ kind: "vehicle", driverName: "金龙喆", plateSuffix: "9778" });
   });

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import writeXlsxFile, { type Sheet, type SheetData } from "write-excel-file/node";
 import { getSession } from "@/lib/auth";
 import { fmtTime, isMonth } from "@/lib/format";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, OWN_CALL, summarizeOperators } from "@/lib/settlement/vehicleMonthly";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
 
 const MONEY = "#,##0";
@@ -35,6 +35,12 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
       ];
     }),
     [null, null, null, null, null, null, null, null, { value: `금액 합계 (${v.rows.length}건)`, fontWeight: "bold" }, money(p.amount, { fontWeight: "bold" })],
+    [],
+    [{ value: "운행 기사별", fontWeight: "bold" }],
+    ["기사", "픽업", "샌딩", "외부오더", "합계", "금액"].map((h) => ({ value: h, ...HEAD })),
+    ...summarizeOperators(v.rows, v.driverName).map((o) => [
+      o.name === v.driverName ? `${o.name} (담당)` : `${o.name} (차량 빌려 운행)`, o.pickup, o.sending, o.own, o.calls + o.own, money(o.amount),
+    ]),
     [],
     [...EXPENSE_KEYS.map((k) => ({ value: EXPENSE_LABELS[k], ...HEAD })), { value: "비용 합계", ...HEAD }],
     [...EXPENSE_KEYS.map((k) => money(v.expenses?.[k] ?? 0)), money(p.expenses, { fontWeight: "bold" })],

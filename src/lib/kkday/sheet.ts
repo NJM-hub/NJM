@@ -71,10 +71,16 @@ export function isCancelledCell(c: Cell): boolean {
   return /取消|취소|cancel/i.test(s) || /\d+(\.\d+)?\s*%/.test(s);
 }
 
-/** "金基峰9763" → 차량 배차, "55000" → 외부 콜, 빈칸 → null */
+/** 기사 칸에 차량 대신 적힌 메모 (불만·지각 등) */
+export function isDriverNote(c: Cell): boolean {
+  const s = String(c ?? "").trim();
+  return !!s && !/\d{4}/.test(s) && /投诉|지각|불만|컴플레인|complain|迟到|晚到/i.test(s);
+}
+
+/** "金基峰9763" → 차량 배차, "55000" → 외부 콜, 빈칸·메모 → null */
 export function parseDriverCell(c: Cell): SheetDriver | null {
   const s = String(c ?? "").trim();
-  if (!s) return null;
+  if (!s || isDriverNote(s)) return null;
   const amount = s.replace(/[,\s원₩]/g, "");
   if (/^\d+$/.test(amount) && Number(amount) >= 1000) return { kind: "external", fare: Number(amount), label: s };
   const m = s.match(/^(.*?)\s*(?<!\d)(\d{4})$/);
@@ -215,7 +221,8 @@ function parseBookingRow(row: Cell[], r: number, pickupAt: string, headers: Cell
   const tail = parseTail(row, tailFrom);
   if (tail.pax <= 0) warnings.push("인원을 인식하지 못해 1명으로 처리했습니다");
   const sheetDriver = parseDriverCell(row[c.driver]);
-  if (!sheetDriver) warnings.push("기사가 비어 있어 미배정으로 둡니다");
+  const driverNote = isDriverNote(row[c.driver]) ? `기사 칸 메모: ${text(row[c.driver])}` : null;
+  if (!sheetDriver) warnings.push(driverNote ? `${driverNote} (차량을 알 수 없어 미배정)` : "기사가 비어 있어 미배정으로 둡니다");
   const foreignText = foreign ? row.slice(c.useTime + 1, tailFrom).map(text).filter(Boolean).join(" / ") : null;
   const vehicleClass = foreign ? null : vehicleClassOf(get(c.vehicleModel));
 
@@ -240,7 +247,7 @@ function parseBookingRow(row: Cell[], r: number, pickupAt: string, headers: Cell
     pickupPlace: toAirport ? place : airportLabel,
     dropoffPlace: toAirport ? airportLabel : place,
     flightNo: get(c.flight),
-    memo: [sourceLabel, foreignText, tail.extra, ...tail.notes].filter(Boolean).join(" / ") || null,
+    memo: [driverNote, sourceLabel, foreignText, tail.extra, ...tail.notes].filter(Boolean).join(" / ") || null,
     fare: null,
     tripType,
     vehicleClass,
