@@ -22,7 +22,7 @@ type Row = {
     booking_no: string | null; flight_no: string | null; trip_type: string | null; source: string | null;
     pickup_at: string | null; vehicle_class: string | null; pax: number | null; memo: string | null;
     fare: number | null; pickup_address: string | null; dropoff_address: string | null;
-    pickup_place: string | null; dropoff_place: string | null;
+    pickup_place: string | null; dropoff_place: string | null; raw: Record<string, string> | null;
   } | null;
 };
 
@@ -49,6 +49,14 @@ export type VehicleMonthReport = {
 
 export const MANUAL_PREFIX = "m_";
 
+/** 시트 기사 칸("9754 차수영", "金石岗9760")에서 기사 이름만 */
+export function operatorOf(raw: Record<string, string> | null | undefined): string | null {
+  const label = raw?.["driver"] ?? raw?.["기사"] ?? null;
+  if (!label) return null;
+  const name = label.replace(/\d{4}/g, " ").replace(/\s+/g, " ").trim();
+  return name || null;
+}
+
 export async function loadVehicleMonth(db: SupabaseClient, month: string): Promise<VehicleMonthReport> {
   const { from, to } = monthRange(month);
   const settings = await loadSettings(db);
@@ -59,7 +67,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
       .from("dispatch_assignments")
       .select(
         "id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
-          "bookings(booking_no,flight_no,trip_type,source,pickup_at,vehicle_class,pax,memo,fare,pickup_address,dropoff_address,pickup_place,dropoff_place)",
+          "bookings(booking_no,flight_no,trip_type,source,pickup_at,vehicle_class,pax,memo,fare,pickup_address,dropoff_address,pickup_place,dropoff_place,raw)",
       )
       .eq("dispatch_runs.status", "confirmed")
       .gte("dispatch_runs.service_date", from)
@@ -95,6 +103,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         vehicleClass: r.bookings?.vehicle_class ?? null,
         pax: r.bookings?.pax ?? null,
         memo: r.bookings?.memo ?? null,
+        operator: operatorOf(r.bookings?.raw),
       };
     });
 

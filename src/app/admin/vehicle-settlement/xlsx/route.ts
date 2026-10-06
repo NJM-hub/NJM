@@ -31,7 +31,7 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
       const own = r.source === OWN_CALL;
       return [
         own ? "외부오더" : r.bookingNo ?? "", r.flightNo ?? "", inOutLabel(r), r.serviceDate, r.pickupAt ? fmtTime(r.pickupAt) : "",
-        driver, r.vehicleClass ?? "", own ? null : r.pax ?? null, r.memo ?? "", money(r.amount, r.amount < 0 ? { textColor: "#DC2626" } : {}),
+        r.operator ? `${r.operator} ${v.plate.slice(-4)}` : driver, r.vehicleClass ?? "", own ? null : r.pax ?? null, r.memo ?? "", money(r.amount, r.amount < 0 ? { textColor: "#DC2626" } : {}),
       ];
     }),
     [null, null, null, null, null, null, null, null, { value: `금액 합계 (${v.rows.length}건)`, fontWeight: "bold" }, money(p.amount, { fontWeight: "bold" })],

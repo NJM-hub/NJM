@@ -329,7 +329,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="overflow-x-auto">
           <table className="table">
             <thead>
-              <tr>{!locked && <th><SelectAll name="sel" /></th>}<th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th></tr>
+              <tr>{!locked && <th><SelectAll name="sel" /></th>}<th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>운행 기사</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th></tr>
             </thead>
             <tbody>
               {v.rows.map((r) => {
@@ -348,6 +348,10 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                     <td className="whitespace-nowrap">{inOutLabel(r)}</td>
                     <td className="whitespace-nowrap">{dayLabel(r.serviceDate)}</td>
                     <td>{r.pickupAt ? fmtTime(r.pickupAt) : ""}</td>
+                    <td className={`whitespace-nowrap text-xs ${r.operator && v.driverName && !v.driverName.includes(r.operator) ? "font-semibold text-amber-700" : "text-gray-600"}`}
+                      title={r.operator && v.driverName && !v.driverName.includes(r.operator) ? "차량 담당 기사와 다른 기사가 운행" : undefined}>
+                      {r.operator ?? ""}
+                    </td>
                     <td className="whitespace-nowrap text-xs">{r.vehicleClass}</td>
                     <td className="text-right">{own ? "" : r.pax}</td>
                     <td className="max-w-64 truncate text-xs text-gray-500" title={r.memo ?? ""}>{r.memo}</td>
@@ -368,7 +372,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td colSpan={locked ? 8 : 9} className="px-3 py-2">금액 합계</td>
+                <td colSpan={locked ? 9 : 10} className="px-3 py-2">금액 합계</td>
                 <td className="px-3 py-2 text-right">{won(v.total.amount)}</td>
               </tr>
             </tfoot>

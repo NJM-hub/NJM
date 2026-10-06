@@ -8,6 +8,7 @@ const links = [
   { href: "/admin/vehicles", label: "차량" },
   { href: "/admin/drivers", label: "기사" },
   { href: "/admin/vehicle-settlement", label: "차량별 월정산" },
+  { href: "/admin/external-calls", label: "외부 콜" },
   { href: "/admin/settlement", label: "정산·세무" },
   { href: "/admin/settings", label: "설정" },
 ];

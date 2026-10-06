@@ -26,6 +26,7 @@ const digits = (s: string) => s.replace(/\D/g, "");
 /**
  * 시트의 기사/차량을 등록된 차량과 맞춘다.
  * 차량번호 뒤 4자리가 같은 차량(여러 대면 기사 이름이 같은 차량)을 쓰고, 없으면 새로 등록한다.
+ * "9754 차수영"과 "9754김기봉"처럼 기사가 달라도 번호가 같으면 같은 차량이다.
  * 새 차량의 좌석 수·등급은 그 차량에 배정된 예약 중 가장 큰 차급으로 정한다.
  */
 export function planSheetVehicles(bookings: SheetBooking[], vehicles: PlanVehicle[]): VehiclePlan {
@@ -38,7 +39,13 @@ export function planSheetVehicles(bookings: SheetBooking[], vehicles: PlanVehicl
   const plan: VehiclePlan = { matched: new Map(), create: [], setDriverName: [] };
   for (const [key, list] of groups) {
     const d = list[0].sheetDriver as Extract<SheetBooking["sheetDriver"], { kind: "vehicle" }>;
-    const name = d.driverName;
+    // 같은 차량을 다른 기사가 잠깐 빌려 운행할 수 있으므로 차량 기준으로 묶고, 기사 이름은 가장 많이 운행한 사람
+    const counts = new Map<string, number>();
+    for (const b of list) {
+      const n = (b.sheetDriver as typeof d).driverName;
+      if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+    const name = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? d.driverName;
     const candidates = d.plateSuffix
       ? vehicles.filter((v) => digits(v.plate_number).endsWith(d.plateSuffix!))
       : vehicles.filter((v) => v.driver_name === name || v.plate_number === name);

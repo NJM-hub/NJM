@@ -28,6 +28,8 @@ export type VehicleMonthRow = {
   edited?: boolean;
   /** 정산에 직접 추가한 항목이면 그 출처 (TALIXO, 기타 등) */
   manualSource?: string | null;
+  /** 시트에 적힌 그날 실제 운행 기사 (차량을 빌려 운행한 경우 차량 담당 기사와 다를 수 있음) */
+  operator?: string | null;
 };
 
 export type DayCount = { pickup: number; sending: number; other: number; own: number; amount: number };
