@@ -168,5 +168,8 @@ describe("기사 자체 콜 (표 아래 기사별 칸)", () => {
     expect(parseOwnCallText("21:30 J 江南")).toMatchObject({ tripType: "공항 픽업", place: "江南" });
     expect(parseOwnCallText("17:00 明洞 S 金浦")).toMatchObject({ tripType: "공항 샌딩", iata: "GMP", place: "明洞" });
     expect(parseOwnCallText("9/14 4:30 T2 S 东大门")).toMatchObject({ time: "04:30", terminal: "T2", place: "东大门" });
+    expect(parseOwnCallText("12:00 送机 明洞 100000")).toMatchObject({ time: "12:00", tripType: "공항 샌딩", charterFare: 100000, place: "明洞" });
+    expect(parseOwnCallText("市内包车 80,000")).toMatchObject({ charterFare: 80000 });
+    expect(parseOwnCallText("1100 送机 江南").charterFare).toBeNull();
   });
 });

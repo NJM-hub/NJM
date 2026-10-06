@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { monthRange } from "@/lib/format";
 import { loadSettings } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
-import { OWN_CALL } from "./vehicleMonthly";
+import { OWN_CALL, ownCallAmount } from "./vehicleMonthly";
 
 /** 외부(타업체)로 준 콜: 시트 기사 칸에 금액만 적힌 건 */
 export type OutCall = {
@@ -33,7 +33,7 @@ export type InCall = {
   content: string;
   /** 전세 등 시트에 적힌 요금 */
   charterFare: number | null;
-  /** 정산에서 빼는 금액 (기본 −차감액, 정산 화면에서 고친 값이 있으면 그 값) */
+  /** 정산 금액 (시트 금액이 있으면 그 금액, 없으면 −차감액, 정산 화면에서 고친 값이 있으면 그 값) */
   settleAmount: number;
   paid: boolean;
 };
@@ -109,11 +109,12 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         tripType: b.trip_type,
         content: b.raw?.["내용"] ?? b.memo ?? "",
         charterFare: b.fare,
-        settleAmount: r.settle_amount ?? -ownCallFee,
+        settleAmount: r.settle_amount ?? ownCallAmount(b.fare, ownCallFee),
         paid: b.raw?.["입금"] === "확인",
       };
     })
-    .sort((a, b) => (a.plate ?? "").localeCompare(b.plate ?? "") || byTime(a, b));
+    // 날짜(·시간)순, 같은 시각이면 차량순
+    .sort((a, b) => a.date.localeCompare(b.date) || byTime(a, b) || (a.plate ?? "").localeCompare(b.plate ?? ""));
 
   return { month, ownCallFee, out, inCalls };
 }

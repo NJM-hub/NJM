@@ -379,7 +379,10 @@ export function parseOwnCallText(text: string): {
     durationMin = (toMin(endTime) - toMin(time) + 1440) % 1440 || null;
   }
   const charter = /包车|包車|전세|대절/.test(text);
-  const charterFare = charter ? Number(text.match(/\d{4,}/)?.[0] ?? 0) || null : null;
+  // 금액: 전세는 4자리 이상 숫자, 그 외에도 80000·100,000 처럼 1만 이상 숫자가 있으면 그 콜의 금액
+  const money = text.match(/(?<![\d:：.])(\d{1,3}(?:,\d{3})+|\d{5,})(?![\d:：])/)?.[1];
+  const amount = money ? Number(money.replace(/,/g, "")) : 0;
+  const charterFare = (amount >= 10000 ? amount : charter ? Number(text.match(/\d{4,}/)?.[0] ?? 0) : 0) || null;
   const terminal = text.match(/T\s*([12])(?![0-9])/i)?.[1];
   const iata = /金浦|김포|GMP/i.test(text) ? "GMP" : /仁川|인천|ICN|机场|機場|공항/i.test(text) || terminal ? "ICN" : null;
   const sending = /送|샌딩|(^|[^A-Za-z])S([^A-Za-z]|$)/.test(text);

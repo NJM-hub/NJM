@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
           ["합계", "", "", `${out.length}건`, "", "", "", "", "", out.reduce((a, c) => a + c.fare, 0)],
         ]
       : [
-          ["날짜", "시간", "차량", "기사", "구분", "내용", "시트 요금", "정산 차감", "입금"],
+          ["날짜", "시간", "차량", "기사", "구분", "내용", "시트 요금", "정산 금액", "입금"],
           ...inCalls.map((c) => [c.date, c.pickupAt ? fmtTime(c.pickupAt) : "", c.plate, c.driverName, t(c.tripType), c.content, c.charterFare ?? "", c.settleAmount, c.paid ? "확인" : ""]),
         ];
   const name = `${Number(month.slice(5))}월_${type === "out" ? "외부로_준_콜" : "외부에서_받은_콜"}.csv`;
