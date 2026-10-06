@@ -57,9 +57,9 @@ export type TripKind = "pickup" | "sending" | "other";
 
 export const OWN_CALL = "driver_own";
 
-/** 자체 콜 기본 정산 금액: 시트에 금액(전세 80000 등)이 적혀 있으면 그 금액, 없으면 −차감액 */
+/** 자체 콜 기본 정산 금액: 시트에 금액(전세 80000 등)이 적혀 있으면 −그 금액, 없으면 −차감액 */
 export function ownCallAmount(fare: number | null | undefined, ownCallFee: number): number {
-  return fare && fare > 0 ? fare : -ownCallFee;
+  return fare && fare > 0 ? -fare : -ownCallFee;
 }
 
 export function tripKind(tripType: string | null): TripKind {

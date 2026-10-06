@@ -51,7 +51,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
       </form>
       <p className="text-sm text-gray-500">
         확정된 배차 기준입니다. <b>외부로 준 콜</b>은 배차 시트 기사 칸에 금액(숫자)만 적힌 건,
-        <b> 외부에서 받은 콜</b>은 시트 표 아래 기사별 칸에 적힌 기사 자체 콜입니다 (월정산에서 건당 −{won(ownCallFee)}, 80000·100000 처럼 금액이 적힌 콜은 그 금액).
+        <b> 외부에서 받은 콜</b>은 시트 표 아래 기사별 칸에 적힌 기사 자체 콜입니다 (월정산에서 건당 −{won(ownCallFee)}, 80000·100000 처럼 금액이 적힌 콜은 −그 금액).
       </p>
 
       {/* 외부로 준 콜 */}

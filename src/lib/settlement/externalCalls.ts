@@ -33,7 +33,7 @@ export type InCall = {
   content: string;
   /** 전세 등 시트에 적힌 요금 */
   charterFare: number | null;
-  /** 정산 금액 (시트 금액이 있으면 그 금액, 없으면 −차감액, 정산 화면에서 고친 값이 있으면 그 값) */
+  /** 정산 금액 (시트 금액이 있으면 −그 금액, 없으면 −차감액, 정산 화면에서 고친 값이 있으면 그 값) */
   settleAmount: number;
   paid: boolean;
 };

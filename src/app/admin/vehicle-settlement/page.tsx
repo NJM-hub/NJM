@@ -109,7 +109,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
     <>
       <p className="text-sm text-gray-500">
         <b>확정된 배차</b>만 셉니다. 차량을 누르면 날짜별 건수, 건별 금액, 비용 입력 화면이 나옵니다.
-        외부오더(기사 자체 콜)는 건당 {won(report.ownCallFee)}씩 빼고(설정에서 변경, 시트에 금액이 적힌 콜은 그 금액), 차액에서 원천세 3.3%를 뗀 금액이 지급액입니다.
+        외부오더(기사 자체 콜)는 건당 {won(report.ownCallFee)}씩 빼고(설정에서 변경, 시트에 금액이 적힌 콜은 그 금액만큼 빼고), 차액에서 원천세 3.3%를 뗀 금액이 지급액입니다.
       </p>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
@@ -357,7 +357,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="font-semibold">건별 내역 ({v.rows.length}건)</h3>
           <p className="text-xs text-gray-500">
-            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 시트 금액, 없으면 −{won(report.ownCallFee)}).
+            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −시트 금액, 없으면 −{won(report.ownCallFee)}).
           </p>
           {!locked && <SubmitButton className="ml-auto">금액 저장</SubmitButton>}
         </div>
