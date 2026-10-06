@@ -20,7 +20,7 @@ import { buildSnapshot, effectiveStatus } from "@/lib/engine";
 import { unitFields } from "@/lib/fieldsets";
 import { pct, won, wonShort } from "@/lib/format";
 import type { DocumentMeta } from "@/lib/types";
-import { payOptions } from "@/lib/views";
+import { compareUnits, payOptions } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function PropertyPage({ params, searchParams }: { params: P
   const s = buildSnapshot(ds, settings, all.today, { propertyId: id });
   const pm = s.properties[0];
   const today = s.today;
-  const allUnits = ds.units.filter((u) => u.property_id === id);
+  const allUnits = ds.units.filter((u) => u.property_id === id).sort((a, b) => compareUnits(ds, a, b));
   const contracts = ds.contracts.filter((c) => allUnits.some((u) => u.id === c.unit_id)).sort((a, b) => b.start_date.localeCompare(a.start_date));
   const cIds = new Set(contracts.map((c) => c.id));
   const charges = ds.charges.filter((c) => cIds.has(c.contract_id));

@@ -2,7 +2,25 @@
 import type { PayContractOption } from "@/components/PaymentForm";
 import { monthLabel } from "@/lib/dates";
 import { effectiveEnd } from "@/lib/engine";
-import type { Contract, Dataset } from "@/lib/types";
+import type { Contract, Dataset, Unit } from "@/lib/types";
+
+const isBasement = (no: string) => /^\s*(b|지하)/i.test(no);
+
+/** 호실 순서: 지하(B101, B1, 지하1층) 먼저 → 나머지는 숫자 크기순 (101호, 102호, 1001호) */
+export function compareUnitNo(a: string, b: string): number {
+  return Number(isBasement(b)) - Number(isBasement(a)) || a.localeCompare(b, "ko", { numeric: true });
+}
+
+/** 빌딩 순서: 부동산명 → 동 → 호실 */
+export function compareUnits(ds: Pick<Dataset, "properties">, a: Unit | undefined, b: Unit | undefined): number {
+  if (!a || !b) return Number(!a) - Number(!b);
+  const name = (u: Unit) => ds.properties.find((p) => p.id === u.property_id)?.name ?? "";
+  return (
+    name(a).localeCompare(name(b), "ko", { numeric: true }) ||
+    (a.dong ?? "").localeCompare(b.dong ?? "", "ko", { numeric: true }) ||
+    compareUnitNo(a.unit_no, b.unit_no)
+  );
+}
 
 export function unitLabel(ds: Pick<Dataset, "units" | "properties">, unitId: string): string {
   const u = ds.units.find((x) => x.id === unitId);
@@ -33,8 +51,8 @@ export function payOptions(ds: Dataset, today: string, only?: (c: Contract) => b
 export function unitOptions(ds: Pick<Dataset, "units" | "properties">) {
   return ds.units
     .filter((u) => u.is_active)
-    .map((u) => ({ value: u.id, label: unitLabel(ds, u.id) }))
-    .sort((a, b) => a.label.localeCompare(b.label, "ko"));
+    .sort((a, b) => compareUnits(ds, a, b))
+    .map((u) => ({ value: u.id, label: unitLabel(ds, u.id) }));
 }
 
 export function tenantOptions(ds: Pick<Dataset, "tenants">) {
