@@ -95,7 +95,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <StatCard icon="🏦" label="대출잔액" value={wonShort(t.loanBalance)} sub={`월 이자 ${wonShort(t.monthlyInterest)}`} href="/loans" />
         <StatCard icon="📊" label="연 예상 순수익" value={wonShort(t.annualNet)} sub={`이자 제외 시 ${wonShort(t.annualNetBeforeInterest)}`} tone={t.annualNet >= 0 ? "gray" : "red"} href="/analysis" />
         <StatCard icon="📐" label="임대수익률" value={pct(t.simpleYield)} sub={`자기자본 수익률 ${pct(t.leveragedYield)}`} href="/analysis" />
-        <StatCard icon="🚪" label="공실률" value={pct(t.vacancyRate)} sub={`공실 ${t.vacantUnits}호실 · 월 손실 ${wonShort(t.vacancyLossMonthly)}`} tone={t.vacancyRate > 20 ? "orange" : "gray"} href="/properties?filter=vacant" />
+        <StatCard icon="🚪" label="공실률" value={pct(t.vacancyRate)} sub={`공실 ${t.vacantUnits}호실 · 월 손실 ${wonShort(t.vacancyLossMonthly)}`} tone={t.vacancyRate > 20 ? "orange" : "gray"} href="/vacancy" />
         <StatCard icon="🧾" label={`${m}월 입금`} value={wonShort(t.monthCollected)} sub={`청구 대비 ${t.monthBilled ? pct((t.monthCollected / t.monthBilled) * 100, 0) : "-"}`} href="/payments" />
       </div>
 
@@ -128,7 +128,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <Card title="부동산별 자기자본 수익률" actions={<Link href="/analysis" className="link">수익분석</Link>}>
           {yields.length ? <BarList items={yields} fmt={(v) => pct(v)} /> : <Empty>매입가격을 입력하면 계산됩니다.</Empty>}
         </Card>
-        <Card title="🚪 공실" actions={<span className="text-xs text-slate-500">월 {wonShort(t.vacancyLossMonthly)} 손실</span>}>
+        <Card title="🚪 공실" actions={<Link href="/vacancy" className="link text-xs">월 {wonShort(t.vacancyLossMonthly)} 손실 · 공실관리</Link>}>
           <VacancyList items={s.units} />
         </Card>
         <Card title="🔐 보증금 반환 · 🏦 대출 만기">

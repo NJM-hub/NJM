@@ -12,6 +12,7 @@ const NAV = [
   { href: "/contracts", label: "계약관리", icon: "📄" },
   { href: "/payments", label: "월세/입금", icon: "💰" },
   { href: "/arrears", label: "미납관리", icon: "🔴" },
+  { href: "/vacancy", label: "공실관리", icon: "🚪" },
   { href: "/loans", label: "대출관리", icon: "🏦" },
   { href: "/analysis", label: "수익분석", icon: "📊" },
   { href: "/expenses", label: "비용관리", icon: "💳" },

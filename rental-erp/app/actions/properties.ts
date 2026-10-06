@@ -133,6 +133,7 @@ export async function saveUnitAction(_p: FormState, fd: FormData): Promise<FormS
   }
   revalidatePath(`/properties/${propertyId}`);
   revalidatePath("/");
+  revalidatePath("/vacancy");
   return { ok: id ? "호실 정보를 저장했습니다." : "호실을 추가했습니다." };
 }
 
