@@ -2,22 +2,13 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth";
 import { isDate } from "@/lib/format";
+import { dropEmptyRuns } from "@/lib/scheduleCleanup";
 import { DELETE_ALL_WORD } from "./constants";
-
-type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
 
 export type DeleteResult = { ok: true; message: string } | { ok: false; message: string } | null;
 
 function refresh() {
   for (const p of ["/admin", "/admin/upload", "/admin/dispatch", "/admin/vehicle-settlement"]) revalidatePath(p);
-}
-
-/** 예약이 하나도 남지 않은 날짜의 배차 기록(초안·확정)을 지운다 */
-async function dropEmptyRuns(db: Db, dates: string[]) {
-  for (const d of [...new Set(dates)]) {
-    const { count } = await db.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", d);
-    if (!count) await db.from("dispatch_runs").delete().eq("service_date", d);
-  }
 }
 
 /** 한 날짜의 예약과 배차를 모두 삭제 */

@@ -4,7 +4,11 @@ import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
 import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
-import { addManualItem, deleteManualItem, saveAmounts, saveExpenses, setSettlementStatus } from "./actions";
+import {
+  addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, resetVehicleSettlement,
+  saveAmounts, saveExpenses, setSettlementStatus,
+} from "./actions";
+import { SelectAll } from "./SelectAll";
 
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -43,7 +47,7 @@ const COUNT_HEAD = (
   </>
 );
 
-export default async function VehicleSettlementPage({ searchParams }: { searchParams: Promise<{ month?: string; v?: string }> }) {
+export default async function VehicleSettlementPage({ searchParams }: { searchParams: Promise<{ month?: string; v?: string; msg?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : todayKst().slice(0, 7);
   const { supabase } = await requireAdmin();
@@ -77,6 +81,8 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
           <a className="btn-secondary" href={`/admin/vehicle-settlement/export?month=${month}${selected ? `&v=${selected.vehicleId}` : ""}`}>CSV</a>
         </div>
       </form>
+
+      {sp.msg && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{sp.msg}</p>}
 
       {report.draftOnlyDates.length > 0 && (
         <div className="card border-amber-300 bg-amber-50 text-sm text-amber-900">
@@ -298,13 +304,14 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="overflow-x-auto">
           <table className="table">
             <thead>
-              <tr><th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th></tr>
+              <tr>{!locked && <th><SelectAll name="sel" /></th>}<th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th></tr>
             </thead>
             <tbody>
               {v.rows.map((r) => {
                 const own = r.source === OWN_CALL;
                 return (
                   <tr key={r.id} className={own ? "bg-violet-50" : r.manualSource ? "bg-sky-50" : ""}>
+                    {!locked && <td><input type="checkbox" name="sel" value={r.id} aria-label="선택" /></td>}
                     <td className="whitespace-nowrap text-xs">
                       {own ? "외부오더" : r.bookingNo}
                       {r.manualSource && <span className="badge ml-1 bg-sky-100 text-sky-800">직접 추가</span>}
@@ -336,13 +343,23 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td colSpan={8} className="px-3 py-2">금액 합계</td>
+                <td colSpan={locked ? 8 : 9} className="px-3 py-2">금액 합계</td>
                 <td className="px-3 py-2 text-right">{won(v.total.amount)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-        {!locked && <div className="flex justify-end"><SubmitButton>금액 저장</SubmitButton></div>}
+        {!locked && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
+            <span className="text-sm text-gray-600">체크한 건:</span>
+            <label className="flex items-center gap-1 text-sm text-gray-600">
+              <input type="checkbox" name="confirmDelete" /> 삭제 확인
+            </label>
+            <button formAction={deleteSelectedRows} className="btn-danger">선택한 건 삭제</button>
+            <span className="text-xs text-gray-500">배차 건은 예약·배차에서도 삭제됩니다. 직접 추가한 항목은 그 항목만 지워집니다.</span>
+            <SubmitButton className="ml-auto">금액 저장</SubmitButton>
+          </div>
+        )}
       </form>
 
       {/* 배차에 없는 콜 직접 추가 (TALIXO 등) */}
@@ -374,6 +391,33 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
           </div>
           <SubmitButton>추가</SubmitButton>
         </form>
+      )}
+
+      {/* 삭제 · 초기화 */}
+      {locked ? (
+        <p className="text-sm text-gray-500">확정된 정산은 삭제·초기화할 수 없습니다. 먼저 &quot;확정 해제&quot;를 누르세요.</p>
+      ) : (
+        <div className="card space-y-4 border-red-200">
+          <h3 className="font-semibold text-red-700">삭제 · 초기화</h3>
+          <form action={resetVehicleSettlement} className="flex flex-wrap items-center gap-3">
+            {ids}
+            <div className="text-sm">
+              <b>정산 입력 초기화</b>
+              <span className="ml-2 text-gray-500">{mon}월 비용, 직접 추가 항목, 건별 금액 수정을 지웁니다. 운행 내역은 그대로입니다.</span>
+            </div>
+            <label className="flex items-center gap-1 text-sm text-gray-600"><input type="checkbox" name="confirmReset" /> 확인</label>
+            <SubmitButton className="btn-danger">초기화</SubmitButton>
+          </form>
+          <form action={deleteVehicleMonth} className="flex flex-wrap items-center gap-3 border-t border-red-100 pt-4">
+            {ids}
+            <div className="text-sm">
+              <b>{v.plate} {mon}월 운행 전체 삭제</b>
+              <span className="ml-2 text-gray-500">이 차량의 {mon}월 예약·배차 {v.rows.filter((r) => !r.manualSource).length}건과 정산 입력을 모두 지웁니다. 되돌릴 수 없습니다.</span>
+            </div>
+            <input name="confirmWord" placeholder="'삭제' 입력" className="input !w-28" autoComplete="off" />
+            <SubmitButton className="btn-danger">전체 삭제</SubmitButton>
+          </form>
+        </div>
       )}
     </>
   );

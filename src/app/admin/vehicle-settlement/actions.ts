@@ -1,7 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { assertAdmin } from "@/lib/auth";
-import { isMonth } from "@/lib/format";
+import { isMonth, monthRange } from "@/lib/format";
+import { dropEmptyRuns } from "@/lib/scheduleCleanup";
 import { EXPENSE_LABELS, inOutLabel } from "@/lib/settlement/vehicleMonthly";
 import { loadVehicleMonth, MANUAL_PREFIX } from "@/lib/settlement/vehicleMonthlyLoad";
 
@@ -154,4 +156,103 @@ export async function setSettlementStatus(formData: FormData) {
   const { error } = await supabase.from("vehicle_month_expenses").upsert(row, { onConflict: "vehicle_id,month" });
   if (error) throw new Error(error.message);
   revalidatePath("/admin/vehicle-settlement");
+}
+
+// ─────────────────────────────────────────────
+// 삭제
+// ─────────────────────────────────────────────
+
+const backTo = (month: string, vehicleId: string, msg: string) =>
+  `/admin/vehicle-settlement?month=${month}&v=${vehicleId}&msg=${encodeURIComponent(msg)}`;
+
+function refreshAll() {
+  for (const p of ["/admin", "/admin/upload", "/admin/dispatch", "/admin/vehicle-settlement"]) revalidatePath(p);
+}
+
+/** 이 차량·이 달의 확정 배차 (배정 id → 예약 id, 날짜) */
+async function confirmedAssignments(db: Db, month: string, vehicleId: string) {
+  const { from, to } = monthRange(month);
+  const { data, error } = await db
+    .from("dispatch_assignments")
+    .select("id,booking_id,dispatch_runs!inner(service_date,status)")
+    .eq("vehicle_id", vehicleId)
+    .eq("dispatch_runs.status", "confirmed")
+    .gte("dispatch_runs.service_date", from)
+    .lte("dispatch_runs.service_date", to);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((a) => ({
+    id: a.id as string,
+    bookingId: a.booking_id as string,
+    date: (a.dispatch_runs as unknown as { service_date: string }).service_date,
+  }));
+}
+
+/**
+ * 건별 내역에서 체크한 건 삭제.
+ * 배차 건은 예약 자체를 지워 배차에서도 빠지고, 직접 추가한 항목은 그 항목만 지운다.
+ */
+export async function deleteSelectedRows(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
+  const selected = formData.getAll("sel").map(String);
+  if (!selected.length) redirect(backTo(month, vehicleId, "삭제할 건을 체크하세요."));
+  if (formData.get("confirmDelete") !== "on") redirect(backTo(month, vehicleId, "삭제하려면 '삭제 확인'에 체크하세요."));
+
+  const manualIds = selected.filter((id) => id.startsWith(MANUAL_PREFIX)).map((id) => id.slice(MANUAL_PREFIX.length));
+  const assignmentIds = new Set(selected.filter((id) => !id.startsWith(MANUAL_PREFIX)));
+
+  if (manualIds.length) {
+    const { error } = await supabase.from("vehicle_month_items").delete().in("id", manualIds).eq("vehicle_id", vehicleId);
+    if (error) throw new Error(error.message);
+  }
+  // 이 차량의 이 달 배차인지 확인한 뒤 예약을 지운다 (다른 차량 건이 섞여 들어오지 않게)
+  const mine = (await confirmedAssignments(supabase, month, vehicleId)).filter((a) => assignmentIds.has(a.id));
+  if (mine.length) {
+    const { error } = await supabase.from("bookings").delete().in("id", mine.map((a) => a.bookingId));
+    if (error) throw new Error(error.message);
+    await dropEmptyRuns(supabase, mine.map((a) => a.date));
+  }
+  refreshAll();
+  redirect(backTo(month, vehicleId, `${manualIds.length + mine.length}건을 삭제했습니다.`));
+}
+
+/** 정산 입력 초기화: 비용, 직접 추가 항목, 건별 금액 수정을 지운다 (운행 내역은 그대로) */
+export async function resetVehicleSettlement(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
+  if (formData.get("confirmReset") !== "on") redirect(backTo(month, vehicleId, "초기화하려면 확인에 체크하세요."));
+  const ids = (await confirmedAssignments(supabase, month, vehicleId)).map((a) => a.id);
+  const results = await Promise.all([
+    supabase.from("vehicle_month_expenses").delete().eq("month", month).eq("vehicle_id", vehicleId),
+    supabase.from("vehicle_month_items").delete().eq("month", month).eq("vehicle_id", vehicleId),
+    ids.length ? supabase.from("dispatch_assignments").update({ settle_amount: null }).in("id", ids) : Promise.resolve({ error: null }),
+  ]);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw new Error(failed.error.message);
+  revalidatePath("/admin/vehicle-settlement");
+  redirect(backTo(month, vehicleId, "정산 입력(비용·직접 추가·금액 수정)을 초기화했습니다."));
+}
+
+/** 이 차량의 이 달 운행 내역 전체 삭제 ('삭제' 입력 확인): 예약·배차, 직접 추가 항목, 비용 */
+export async function deleteVehicleMonth(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const { month, vehicleId } = target(formData);
+  await assertUnlocked(supabase, month, vehicleId);
+  if (String(formData.get("confirmWord") ?? "").trim() !== "삭제") {
+    redirect(backTo(month, vehicleId, "전체 삭제하려면 확인란에 '삭제'라고 입력하세요."));
+  }
+  const rows = await confirmedAssignments(supabase, month, vehicleId);
+  if (rows.length) {
+    const { error } = await supabase.from("bookings").delete().in("id", rows.map((a) => a.bookingId));
+    if (error) throw new Error(error.message);
+    await dropEmptyRuns(supabase, rows.map((a) => a.date));
+  }
+  await Promise.all([
+    supabase.from("vehicle_month_items").delete().eq("month", month).eq("vehicle_id", vehicleId),
+    supabase.from("vehicle_month_expenses").delete().eq("month", month).eq("vehicle_id", vehicleId),
+  ]);
+  refreshAll();
+  redirect(`/admin/vehicle-settlement?month=${month}&msg=${encodeURIComponent(`${month} 해당 차량 운행 ${rows.length}건과 정산 입력을 삭제했습니다.`)}`);
 }
