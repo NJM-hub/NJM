@@ -1,7 +1,8 @@
 /**
  * 차량별 월정산: 확정된 배차를 차량 → 날짜별로 픽업/샌딩 건수와 금액으로 묶는다.
  * 기존 엑셀 정산(차량별 시트) 방식:
- *   금액 합계 = 건별 금액 합 (외부오더 = 기사 자체 콜은 건당 차감액만큼 마이너스)
+ *   금액 합계 = 회사 배차 건별 금액 합 (전부 지급)
+ *   외부오더(기사 자체 콜)의 −금액은 지급에서 빼지 않고 "별도 수금"으로 따로 모은다 (나중에 기사에게 받음)
  *   차액 = 금액 합계 − 비용(주유·과태료·통행료·엔진오일·기타)
  *   지급액 = 차액 − 원천세(3.3%)
  */
@@ -32,7 +33,13 @@ export type VehicleMonthRow = {
   operator?: string | null;
 };
 
-export type DayCount = { pickup: number; sending: number; other: number; own: number; amount: number };
+export type DayCount = {
+  pickup: number; sending: number; other: number; own: number;
+  /** 지급 대상 금액 (외부오더 제외) */
+  amount: number;
+  /** 외부오더 금액 합 (음수, 지급에서 빼지 않고 별도 수금) */
+  ownAmount: number;
+};
 
 export type VehicleMonth = {
   vehicleId: string;
@@ -75,7 +82,7 @@ export function inOutLabel(r: Pick<VehicleMonthRow, "tripType" | "source" | "man
   return k === "pickup" ? "픽업" : k === "sending" ? "샌딩" : r.tripType ?? r.manualSource ?? "기타";
 }
 
-const empty = (): DayCount => ({ pickup: 0, sending: 0, other: 0, own: 0, amount: 0 });
+const empty = (): DayCount => ({ pickup: 0, sending: 0, other: 0, own: 0, amount: 0, ownAmount: 0 });
 
 /** 차량번호 뒤 4자리 순으로 (예: 9661, 9754, 9755 …) */
 const plateKey = (p: string) => p.replace(/\D/g, "").slice(-4).padStart(4, "0") + p;
@@ -89,9 +96,13 @@ export function summarizeVehicleMonth(rows: VehicleMonthRow[]): VehicleMonth[] {
     if (!v.info.driverName && r.driverName) v.info = r;
     const d = v.days.get(r.serviceDate) ?? empty();
     v.days.set(r.serviceDate, d);
-    if (r.source === OWN_CALL) d.own++;
+    if (r.source === OWN_CALL) {
+      d.own++;
+      d.ownAmount += r.amount ?? 0;
+      continue;
+    }
     // 직접 추가한 가감 항목(픽업/샌딩이 아닌 것)은 운행 건수에 넣지 않고 금액만 더한다
-    else if (!(r.manualSource && tripKind(r.tripType) === "other")) d[tripKind(r.tripType)]++;
+    if (!(r.manualSource && tripKind(r.tripType) === "other")) d[tripKind(r.tripType)]++;
     d.amount += r.amount ?? 0;
   }
 
@@ -101,7 +112,7 @@ export function summarizeVehicleMonth(rows: VehicleMonthRow[]): VehicleMonth[] {
       const total = dayList.reduce(
         (t, d) => ({
           pickup: t.pickup + d.pickup, sending: t.sending + d.sending, other: t.other + d.other,
-          own: t.own + d.own, amount: t.amount + d.amount,
+          own: t.own + d.own, amount: t.amount + d.amount, ownAmount: t.ownAmount + d.ownAmount,
           calls: t.calls + d.pickup + d.sending + d.other,
           workDays: t.workDays + 1,
         }),
@@ -128,7 +139,7 @@ export function computePayout(amount: number, ex: Expenses | null, opts: Withhol
   return { amount, expenses, diff, tax: w.totalTax, incomeTax: w.incomeTax, localTax: w.localTax, pay: diff - w.totalTax };
 }
 
-export type OperatorSummary = { name: string; calls: number; pickup: number; sending: number; own: number; amount: number };
+export type OperatorSummary = { name: string; calls: number; pickup: number; sending: number; own: number; amount: number; ownAmount: number };
 
 /**
  * 같은 차량번호 안에서 운행 기사별로 나눈다 (차량을 빌려 운행한 기사 구분).
@@ -138,15 +149,17 @@ export function summarizeOperators(rows: VehicleMonthRow[], vehicleDriver: strin
   const by = new Map<string, OperatorSummary>();
   for (const r of rows) {
     const name = r.operator ?? vehicleDriver ?? "(기사 미상)";
-    const o = by.get(name) ?? { name, calls: 0, pickup: 0, sending: 0, own: 0, amount: 0 };
+    const o = by.get(name) ?? { name, calls: 0, pickup: 0, sending: 0, own: 0, amount: 0, ownAmount: 0 };
     by.set(name, o);
-    if (r.source === OWN_CALL) o.own++;
-    else {
-      const k = tripKind(r.tripType);
-      if (k === "pickup") o.pickup++;
-      if (k === "sending") o.sending++;
-      if (!(r.manualSource && k === "other")) o.calls++;
+    if (r.source === OWN_CALL) {
+      o.own++;
+      o.ownAmount += r.amount ?? 0;
+      continue;
     }
+    const k = tripKind(r.tripType);
+    if (k === "pickup") o.pickup++;
+    if (k === "sending") o.sending++;
+    if (!(r.manualSource && k === "other")) o.calls++;
     o.amount += r.amount ?? 0;
   }
   // 담당 기사 먼저, 나머지는 건수 많은 순

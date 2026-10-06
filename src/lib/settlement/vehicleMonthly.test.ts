@@ -21,10 +21,10 @@ it("차량별 날짜별 픽업/샌딩 건수와 금액, 외부오더는 차감",
   expect(a).toMatchObject({ plate: "12가9661", driverName: "佟晓川", total: { sending: 1, calls: 1, workDays: 1, amount: 40000 } });
   expect(b.plate).toBe("9754");
   expect(b.days).toEqual([
-    { date: "2026-09-01", pickup: 2, sending: 1, other: 0, own: 1, amount: 105000 },
-    { date: "2026-09-02", pickup: 1, sending: 0, other: 1, own: 0, amount: 125000 },
+    { date: "2026-09-01", pickup: 2, sending: 1, other: 0, own: 1, amount: 120000, ownAmount: -15000 },
+    { date: "2026-09-02", pickup: 1, sending: 0, other: 1, own: 0, amount: 125000, ownAmount: 0 },
   ]);
-  expect(b.total).toEqual({ pickup: 3, sending: 1, other: 1, own: 1, amount: 230000, calls: 5, workDays: 2 });
+  expect(b.total).toEqual({ pickup: 3, sending: 1, other: 1, own: 1, amount: 245000, ownAmount: -15000, calls: 5, workDays: 2 });
   // 건별 내역: 날짜·시간순, 외부오더는 맨 아래
   expect(b.rows.map(inOutLabel)).toEqual(["픽업", "샌딩", "픽업", "픽업", "시내 전세", "외부오더"]);
 });
@@ -49,8 +49,8 @@ describe("summarizeOperators", () => {
       { ...base, id: "5", tripType: null, amount: 30000, manualSource: "TALIXO" },
     ];
     expect(summarizeOperators(rows, "车秀荣")).toEqual([
-      { name: "车秀荣", calls: 2, pickup: 1, sending: 1, own: 1, amount: 100000 },
-      { name: "김기봉", calls: 1, pickup: 0, sending: 1, own: 0, amount: 40000 },
+      { name: "车秀荣", calls: 2, pickup: 1, sending: 1, own: 1, amount: 115000, ownAmount: -15000 },
+      { name: "김기봉", calls: 1, pickup: 0, sending: 1, own: 0, amount: 40000, ownAmount: 0 },
     ]);
   });
 });

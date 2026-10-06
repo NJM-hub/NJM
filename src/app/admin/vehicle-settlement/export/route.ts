@@ -37,13 +37,14 @@ export async function GET(request: NextRequest) {
         ];
       }),
       [],
-      ["금액 합계", "", "", "", "", "", "", "", "", v.payout.amount],
+      ["금액 합계 (외부오더 제외)", "", "", "", "", "", "", "", "", v.payout.amount],
       [],
       ...(Object.keys(EXPENSE_LABELS) as (keyof typeof EXPENSE_LABELS)[]).map((k) => [EXPENSE_LABELS[k], "", "", "", "", "", "", "", "", v.expenses?.[k] ?? 0]),
       ["비용 합계", "", "", "", "", "", "", "", v.expenses?.memo ?? "", v.payout.expenses],
       ["차액", "", "", "", "", "", "", "", "", v.payout.diff],
       ["세액", "", "", "", "", "", "", "", `소득세 ${v.payout.incomeTax} + 지방소득세 ${v.payout.localTax}`, v.payout.tax],
       ["지급액", "", "", "", "", "", "", "", "", v.payout.pay],
+      ["외부오더 별도 수금 (지급에서 빼지 않음)", "", "", "", "", "", "", "", `${v.total.own}건`, v.total.ownAmount],
       [],
       ["날짜별 건수"],
       ["날짜", "픽업", "샌딩", "기타", "합계", "외부오더", "금액"],
@@ -53,11 +54,11 @@ export async function GET(request: NextRequest) {
     name = `${mon}월_정산_${v.plate}${v.driverName ? `_${v.driverName}` : ""}.csv`;
   } else {
     rows = [
-      ["차량", "기사", "운행일", "픽업", "샌딩", "기타", "합계", "외부오더", "금액 합계", ...Object.values(EXPENSE_LABELS), "비용 합계", "차액", "세액", "지급액"],
+      ["차량", "기사", "운행일", "픽업", "샌딩", "기타", "합계", "외부오더", "금액 합계", ...Object.values(EXPENSE_LABELS), "비용 합계", "차액", "세액", "지급액", "별도 수금"],
       ...report.vehicles.map((x) => [
         x.plate, x.driverName ?? "", x.total.workDays, x.total.pickup, x.total.sending, x.total.other, x.total.calls, x.total.own,
         x.payout.amount, ...(Object.keys(EXPENSE_LABELS) as (keyof typeof EXPENSE_LABELS)[]).map((k) => x.expenses?.[k] ?? 0),
-        x.payout.expenses, x.payout.diff, x.payout.tax, x.payout.pay,
+        x.payout.expenses, x.payout.diff, x.payout.tax, x.payout.pay, x.total.ownAmount,
       ]),
     ];
     name = `${mon}월_차량별_정산요약_${month}.csv`;

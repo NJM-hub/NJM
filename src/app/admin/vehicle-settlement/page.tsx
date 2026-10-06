@@ -109,7 +109,8 @@ function Overview({ report }: { report: VehicleMonthReport }) {
     <>
       <p className="text-sm text-gray-500">
         <b>확정된 배차</b>만 셉니다. 차량을 누르면 날짜별 건수, 건별 금액, 비용 입력 화면이 나옵니다.
-        외부오더(기사 자체 콜)는 건당 {won(report.ownCallFee)}씩 빼고(설정에서 변경, 시트에 금액이 적힌 콜은 그 금액만큼 빼고), 차액에서 원천세 3.3%를 뗀 금액이 지급액입니다.
+        배차 금액은 전부 지급하고(비용·원천세 3.3%만 뺌), 외부오더(기사 자체 콜)의 −금액(건당 {won(report.ownCallFee)}, 시트에 금액이 적혀 있으면 그 금액)은
+        지급액에서 빼지 않고 <b className="text-violet-700">별도 수금</b>으로 따로 표시합니다.
       </p>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
@@ -117,7 +118,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
             <tr>
               <th>차량 · 기사</th><th className="text-right">운행일</th>{COUNT_HEAD}
               <th className="text-right">금액 합계</th><th className="text-right">비용</th><th className="text-right">차액</th>
-              <th className="text-right">세액</th><th className="text-right">지급액</th><th>삭제</th>
+              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right">별도 수금</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -144,6 +145,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="text-right">{won(v.payout.diff)}</td>
                 <td className="text-right">{won(v.payout.tax)}</td>
                 <td className="text-right font-semibold">{won(v.payout.pay)}</td>
+                <td className="text-right text-violet-700">{v.total.ownAmount ? won(v.total.ownAmount) : "-"}</td>
                 <td>
                   {v.status === "confirmed" ? (
                     <span className="text-xs text-gray-400" title="확정 해제 후 삭제할 수 있습니다">확정됨</span>
@@ -158,7 +160,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 </td>
               </tr>
             ))}
-            {!report.vehicles.length && <tr><td colSpan={13} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
+            {!report.vehicles.length && <tr><td colSpan={14} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
           </tbody>
           {report.vehicles.length > 0 && (
             <tfoot>
@@ -175,6 +177,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.diff))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.tax))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.pay))}</td>
+                <td className="px-3 py-2 text-right text-violet-700">{won(sum((v) => v.total.ownAmount))}</td>
                 <td />
               </tr>
             </tfoot>
@@ -263,13 +266,18 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
           <h3 className="mb-2 font-semibold">정산</h3>
           <table className="w-full text-sm">
             <tbody>
-              <Line label={`금액 합계 (${v.total.calls}건${v.total.own ? `, 외부오더 ${v.total.own}건 차감` : ""})`} value={p.amount} />
+              <Line label={`금액 합계 (${v.total.calls}건)`} value={p.amount} />
               <Line label="비용 합계" value={-p.expenses} />
               <Line label="차액" value={p.diff} strong />
               <Line label={`세액 (소득세 ${won(p.incomeTax)} + 지방소득세 ${won(p.localTax)})`} value={-p.tax} />
               <Line label="지급액" value={p.pay} strong big />
             </tbody>
           </table>
+          {v.total.own > 0 && (
+            <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+              외부오더 {v.total.own}건 <b>{won(v.total.ownAmount)}</b>은 지급액에서 빼지 않았습니다. 기사님께 별도로 받을 금액입니다.
+            </p>
+          )}
         </div>
         <form action={saveExpenses} className="card space-y-3">
           <h3 className="font-semibold">{mon}월 비용 {!ex && <span className="text-sm font-normal text-amber-600">(미입력)</span>}</h3>
@@ -299,7 +307,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
               운행 기사별 <span className="text-sm font-normal text-gray-500">같은 차량({v.plate})을 운행한 기사를 시트 기사 칸 기준으로 나눕니다</span>
             </h3>
             <table className="table">
-              <thead><tr><th>기사</th><th className="text-right">픽업</th><th className="text-right">샌딩</th><th className="text-right">외부오더</th><th className="text-right">합계</th><th className="text-right">금액</th></tr></thead>
+              <thead><tr><th>기사</th><th className="text-right">픽업</th><th className="text-right">샌딩</th><th className="text-right">외부오더</th><th className="text-right">합계</th><th className="text-right">금액</th><th className="text-right">별도 수금</th></tr></thead>
               <tbody>
                 {ops.map((o) => (
                   <tr key={o.name} className={o.name !== v.driverName ? "bg-amber-50" : ""}>
@@ -309,6 +317,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                     <td className="text-right text-violet-700">{num(o.own)}</td>
                     <td className="text-right font-semibold">{num(o.calls + o.own)}</td>
                     <td className="text-right">{won(o.amount)}</td>
+                    <td className="text-right text-violet-700">{o.ownAmount ? won(o.ownAmount) : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -407,9 +416,15 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td colSpan={locked ? 9 : 10} className="px-3 py-2">금액 합계</td>
+                <td colSpan={locked ? 9 : 10} className="px-3 py-2">금액 합계 (지급 대상, 외부오더 제외)</td>
                 <td className="px-3 py-2 text-right">{won(v.total.amount)}</td>
               </tr>
+              {v.total.own > 0 && (
+                <tr className="font-semibold text-violet-700">
+                  <td colSpan={locked ? 9 : 10} className="px-3 py-2">외부오더 {v.total.own}건 · 별도 수금 (지급에서 빼지 않음)</td>
+                  <td className="px-3 py-2 text-right">{won(v.total.ownAmount)}</td>
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>

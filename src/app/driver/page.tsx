@@ -117,12 +117,18 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
                 {st.plate} <span className="badge bg-green-100 text-green-800">정산 확정</span>
               </p>
               <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-                <div><dt className="text-gray-500">금액 합계 ({st.rows.length}건)</dt><dd className="font-bold">{won(st.payout.amount)}</dd></div>
+                <div><dt className="text-gray-500">금액 합계 ({st.rows.filter((r) => r.inOut !== "외부오더").length}건)</dt><dd className="font-bold">{won(st.payout.amount)}</dd></div>
                 <div><dt className="text-gray-500">비용</dt><dd>− {won(st.payout.expenses)}</dd></div>
                 <div><dt className="text-gray-500">차액</dt><dd>{won(st.payout.diff)}</dd></div>
                 <div><dt className="text-gray-500">세액(3.3%)</dt><dd>− {won(st.payout.tax)}</dd></div>
                 <div><dt className="text-gray-500">지급액</dt><dd className="font-bold text-blue-700">{won(st.payout.pay)}</dd></div>
               </dl>
+              {st.rows.some((r) => r.inOut === "외부오더") && (
+                <p className="text-sm text-violet-700">
+                  외부오더 {st.rows.filter((r) => r.inOut === "외부오더").length}건{" "}
+                  {won(st.rows.filter((r) => r.inOut === "외부오더").reduce((s, r) => s + r.amount, 0))}은 지급액에서 빼지 않고 별도로 정산합니다.
+                </p>
+              )}
               {st.expenses?.memo && <p className="text-xs text-gray-500">비용 메모: {st.expenses.memo}</p>}
               <details>
                 <summary className="cursor-pointer text-sm text-blue-700">건별 내역 보기</summary>

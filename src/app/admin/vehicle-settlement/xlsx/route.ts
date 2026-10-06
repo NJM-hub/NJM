@@ -34,12 +34,15 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
         r.operator ? `${r.operator} ${v.plate.slice(-4)}` : driver, r.vehicleClass ?? "", own ? null : r.pax ?? null, r.memo ?? "", money(r.amount, r.amount < 0 ? { textColor: "#DC2626" } : {}),
       ];
     }),
-    [null, null, null, null, null, null, null, null, { value: `금액 합계 (${v.rows.length}건)`, fontWeight: "bold" }, money(p.amount, { fontWeight: "bold" })],
+    [null, null, null, null, null, null, null, null, { value: `금액 합계 (${v.total.calls}건, 외부오더 제외)`, fontWeight: "bold" }, money(p.amount, { fontWeight: "bold" })],
+    ...(v.total.own
+      ? [[null, null, null, null, null, null, null, null, { value: `외부오더 ${v.total.own}건 · 별도 수금`, textColor: "#6D28D9" }, money(v.total.ownAmount, { textColor: "#6D28D9" })]]
+      : []),
     [],
     [{ value: "운행 기사별", fontWeight: "bold" }],
-    ["기사", "픽업", "샌딩", "외부오더", "합계", "금액"].map((h) => ({ value: h, ...HEAD })),
+    ["기사", "픽업", "샌딩", "외부오더", "합계", "금액", "별도 수금"].map((h) => ({ value: h, ...HEAD })),
     ...summarizeOperators(v.rows, v.driverName).map((o) => [
-      o.name === v.driverName ? `${o.name} (담당)` : `${o.name} (차량 빌려 운행)`, o.pickup, o.sending, o.own, o.calls + o.own, money(o.amount),
+      o.name === v.driverName ? `${o.name} (담당)` : `${o.name} (차량 빌려 운행)`, o.pickup, o.sending, o.own, o.calls + o.own, money(o.amount), money(o.ownAmount),
     ]),
     [],
     [...EXPENSE_KEYS.map((k) => ({ value: EXPENSE_LABELS[k], ...HEAD })), { value: "비용 합계", ...HEAD }],
@@ -51,6 +54,7 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
     [{ value: "  소득세 3%" }, null, money(p.incomeTax)],
     [{ value: "  지방소득세 0.3%" }, null, money(p.localTax)],
     [{ value: "지급액", fontWeight: "bold" }, null, money(p.pay, { fontWeight: "bold", backgroundColor: "#FEF3C7" })],
+    v.total.own ? [{ value: "외부오더 별도 수금 (지급에서 빼지 않음)", textColor: "#6D28D9" }, null, money(v.total.ownAmount, { textColor: "#6D28D9" })] : [],
     [],
     [{ value: v.status === "confirmed" ? "정산 확정" : "작성 중 (미확정)", textColor: v.status === "confirmed" ? "#15803D" : "#B45309" }],
   ];
@@ -62,7 +66,7 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
 }
 
 function summarySheet(report: VehicleMonthReport, used: Set<string>): Sheet<never> {
-  const heads = ["차량", "기사", "상태", "운행일", "픽업", "샌딩", "외부오더", "금액 합계", ...EXPENSE_KEYS.map((k) => EXPENSE_LABELS[k]), "비용 합계", "차액", "세액", "지급액"];
+  const heads = ["차량", "기사", "상태", "운행일", "픽업", "샌딩", "외부오더", "금액 합계", ...EXPENSE_KEYS.map((k) => EXPENSE_LABELS[k]), "비용 합계", "차액", "세액", "지급액", "별도 수금"];
   const sum = (f: (v: V) => number) => report.vehicles.reduce((s, v) => s + f(v), 0);
   const data: SheetData = [
     [{ value: `${report.companyName ?? ""} ${Number(report.month.slice(5))}월 차량별 정산 요약`.trim(), fontWeight: "bold", fontSize: 14 }],
@@ -70,12 +74,12 @@ function summarySheet(report: VehicleMonthReport, used: Set<string>): Sheet<neve
     ...report.vehicles.map((v) => [
       v.plate, v.driverName ?? "", v.status === "confirmed" ? "확정" : "작성 중", v.total.workDays, v.total.pickup, v.total.sending, v.total.own,
       money(v.payout.amount), ...EXPENSE_KEYS.map((k) => money(v.expenses?.[k] ?? 0)), money(v.payout.expenses),
-      money(v.payout.diff), money(v.payout.tax), money(v.payout.pay, { fontWeight: "bold" }),
+      money(v.payout.diff), money(v.payout.tax), money(v.payout.pay, { fontWeight: "bold" }), money(v.total.ownAmount),
     ]),
     [
       { value: "합계", fontWeight: "bold" }, null, null, null, sum((v) => v.total.pickup), sum((v) => v.total.sending), sum((v) => v.total.own),
       money(sum((v) => v.payout.amount)), ...EXPENSE_KEYS.map((k) => money(sum((v) => v.expenses?.[k] ?? 0))), money(sum((v) => v.payout.expenses)),
-      money(sum((v) => v.payout.diff)), money(sum((v) => v.payout.tax)), money(sum((v) => v.payout.pay), { fontWeight: "bold" }),
+      money(sum((v) => v.payout.diff)), money(sum((v) => v.payout.tax)), money(sum((v) => v.payout.pay), { fontWeight: "bold" }), money(sum((v) => v.total.ownAmount)),
     ],
   ];
   return { data, sheet: sheetName("요약", used), columns: heads.map((_, i) => ({ width: i < 2 ? 14 : 11 })) };

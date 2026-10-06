@@ -51,7 +51,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
       </form>
       <p className="text-sm text-gray-500">
         확정된 배차 기준입니다. <b>외부로 준 콜</b>은 배차 시트 기사 칸에 금액(숫자)만 적힌 건,
-        <b> 외부에서 받은 콜</b>은 시트 표 아래 기사별 칸에 적힌 기사 자체 콜입니다 (월정산에서 건당 −{won(ownCallFee)}, 80000·100000 처럼 금액이 적힌 콜은 −그 금액).
+        <b> 외부에서 받은 콜</b>은 시트 표 아래 기사별 칸에 적힌 기사 자체 콜입니다 (건당 −{won(ownCallFee)}, 80000·100000 처럼 금액이 적힌 콜은 −그 금액. 배차 지급액에서 빼지 않고 별도로 받는 금액입니다).
       </p>
 
       {/* 외부로 준 콜 */}
@@ -100,7 +100,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
         {inCalls.length ? (
           <>
             <table className="table">
-              <thead><tr><th>차량 · 기사</th><th className="text-right">건수</th><th className="text-right">시트 요금 합계</th><th className="text-right">정산 금액 합계</th></tr></thead>
+              <thead><tr><th>차량 · 기사</th><th className="text-right">건수</th><th className="text-right">시트 요금 합계</th><th className="text-right">별도 수금 합계</th></tr></thead>
               <tbody>
                 {[...inByVehicle].map(([k, list]) => (
                   <tr key={k}>
@@ -114,7 +114,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
             </table>
             <div className="max-h-[32rem] overflow-auto">
               <table className="table">
-                <thead><tr><th>날짜</th><th>시간</th><th>차량 · 기사</th><th>구분</th><th>내용 (시트 그대로)</th><th className="text-right">시트 요금</th><th className="text-right">정산 금액</th></tr></thead>
+                <thead><tr><th>날짜</th><th>시간</th><th>차량 · 기사</th><th>구분</th><th>내용 (시트 그대로)</th><th className="text-right">시트 요금</th><th className="text-right">별도 수금</th></tr></thead>
                 <tbody>
                   {inCalls.map((c) => (
                     <tr key={c.id} className="bg-violet-50/40">
