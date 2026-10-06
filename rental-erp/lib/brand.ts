@@ -1,1 +1,1 @@
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "임대관리 ERP";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "(주)우정임대관리";
