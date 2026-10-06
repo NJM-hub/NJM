@@ -90,7 +90,8 @@ export default async function DispatchPage({
   const usedVehicleIds: string[] = run?.options?.vehicleIds ?? (vehicles ?? []).map((v) => v.id);
   const routes = usedVehicleIds.map((vid) => ({
     vehicleId: vid,
-    items: assignments.filter((a) => a.vehicle_id === vid).sort(byPickup),
+    // 기사 자체 콜은 외부 콜 메뉴에서 따로 정리하므로 차량 동선·콜 수에서 뺀다
+    items: assignments.filter((a) => a.vehicle_id === vid && a.bookings.source !== OWN_CALL_SOURCE).sort(byPickup),
   }));
   const ownCalls = assignments.filter((a) => a.bookings.source === OWN_CALL_SOURCE).sort(byPickup);
   const external = assignments.filter((a) => !a.vehicle_id && a.unassigned_reason === "EXTERNAL").sort(byPickup);
@@ -241,21 +242,10 @@ export default async function DispatchPage({
           )}
 
           {ownCalls.length > 0 && (
-            <div className="card border-violet-200">
-              <h2 className="mb-1 font-semibold text-violet-800">기사 자체 콜 ({ownCalls.length}건)</h2>
-              <p className="mb-2 text-xs text-gray-500">
-                기사님이 외부에서 직접 받아온 콜입니다. 해당 차량에 고정되어 자동 배차 때 다른 예약이 이 시간을 피해 배정되며, 기사 정산에는 포함되지 않습니다.
-              </p>
-              <ul className="space-y-1 text-sm">
-                {ownCalls.map((a) => (
-                  <li key={a.id} className="flex flex-wrap gap-2">
-                    <span className="w-12 font-semibold">{a.bookings.pickup_at ? fmtTime(a.bookings.pickup_at) : "시간?"}</span>
-                    <span className="w-40 text-gray-600">{a.vehicle_id ? `${vehicleName.get(a.vehicle_id)?.split(" ")[0] ?? ""} ${driverLabel(a.vehicle_id) ?? ""}` : "미배정"}</span>
-                    <span>{a.bookings.memo}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <p className="text-sm text-gray-500">
+              기사 자체 콜 {ownCalls.length}건은 차량 동선에서 뺐습니다 ·{" "}
+              <a className="text-violet-700 underline" href={`/admin/external-calls?month=${date.slice(0, 7)}`}>외부 콜 메뉴에서 보기</a>
+            </p>
           )}
 
           <div className="space-y-4">
