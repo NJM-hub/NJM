@@ -7,7 +7,7 @@ import { getSnapshot } from "@/lib/data";
 import { daysBetween, fmtDate } from "@/lib/dates";
 import { effectiveStatus, expiryLevel } from "@/lib/engine";
 import { num, won, wonShort } from "@/lib/format";
-import { unitLabel } from "@/lib/views";
+import { compareUnits, unitLabel } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
 
@@ -24,17 +24,12 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   const rows = ds.contracts
     .filter((c) => scopeUnits.has(c.unit_id))
     .map((c) => ({ c, st: effectiveStatus(c, s.today) }));
-  // 빌딩 순서: 부동산명 → 동 → 호실(숫자 순서: 101호, 102호, 1001호) → 같은 호실은 최근 계약 먼저
+  // 빌딩 순서: 부동산명 → 동 → 호실(지하 B101 먼저, 그다음 101호, 102호 …) → 같은 호실은 최근 계약 먼저
   const unitById = new Map(ds.units.map((u) => [u.id, u]));
-  const propName = new Map(ds.properties.map((p) => [p.id, p.name]));
-  const buildingKey = (unitId: string) => {
-    const u = unitById.get(unitId);
-    return u ? `${propName.get(u.property_id) ?? ""}\u0000${u.dong ?? ""}\u0000${u.unit_no}` : "";
-  };
   const count = (f: string) => rows.filter((r) => match(f, r.st)).length;
   const list = rows
     .filter((r) => match(filter, r.st))
-    .sort((a, b) => buildingKey(a.c.unit_id).localeCompare(buildingKey(b.c.unit_id), "ko", { numeric: true }) || b.c.start_date.localeCompare(a.c.start_date));
+    .sort((a, b) => compareUnits(ds, unitById.get(a.c.unit_id), unitById.get(b.c.unit_id)) || b.c.start_date.localeCompare(a.c.start_date));
 
   return (
     <div>
