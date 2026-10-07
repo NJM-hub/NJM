@@ -15,6 +15,21 @@ const PHRASES: [string, string][] = [
   ["世宗ホテル(セジョンホテル)", "세종호텔"],
   ["デイビュークリニック", "데이뷰 클리닉"],
   ["スキンケア", "스킨케어"],
+  // 가타카나 외래어 (원어 발음으로)
+  ["ホテル", " 호텔 "],
+  ["ソウル", " 서울 "],
+  ["ロイヤル", "로얄"],
+  ["サミット", "서밋"],
+  ["レックス", "렉스"],
+  ["ファロス", "파로스"],
+  ["クリニック", "클리닉"],
+  ["レジデンス", "레지던스"],
+  ["ゲストハウス", "게스트하우스"],
+  ["ホステル", "호스텔"],
+  ["ミョンドン", "명동"],
+  ["ホンデ", "홍대"],
+  ["カンナム", "강남"],
+  ["トンデムン", "동대문"],
   ["首爾君悅酒店", "그랜드 하얏트 서울"],
   ["首尔君悦酒店", "그랜드 하얏트 서울"],
   ["首尔皇家酒店", "로얄호텔 서울"],
@@ -161,10 +176,48 @@ const HANJA: Record<string, string> = Object.fromEntries(
     .map((x) => [x[0], x.slice(1)]),
 );
 
+/** 가타카나 → 한글 (사전에 없는 일본어 표기용, 일본식 발음 그대로) */
+const KANA: Record<string, string> = Object.fromEntries(
+  (
+    "キャ캬 キュ큐 キョ쿄 シャ샤 シュ슈 ショ쇼 チャ차 チュ추 チョ초 ニャ냐 ニュ뉴 ニョ뇨 ヒャ햐 ヒュ휴 ヒョ효 ミャ먀 ミュ뮤 ミョ묘 " +
+    "リャ랴 リュ류 リョ료 ギャ갸 ギュ규 ギョ교 ジャ자 ジュ주 ジョ조 ビャ뱌 ビュ뷰 ビョ뵤 ピャ퍄 ピュ퓨 ピョ표 ファ파 フィ피 フェ페 " +
+    "フォ포 ティ티 ディ디 デュ듀 ウィ위 ウェ웨 ウォ워 シェ셰 ジェ제 チェ체 イェ예 ヴァ바 ヴィ비 ヴェ베 ヴォ보 " +
+    "ア아 イ이 ウ우 エ에 オ오 カ카 キ키 ク쿠 ケ케 コ코 ガ가 ギ기 グ구 ゲ게 ゴ고 サ사 シ시 ス스 セ세 ソ소 ザ자 ジ지 ズ즈 ゼ제 ゾ조 " +
+    "タ타 チ치 ツ쓰 テ테 ト토 ダ다 ヂ지 ヅ즈 デ데 ド도 ナ나 ニ니 ヌ누 ネ네 ノ노 ハ하 ヒ히 フ후 ヘ헤 ホ호 バ바 ビ비 ブ부 ベ베 ボ보 " +
+    "パ파 ピ피 プ푸 ペ페 ポ포 マ마 ミ미 ム무 メ메 モ모 ヤ야 ユ유 ヨ요 ラ라 リ리 ル루 レ레 ロ로 ワ와 ヲ오 ヴ부 " +
+    "ァ아 ィ이 ゥ우 ェ에 ォ오 ャ야 ュ유 ョ요"
+  )
+    .split(" ")
+    .map((x) => [x.replace(/[가-힣]/g, ""), x.replace(/[^가-힣]/g, "")]),
+);
+
+/** 앞 글자에 받침을 붙인다 (ン → ㄴ, ッ → ㅅ) */
+function addFinal(out: string, final: number, alone: string): string {
+  const last = out.charCodeAt(out.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 === 0) return out.slice(0, -1) + String.fromCharCode(last + final);
+  return out + alone;
+}
+
+function kana(s: string): string {
+  // 히라가나는 가타카나로 바꿔서 같이 처리
+  const k = s.replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+  let out = "";
+  for (let i = 0; i < k.length; i++) {
+    const c = k[i];
+    if (c === "ン") out = addFinal(out, 4, "ㄴ");
+    else if (c === "ッ") out = addFinal(out, 19, "");
+    else if (c === "ー") continue;
+    else if (c === "・") out += " ";
+    else if (KANA[c + k[i + 1]]) out += KANA[c + k[++i]];
+    else out += KANA[c] ?? c;
+  }
+  return out;
+}
+
 /** 긴 단어가 먼저 바뀌도록 (举牌接机 → 피켓, 接机 → 픽업) */
 const BY_LENGTH = [...PHRASES].sort((a, b) => b[0].length - a[0].length);
 
-const CJK = /[㐀-鿿豈-﫿぀-ヿ]/;
+const CJK = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff]/;
 
 /** 중국어·일본어가 섞인 글을 한국어로. 한자가 없으면 그대로 */
 export function ko(s: string): string;
@@ -184,7 +237,8 @@ export function ko(s: string | null | undefined): string | null {
     .replace(/[（]/g, "(")
     .replace(/[）]/g, ")")
     .replace(/[～〜]/g, "~")
-    .replace(/[㐀-鿿豈-﫿]/g, (c) => HANJA[c] ?? c);
+    .replace(/[\u3400-\u9fff\uf900-\ufaff]/g, (c) => HANJA[c] ?? c)
+    .replace(/[\u3041-\u3096\u30a1-\u30fc]+/g, kana);
   return t.replace(/\s+/g, " ").replace(/\s+([,.)~])/g, "$1").replace(/\(\s+/g, "(").trim();
 }
 

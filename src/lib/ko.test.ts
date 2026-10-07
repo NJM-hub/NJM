@@ -25,4 +25,13 @@ describe("한국어 표시", () => {
     expect(ko("Test Hotel")).toBe("Test Hotel");
     expect(ko(null)).toBeNull();
   });
+
+  it("일본어", () => {
+    expect(["サミットホテル", "ソウル レックス ホテル", "ロイヤルホテルソウル", "ホテル ファロス", "世宗ホテル(セジョンホテル)"].map((s) => ko(s))).toEqual([
+      "서밋 호텔", "서울 렉스 호텔", "로얄 호텔 서울", "호텔 파로스", "세종호텔",
+    ]);
+    expect(ko("ミナミ")).toBe("미나미");
+    expect(ko("シンジュク")).toBe("신주쿠");
+    expect(ko("サッポロ")).toBe("삿포로");
+  });
 });
