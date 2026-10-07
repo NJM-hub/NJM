@@ -28,6 +28,8 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
   const outByDate = new Map<string, OutCall[]>();
   for (const c of out) outByDate.set(c.date, [...(outByDate.get(c.date) ?? []), c]);
   const outTotal = out.reduce((s, c) => s + c.fare, 0);
+  const diffTotal = out.reduce((s, c) => s + (c.diff ?? 0), 0);
+  const inTotal = inCalls.reduce((s, c) => s + c.settleAmount, 0);
   // 금액 칸: 정산내역서에 없으면 "-", 마이너스는 -로
   const money = (n: number | null) => (n == null ? <span className="text-gray-400">-</span> : <span className={amountColor(n)}>{won(n)}</span>);
 
@@ -93,7 +95,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr className="font-semibold"><td colSpan={6} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td /></tr></tfoot>
+                <tfoot><tr className="font-semibold"><td colSpan={6} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td className="whitespace-nowrap px-3 py-2 text-right">{money(diffTotal)}</td></tr></tfoot>
               </table>
             </div>
           </>
@@ -103,7 +105,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
       {/* 외부에서 받은 콜 */}
       <section className="card space-y-3">
         <h2 className="text-lg font-semibold">
-          {mon}월 외부에서 받은 콜 (기사 자체 콜) <span className="text-base font-normal text-gray-600">{inCalls.length}건</span>
+          {mon}월 외부에서 받은 콜 (기사 자체 콜) <span className="text-base font-normal text-gray-600">{inCalls.length}건 · <span className={amountColor(inTotal)}>{won(inTotal)}</span></span>
         </h2>
         {inCalls.length ? (
           <>
