@@ -1,4 +1,5 @@
 "use client";
+import { ko } from "@/lib/ko";
 import Link from "next/link";
 import Papa from "papaparse";
 import { useMemo, useState, useTransition } from "react";
@@ -231,7 +232,7 @@ export function UploadClient() {
           <b>배차 시트</b>(기사 칸 포함) 형식으로 인식했습니다. 예약 {dispatchSheet.bookings.length}건
           {dispatchSheet.skipped > 0 && <>, 표 아래 메모 등 {dispatchSheet.skipped}행은 제외</>}.
           <ul className="mt-2 list-disc space-y-0.5 pl-5">
-            <li>차량 배차 {sheetStats.assigned}건 · 차량 {sheetStats.vehicles.length}대: {sheetStats.vehicles.join(", ")}</li>
+            <li>차량 배차 {sheetStats.assigned}건 · 차량 {sheetStats.vehicles.length}대: {sheetStats.vehicles.map((x) => ko(x)).join(", ")}</li>
             <li>외부(타업체) 배차 {sheetStats.external}건 (기사 칸에 금액만 있는 건)</li>
             {sheetStats.empty > 0 && <li className="text-amber-700">기사 칸이 빈 건 {sheetStats.empty}건은 미배정으로 둡니다</li>}
             <li>
@@ -240,10 +241,10 @@ export function UploadClient() {
                 <ul className="mt-1 list-none space-y-0.5 pl-0 text-xs">
                   {dispatchSheet.ownCalls.map((c) => (
                     <li key={c.bookingNo}>
-                      <b className="inline-block w-24">{c.sheetDriver?.label}</b>
+                      <b className="inline-block w-24">{ko(c.sheetDriver?.label)}</b>
                       <span className="inline-block w-12">{c.pickupAt?.slice(11, 16) ?? "시간?"}</span>
                       {c.tripType && <span className="mr-1 text-violet-700">[{c.tripType}]</span>}
-                      {c.memo}
+                      {ko(c.memo)}
                     </li>
                   ))}
                 </ul>
@@ -364,7 +365,7 @@ export function UploadClient() {
                           {(() => {
                             const d = dispatchSheet.bookings.find((b) => b.rowIndex === p.rowIndex)?.sheetDriver;
                             if (!d) return <span className="text-amber-700">미배정</span>;
-                            return d.kind === "external" ? <span className="badge bg-gray-100 text-gray-700">외부 {d.fare.toLocaleString("ko-KR")}</span> : d.label;
+                            return d.kind === "external" ? <span className="badge bg-gray-100 text-gray-700">외부 {d.fare.toLocaleString("ko-KR")}</span> : ko(d.label);
                           })()}
                         </td>
                       )}
@@ -374,11 +375,11 @@ export function UploadClient() {
                       <td>{p.pax}</td>
                       <td className="max-w-48 truncate" title={p.productName ?? ""}>
                         {tripLabel(p.tripType) && <span className={`badge mr-1 ${tripLabel(p.tripType)!.className}`}>{tripLabel(p.tripType)!.label}</span>}
-                        {p.vehicleClass ?? p.productName}
+                        {ko(p.vehicleClass ?? p.productName)}
                       </td>
-                      <td>{p.customerName ?? p.flightNo}</td>
-                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{p.pickupPlace ?? p.pickupAddress}</td>
-                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{p.dropoffPlace ?? p.dropoffAddress}</td>
+                      <td>{ko(p.customerName ?? p.flightNo)}</td>
+                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{ko(p.pickupPlace ?? p.pickupAddress)}</td>
+                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{ko(p.dropoffPlace ?? p.dropoffAddress)}</td>
                       <td>{p.waitMin != null ? `대기 ${p.waitMin}분` : p.durationMin ? `${p.durationMin}분` : "기본"}</td>
                       <td className="text-xs text-amber-700">{p.warnings.join(" / ")}</td>
                     </tr>

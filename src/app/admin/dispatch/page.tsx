@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { reasonLabel } from "@/lib/dispatch/reasons";
 import { OWN_CALL_SOURCE } from "@/lib/kkday/sheet";
+import { ko, koBooking } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { confirmRun, moveAssignment, runDispatch, unconfirmRun } from "./actions";
@@ -57,7 +58,7 @@ export default async function DispatchPage({
   const date = isDate(sp.date) ? sp.date : todayKst();
   const { supabase } = await requireAdmin();
 
-  const [{ count: bookingCount }, { count: noCoordCount }, { data: vehicles }, { data: drivers }, { data: runs }] = await Promise.all([
+  const [{ count: bookingCount }, { count: noCoordCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).or("pickup_lat.is.null,dropoff_lat.is.null"),
     supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name").eq("active", true).order("plate_number"),
@@ -65,6 +66,9 @@ export default async function DispatchPage({
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
   ]);
 
+  // 중국어 기사 이름 등은 한국어로 표시
+  const vehicles = vehiclesRaw?.map((v) => ({ ...v, driver_name: ko(v.driver_name) }));
+  const drivers = driversRaw?.map((d) => ({ ...d, name: ko(d.name) }));
   const run = runs?.find((r) => r.id === sp.run) ?? runs?.find((r) => r.status === "confirmed") ?? runs?.[0];
   const { data: assignmentsRaw } = run
     ? await supabase
@@ -72,7 +76,7 @@ export default async function DispatchPage({
         .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,fare,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min,trip_type,dropoff_lat,pickup_geo,dropoff_geo,source)")
         .eq("run_id", run.id)
     : { data: [] };
-  const assignments = (assignmentsRaw ?? []) as unknown as Assignment[];
+  const assignments = ((assignmentsRaw ?? []) as unknown as Assignment[]).map((a) => ({ ...a, bookings: koBooking(a.bookings) }));
   const byPickup = (a: Assignment, b: Assignment) =>
     (a.bookings.pickup_at ?? "").localeCompare(b.bookings.pickup_at ?? "");
 

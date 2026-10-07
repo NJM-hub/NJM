@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { monthRange } from "@/lib/format";
+import { ko } from "@/lib/ko";
 import { loadSettings } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
 import { OWN_CALL, ownCallAmount } from "./vehicleMonthly";
@@ -85,10 +86,10 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         pickupAt: b?.pickup_at ?? null,
         bookingNo: b?.booking_no ?? null,
         tripType: normalizeTripType(b?.trip_type, b?.pickup_address, b?.dropoff_address),
-        vehicleClass: b?.vehicle_class ?? null,
+        vehicleClass: ko(b?.vehicle_class ?? null),
         pax: b?.pax ?? null,
-        from: b?.pickup_place ?? b?.pickup_address ?? null,
-        to: b?.dropoff_place ?? b?.dropoff_address ?? null,
+        from: ko(b?.pickup_place ?? b?.pickup_address ?? null),
+        to: ko(b?.dropoff_place ?? b?.dropoff_address ?? null),
         flightNo: b?.flight_no ?? null,
         fare: r.fare ?? 0,
       };
@@ -105,9 +106,9 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         pickupAt: b.pickup_at,
         vehicleId: r.vehicle_id,
         plate: r.vehicles?.plate_number ?? null,
-        driverName: r.drivers?.name ?? r.vehicles?.driver_name ?? b.raw?.["기사"] ?? null,
+        driverName: ko(r.drivers?.name ?? r.vehicles?.driver_name ?? b.raw?.["기사"] ?? null),
         tripType: b.trip_type,
-        content: b.raw?.["내용"] ?? b.memo ?? "",
+        content: ko(b.raw?.["내용"] ?? b.memo ?? ""),
         charterFare: b.fare,
         settleAmount: r.settle_amount ?? ownCallAmount(b.fare, ownCallFee),
         paid: b.raw?.["입금"] === "확인",

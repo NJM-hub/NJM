@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { monthRange } from "@/lib/format";
+import { ko } from "@/lib/ko";
 import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
 import { fareFor } from "./fare";
@@ -53,7 +54,7 @@ export const MANUAL_PREFIX = "m_";
 export function operatorOf(raw: Record<string, string> | null | undefined): string | null {
   const label = raw?.["driver"] ?? raw?.["기사"] ?? null;
   if (!label) return null;
-  const name = label.replace(/\d{4}/g, " ").replace(/\s+/g, " ").trim();
+  const name = ko(label.replace(/\d{4}/g, " ").replace(/\s+/g, " ").trim());
   return name || null;
 }
 
@@ -91,7 +92,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         serviceDate: r.dispatch_runs.service_date,
         vehicleId: r.vehicle_id!,
         plate: r.vehicles?.plate_number ?? "(삭제된 차량)",
-        driverName: r.drivers?.name ?? r.vehicles?.driver_name ?? null,
+        driverName: ko(r.drivers?.name ?? r.vehicles?.driver_name ?? null),
         // 구분이 비어 있으면 주소로 판단 (출발지 공항 = 픽업, 도착지 공항 = 샌딩)
         tripType: normalizeTripType(r.bookings?.trip_type, r.bookings?.pickup_address, r.bookings?.dropoff_address),
         source: r.bookings?.source ?? null,
@@ -100,9 +101,9 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         bookingNo: r.bookings?.booking_no ?? null,
         flightNo: r.bookings?.flight_no ?? null,
         pickupAt: r.bookings?.pickup_at ?? null,
-        vehicleClass: r.bookings?.vehicle_class ?? null,
+        vehicleClass: ko(r.bookings?.vehicle_class ?? null),
         pax: r.bookings?.pax ?? null,
-        memo: r.bookings?.memo ?? null,
+        memo: ko(r.bookings?.memo ?? null),
         operator: operatorOf(r.bookings?.raw),
       };
     });
@@ -123,7 +124,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         serviceDate: m.work_date,
         vehicleId: m.vehicle_id,
         plate: v?.plate_number ?? "(삭제된 차량)",
-        driverName: driverOf.get(m.vehicle_id) ?? v?.driver_name ?? null,
+        driverName: ko(driverOf.get(m.vehicle_id) ?? v?.driver_name ?? null),
         tripType: m.trip_type,
         source: null,
         manualSource: m.source,
@@ -133,7 +134,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         pickupAt: m.work_time && /^\d{1,2}:\d{2}$/.test(m.work_time) ? `${m.work_date}T${m.work_time.padStart(5, "0")}:00+09:00` : null,
         vehicleClass: m.vehicle_class,
         pax: m.pax,
-        memo: m.memo,
+        memo: ko(m.memo),
       });
     }
   }

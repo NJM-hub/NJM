@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ko } from "@/lib/ko";
 import { requireAdmin } from "@/lib/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { deleteVehicle, saveVehicle } from "./actions";
@@ -22,7 +23,7 @@ function VehicleFields({ v }: { v?: Vehicle }) {
       <input name="base_address" defaultValue={v?.base_address ?? ""} placeholder="차고지 주소 (선택)" className="input" />
       <input name="base_lat" defaultValue={v?.base_lat ?? ""} placeholder="위도 (선택)" className="input" />
       <input name="base_lng" defaultValue={v?.base_lng ?? ""} placeholder="경도 (선택)" className="input" />
-      <input name="driver_name" defaultValue={v?.driver_name ?? ""} placeholder="기사 이름 (계정 없을 때)" className="input" />
+      <input name="driver_name" defaultValue={ko(v?.driver_name) ?? ""} placeholder="기사 이름 (계정 없을 때)" className="input" />
       <input name="memo" defaultValue={v?.memo ?? ""} placeholder="메모" className="input" />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={v?.active ?? true} /> 운행</label>
     </>
@@ -35,7 +36,7 @@ export default async function VehiclesPage() {
     supabase.from("vehicles").select("*").order("plate_number"),
     supabase.from("drivers").select("name,vehicle_id").not("vehicle_id", "is", null),
   ]);
-  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id, d.name]));
+  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id, ko(d.name)]));
 
   return (
     <div className="space-y-6">
@@ -56,7 +57,7 @@ export default async function VehiclesPage() {
               <SubmitButton className="btn-secondary">저장</SubmitButton>
             </form>
             <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-              <span>기사: {driverOf.get(v.id) ?? (v.driver_name ? `${v.driver_name} (계정 미연결)` : "미지정")}</span>
+              <span>기사: {driverOf.get(v.id) ?? (v.driver_name ? `${ko(v.driver_name)} (계정 미연결)` : "미지정")}</span>
               <form action={deleteVehicle}>
                 <input type="hidden" name="id" value={v.id} />
                 <button className="text-red-600 hover:underline">삭제</button>

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { reasonLabel } from "@/lib/dispatch/reasons";
 import { fmtTime, tripLabel } from "@/lib/format";
+import { ko, koBooking } from "@/lib/ko";
 import { toCsv } from "@/lib/tax";
 
 export async function GET(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     vehicles: { plate_number: string; driver_name: string | null } | null; drivers: { name: string; phone: string } | null;
     bookings: { booking_no: string | null; pickup_at: string | null; product_name: string | null; customer_name: string | null; customer_phone: string | null; pax: number; pickup_address: string | null; dropoff_address: string | null; flight_no: string | null; memo: string | null; pickup_place: string | null; dropoff_place: string | null; trip_type: string | null; vehicle_class: string | null };
   };
-  const rows = ((data ?? []) as unknown as Row[]).sort(
+  const rows = ((data ?? []) as unknown as Row[]).map((r) => ({ ...r, bookings: koBooking(r.bookings) })).sort(
     (a, b) =>
       (a.vehicles?.plate_number ?? "~").localeCompare(b.vehicles?.plate_number ?? "~") ||
       (a.bookings.pickup_at ?? "").localeCompare(b.bookings.pickup_at ?? ""),
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
   const csv = toCsv([
     ["이용일", "차량", "기사", "기사연락처", "순번", "시간", "구분", "예약번호", "차급", "고객", "고객연락처", "인원", "픽업장소", "픽업주소", "하차장소", "하차주소", "항공편", "메모", "공차이동(km)", "지급액(기사/외부)", "배차불가사유"],
     ...rows.map((r) => [
-      run.service_date, r.vehicles?.plate_number ?? "", r.drivers?.name ?? r.vehicles?.driver_name ?? "", r.drivers?.phone ?? "", r.seq ?? "",
+      run.service_date, r.vehicles?.plate_number ?? "", ko(r.drivers?.name ?? r.vehicles?.driver_name ?? ""), r.drivers?.phone ?? "", r.seq ?? "",
       fmtTime(r.bookings.pickup_at), tripLabel(r.bookings.trip_type)?.label ?? "", r.bookings.booking_no, r.bookings.vehicle_class ?? r.bookings.product_name, r.bookings.customer_name, r.bookings.customer_phone,
       r.bookings.pax, r.bookings.pickup_place, r.bookings.pickup_address, r.bookings.dropoff_place, r.bookings.dropoff_address, r.bookings.flight_no, r.bookings.memo,
       r.deadhead_km != null ? r.deadhead_km.toFixed(1) : "", r.vehicles || r.unassigned_reason === "EXTERNAL" ? r.fare : "",
