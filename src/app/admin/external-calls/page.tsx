@@ -78,7 +78,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
             </div>
             <div className="max-h-[32rem] overflow-auto">
               <table className="table">
-                <thead><tr><th>날짜</th><th>시간</th><th>구분</th><th>예약번호</th><th>차급</th><th className="text-right">인원</th><th>출발 → 도착</th><th className="text-right">KKday 정산(부가세 포함)</th><th className="text-right">부가세 제외</th><th className="text-right">준 금액</th><th className="text-right">차액</th></tr></thead>
+                <thead><tr><th>날짜</th><th>시간</th><th>구분</th><th>예약번호</th><th className="text-right">KKday 정산(부가세 포함)</th><th className="text-right">부가세 제외</th><th className="text-right">준 금액</th><th className="text-right">차액</th></tr></thead>
                 <tbody>
                   {out.map((c) => (
                     <tr key={c.id}>
@@ -86,17 +86,14 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
                       <td>{c.pickupAt ? fmtTime(c.pickupAt) : ""}</td>
                       <td><TripBadge t={c.tripType} /></td>
                       <td className="text-xs">{c.bookingNo}{c.flightNo ? ` ✈${c.flightNo}` : ""}</td>
-                      <td className="text-xs">{c.vehicleClass}</td>
-                      <td className="text-right">{c.pax}</td>
-                      <td className="max-w-80 truncate text-xs text-gray-600" title={`${c.from ?? ""} → ${c.to ?? ""}`}>{c.from} → {c.to}</td>
-                      <td className="text-right">{money(c.kkdayAmount)}</td>
-                      <td className="text-right">{money(c.kkdayNet)}</td>
-                      <td className="text-right">{won(c.fare)}</td>
-                      <td className="text-right font-semibold">{money(c.diff)}</td>
+                      <td className="whitespace-nowrap text-right">{money(c.kkdayAmount)}</td>
+                      <td className="whitespace-nowrap text-right">{money(c.kkdayNet)}</td>
+                      <td className="whitespace-nowrap text-right">{won(c.fare)}</td>
+                      <td className="whitespace-nowrap text-right font-semibold">{money(c.diff)}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr className="font-semibold"><td colSpan={9} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td /></tr></tfoot>
+                <tfoot><tr className="font-semibold"><td colSpan={6} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td /></tr></tfoot>
               </table>
             </div>
           </>
