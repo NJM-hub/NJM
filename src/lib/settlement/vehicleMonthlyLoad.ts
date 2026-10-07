@@ -101,9 +101,9 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         bookingNo: r.bookings?.booking_no ?? null,
         flightNo: r.bookings?.flight_no ?? null,
         pickupAt: r.bookings?.pickup_at ?? null,
-        vehicleClass: ko(r.bookings?.vehicle_class ?? null),
+        vehicleClass: r.bookings?.vehicle_class ?? null,
         pax: r.bookings?.pax ?? null,
-        memo: ko(r.bookings?.memo ?? null),
+        memo: r.bookings?.memo ?? null,
         operator: operatorOf(r.bookings?.raw),
       };
     });
@@ -134,7 +134,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         pickupAt: m.work_time && /^\d{1,2}:\d{2}$/.test(m.work_time) ? `${m.work_date}T${m.work_time.padStart(5, "0")}:00+09:00` : null,
         vehicleClass: m.vehicle_class,
         pax: m.pax,
-        memo: ko(m.memo),
+        memo: m.memo,
       });
     }
   }

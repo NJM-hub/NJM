@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { koBooking } from "@/lib/ko";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { fmtTime, isMonth, monthRange, todayKst, tripLabel, won } from "@/lib/format";
@@ -44,7 +43,7 @@ export default async function DriverHome({ searchParams }: { searchParams: Promi
     .eq("driver_id", user.id)
     .gte("dispatch_runs.service_date", from < today ? from : today)
     .not("vehicle_id", "is", null);
-  const rows = ((data ?? []) as unknown as Row[]).map((r) => ({ ...r, bookings: koBooking(r.bookings) })).sort((a, b) => (a.bookings.pickup_at ?? "").localeCompare(b.bookings.pickup_at ?? ""));
+  const rows = ((data ?? []) as unknown as Row[]).sort((a, b) => (a.bookings.pickup_at ?? "").localeCompare(b.bookings.pickup_at ?? ""));
 
   const upcoming = rows.filter((r) => r.dispatch_runs.service_date >= today);
   const monthRows = rows.filter((r) => r.dispatch_runs.service_date >= from && r.dispatch_runs.service_date <= to);

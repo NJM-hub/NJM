@@ -244,7 +244,7 @@ export function UploadClient() {
                       <b className="inline-block w-24">{ko(c.sheetDriver?.label)}</b>
                       <span className="inline-block w-12">{c.pickupAt?.slice(11, 16) ?? "시간?"}</span>
                       {c.tripType && <span className="mr-1 text-violet-700">[{c.tripType}]</span>}
-                      {ko(c.memo)}
+                      {c.memo}
                     </li>
                   ))}
                 </ul>
@@ -375,11 +375,11 @@ export function UploadClient() {
                       <td>{p.pax}</td>
                       <td className="max-w-48 truncate" title={p.productName ?? ""}>
                         {tripLabel(p.tripType) && <span className={`badge mr-1 ${tripLabel(p.tripType)!.className}`}>{tripLabel(p.tripType)!.label}</span>}
-                        {ko(p.vehicleClass ?? p.productName)}
+                        {p.vehicleClass ?? p.productName}
                       </td>
-                      <td>{ko(p.customerName ?? p.flightNo)}</td>
-                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{ko(p.pickupPlace ?? p.pickupAddress)}</td>
-                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{ko(p.dropoffPlace ?? p.dropoffAddress)}</td>
+                      <td>{p.customerName ?? p.flightNo}</td>
+                      <td className="max-w-48 truncate" title={p.pickupAddress ?? ""}>{p.pickupPlace ?? p.pickupAddress}</td>
+                      <td className="max-w-48 truncate" title={p.dropoffAddress ?? ""}>{p.dropoffPlace ?? p.dropoffAddress}</td>
                       <td>{p.waitMin != null ? `대기 ${p.waitMin}분` : p.durationMin ? `${p.durationMin}분` : "기본"}</td>
                       <td className="text-xs text-amber-700">{p.warnings.join(" / ")}</td>
                     </tr>

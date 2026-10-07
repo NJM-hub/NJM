@@ -1,5 +1,5 @@
 /**
- * 화면·엑셀 표시용: 시트/KKday 원문에 섞인 중국어(간체·번체)·일본어를 한국어로 바꾼다.
+ * 화면·엑셀 표시용: 시트/KKday 원문에 섞인 중국어(간체·번체)를 한국어로 바꾼다. 지금은 기사 이름에만 쓴다.
  * DB 원본은 그대로 두고 보여줄 때만 바꾼다 (시트 다시 불러오기·매칭에 영향 없음).
  *   1) 자주 나오는 단어·호텔 이름은 사전으로 (送机 → 샌딩, 首尔君悅酒店 → 그랜드 하얏트 서울)
  *   2) 나머지 한자는 한국 한자음으로 (金基峰 → 김기봉, 明洞 → 명동)
@@ -240,15 +240,4 @@ export function ko(s: string | null | undefined): string | null {
     .replace(/[\u3400-\u9fff\uf900-\ufaff]/g, (c) => HANJA[c] ?? c)
     .replace(/[\u3041-\u3096\u30a1-\u30fc]+/g, kana);
   return t.replace(/\s+/g, " ").replace(/\s+([,.)~])/g, "$1").replace(/\(\s+/g, "(").trim();
-}
-
-/** 예약 행의 글자 칸들을 한국어로 (표시용 복사본) */
-export function koBooking<
-  T extends Partial<Record<"customer_name" | "pickup_place" | "dropoff_place" | "pickup_address" | "dropoff_address" | "memo" | "product_name" | "vehicle_class" | "trip_type", string | null>>,
->(b: T): T {
-  const out = { ...b };
-  for (const k of ["customer_name", "pickup_place", "dropoff_place", "pickup_address", "dropoff_address", "memo", "product_name", "vehicle_class", "trip_type"] as const) {
-    if (typeof out[k] === "string") (out as Record<string, unknown>)[k] = ko(out[k] as string);
-  }
-  return out;
 }
