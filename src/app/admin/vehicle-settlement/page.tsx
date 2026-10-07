@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, OWN_CALL, tripKind, type DayCount } from "@/lib/settlement/vehicleMonthly";
 import {
   addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, deleteVehicleMonthQuick, deleteWholeMonth, resetVehicleSettlement,
   saveAmounts, saveExpenses, setSettlementStatus,
@@ -24,6 +24,25 @@ function vehicleTitle(plate: string, driverName: string | null): string {
 }
 
 const num = (n: number) => (n ? n.toLocaleString("ko-KR") : "-");
+
+/** 건별 내역의 고칠 수 있는 칸: 원래 값(o_)과 함께 보내 바뀐 것만 저장한다 */
+function Editable({ id, f, value, type = "text", className = "", placeholder }: {
+  id: string; f: string; value: string | number | null | undefined; type?: string; className?: string; placeholder?: string;
+}) {
+  const v = value ?? "";
+  return (
+    <>
+      <input type="hidden" name={`o_${f}_${id}`} value={v} />
+      <input name={`f_${f}_${id}`} type={type} defaultValue={v} placeholder={placeholder} className={`input !py-1 text-xs ${className}`} />
+    </>
+  );
+}
+
+/** 구분 선택 값 (픽업/샌딩/시내 전세/기타) */
+function tripValue(t: string | null | undefined): string {
+  const k = tripKind(t ?? null);
+  return k === "pickup" ? "공항 픽업" : k === "sending" ? "공항 샌딩" : /전세/.test(t ?? "") ? "시내 전세" : "";
+}
 
 function CountCells({ c }: { c: DayCount }) {
   return (
@@ -347,9 +366,10 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="font-semibold">건별 내역 ({v.rows.length}건)</h3>
           <p className="text-xs text-gray-500">
-            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓·어린이 좌석)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −시트 금액, 없으면 −{won(report.ownCallFee)}).
+            항공편·구분·차량스펙·인원·비고·금액을 고친 뒤 저장하세요. 기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓·어린이 좌석)으로 채워지며,
+            비고에 &quot;피켓 1&quot;, &quot;어린이 좌석 1&quot;을 넣으면 추가금이 붙습니다. 금액 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −시트 금액, 없으면 −{won(report.ownCallFee)}).
           </p>
-          {!locked && <SubmitButton className="ml-auto">금액 저장</SubmitButton>}
+          {!locked && <SubmitButton className="ml-auto">저장</SubmitButton>}
         </div>
         <div className="overflow-x-auto">
           <table className="table">
@@ -369,17 +389,31 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                         <button formAction={deleteManualItem} name="itemId" value={r.id} className="ml-1 text-red-600 hover:underline">삭제</button>
                       )}
                     </td>
-                    <td className="text-xs">{r.flightNo}</td>
-                    <td className="whitespace-nowrap">{inOutLabel(r)}</td>
+                    <td className="text-xs">{locked ? r.flightNo : <Editable id={r.id} f="flight" value={r.flightNo} className="!w-24" />}</td>
+                    <td className="whitespace-nowrap">
+                      {locked || own ? inOutLabel(r) : (
+                        <>
+                          <input type="hidden" name={`o_trip_${r.id}`} value={tripValue(r.tripType)} />
+                          <select name={`f_trip_${r.id}`} defaultValue={tripValue(r.tripType)} className="input !w-24 !py-1 text-sm">
+                            <option value="공항 픽업">픽업</option>
+                            <option value="공항 샌딩">샌딩</option>
+                            <option value="시내 전세">시내 전세</option>
+                            <option value="">기타</option>
+                          </select>
+                        </>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap">{dayLabel(r.serviceDate)}</td>
                     <td>{r.pickupAt ? fmtTime(r.pickupAt) : ""}</td>
                     <td className={`whitespace-nowrap text-xs ${r.operator && v.driverName && !v.driverName.includes(r.operator) ? "font-semibold text-amber-700" : "text-gray-600"}`}
                       title={r.operator && v.driverName && !v.driverName.includes(r.operator) ? "차량 담당 기사와 다른 기사가 운행" : undefined}>
                       {r.operator ?? ""}
                     </td>
-                    <td className="whitespace-nowrap text-xs">{r.vehicleClass}</td>
-                    <td className="text-right">{own ? "" : r.pax}</td>
-                    <td className="max-w-64 truncate text-xs text-gray-500" title={r.memo ?? ""}>{r.memo}</td>
+                    <td className="whitespace-nowrap text-xs">{locked ? r.vehicleClass : <Editable id={r.id} f="cls" value={r.vehicleClass} className="!w-32" />}</td>
+                    <td className="text-right">{own ? "" : locked ? r.pax : <Editable id={r.id} f="pax" value={r.pax} type="number" className="!w-16 text-right" />}</td>
+                    <td className="text-xs text-gray-600" title={r.memo ?? ""}>
+                      {locked ? <span className="block max-w-64 truncate">{r.memo}</span> : <Editable id={r.id} f="memo" value={r.memo} className="!w-64" placeholder="예: 피켓 1, 어린이 좌석 1" />}
+                    </td>
                     <td className="text-right">
                       <input type="hidden" name={`orig_${r.id}`} value={r.amount} />
                       <input
@@ -417,7 +451,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
             </label>
             <button formAction={deleteSelectedRows} className="btn-danger">선택한 건 삭제</button>
             <span className="text-xs text-gray-500">배차 건은 예약·배차에서도 삭제됩니다. 직접 추가한 항목은 그 항목만 지워집니다.</span>
-            <SubmitButton className="ml-auto">금액 저장</SubmitButton>
+            <SubmitButton className="ml-auto">저장</SubmitButton>
           </div>
         )}
       </form>

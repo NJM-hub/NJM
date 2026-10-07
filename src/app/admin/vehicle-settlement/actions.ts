@@ -44,8 +44,42 @@ export async function saveExpenses(formData: FormData) {
   revalidatePath("/admin/vehicle-settlement");
 }
 
+/** 건별 내역에서 고칠 수 있는 칸 → 예약(bookings)·직접 추가 항목(vehicle_month_items) 컬럼 */
+const EDIT_FIELDS: Record<string, { col: string; parse: (s: string) => string | number | null }> = {
+  flight: { col: "flight_no", parse: (s) => s.slice(0, 20) || null },
+  trip: { col: "trip_type", parse: (s) => s || null },
+  cls: { col: "vehicle_class", parse: (s) => s.slice(0, 40) || null },
+  pax: {
+    col: "pax",
+    parse: (s) => {
+      const n = Number(s);
+      if (s !== "" && (!Number.isInteger(n) || n < 0 || n > 60)) throw new Error("인원이 올바르지 않습니다.");
+      return s === "" ? null : n;
+    },
+  },
+  memo: { col: "memo", parse: (s) => s.slice(0, 500) || null },
+};
+
+/** 건별 내용(항공편·구분·차량스펙·인원·비고) 중 바뀐 것만 모은다: id → { 컬럼: 값 } */
+function contentEdits(formData: FormData) {
+  const edits = new Map<string, Record<string, string | number | null>>();
+  for (const [key, v] of formData.entries()) {
+    const m = key.match(/^f_(\w+?)_(.+)$/);
+    const field = m && EDIT_FIELDS[m[1]];
+    if (!m || !field) continue;
+    const value = String(v).trim();
+    if (value === String(formData.get(`o_${m[1]}_${m[2]}`) ?? "").trim()) continue;
+    edits.set(m[2], { ...edits.get(m[2]), [field.col]: field.parse(value) });
+  }
+  return edits;
+}
+
 /**
- * 건별 정산 금액 수정. 폼에는 amount_<id> 와 원래 값 orig_<id> 가 있고, 바뀐 것만 저장한다.
+ * 건별 내역 저장: 내용(항공편·구분·차량스펙·인원·비고)과 정산 금액.
+ * 폼에는 각 칸과 원래 값이 함께 있고, 바뀐 것만 저장한다.
+ * 비고에 피켓·어린이 좌석을 넣으면 (금액을 손으로 고치지 않은 건은) 기본 금액이 다시 계산된다.
+ *
+ * 금액: amount_<id> 와 원래 값 orig_<id>.
  * 배차 건은 비우면 기본값(콜 금액 규칙, 외부오더는 −차감액)으로 되돌린다. 직접 추가한 항목(m_…)은 그 금액을 고친다.
  */
 export async function saveAmounts(formData: FormData) {
@@ -60,6 +94,27 @@ export async function saveAmounts(formData: FormData) {
     if (raw === String(formData.get(`orig_${id}`) ?? "").trim()) continue;
     updates.push({ id, value: raw === "" ? null : won(raw) });
   }
+  // 내용 수정: 이 정산 단위(차량 + 운행 기사)의 건인지 확인하고 예약/직접 추가 항목을 고친다
+  const edits = contentEdits(formData);
+  if (edits.size) {
+    const report = await loadVehicleMonth(supabase, month);
+    const rows = report.vehicles.find((x) => x.key === settleKey(vehicleId, operator))?.rows ?? [];
+    const bookingOf = new Map(rows.map((r) => [r.id, r.bookingId ?? null]));
+    const res = await Promise.all(
+      [...edits].map(([id, cols]) => {
+        if (!bookingOf.has(id)) throw new Error("이 차량의 정산 건이 아닙니다.");
+        if (id.startsWith(MANUAL_PREFIX)) {
+          return supabase.from("vehicle_month_items").update(cols).eq("id", id.slice(MANUAL_PREFIX.length)).eq("vehicle_id", vehicleId);
+        }
+        const bookingId = bookingOf.get(id);
+        if (!bookingId) throw new Error("예약을 찾을 수 없습니다.");
+        return supabase.from("bookings").update(cols).eq("id", bookingId);
+      }),
+    );
+    const bad = res.find((r) => r.error);
+    if (bad?.error) throw new Error(bad.error.message);
+  }
+
   const results = await Promise.all(
     updates.map((u) =>
       u.id.startsWith(MANUAL_PREFIX)
