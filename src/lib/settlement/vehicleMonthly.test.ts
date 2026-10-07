@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WITHHOLDING } from "@/lib/tax";
-import { computePayout, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
+import { assignSettleOperators, computePayout, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
 
 let n = 0;
 const row = (date: string, plate: string, tripType: string | null, extra: Partial<VehicleMonthRow> = {}): VehicleMonthRow => ({
@@ -51,6 +51,36 @@ describe("summarizeOperators", () => {
     expect(summarizeOperators(rows, "车秀荣")).toEqual([
       { name: "车秀荣", calls: 2, pickup: 1, sending: 1, own: 1, amount: 115000, ownAmount: -15000 },
       { name: "김기봉", calls: 1, pickup: 0, sending: 1, own: 0, amount: 40000, ownAmount: 0 },
+    ]);
+  });
+});
+
+describe("같은 차량 여러 기사: 기사별 따로 정산", () => {
+  const base = { serviceDate: "2026-09-01", vehicleId: "v9660", plate: "9660", source: null, tripType: "공항 픽업", amount: 40000 };
+  it("담당 기사와 다른 운행 기사는 별도 정산 단위", () => {
+    const rows: VehicleMonthRow[] = [
+      { ...base, id: "1", driverName: "김성원", operator: "김성원" },
+      { ...base, id: "2", driverName: "김성원", operator: "JACKY" },
+      { ...base, id: "3", driverName: "김성원", operator: null },
+      { ...base, id: "4", driverName: "김성원", operator: "JACKY", source: OWN_CALL, amount: -15000 },
+    ];
+    assignSettleOperators(rows);
+    const list = summarizeVehicleMonth(rows);
+    expect(list.map((v) => [v.key, v.driverName, v.total.calls, v.total.own, v.total.amount])).toEqual([
+      ["v9660", "김성원", 2, 0, 80000],
+      ["v9660~JACKY", "JACKY", 1, 1, 40000],
+    ]);
+  });
+  it("차량에 기사 이름이 없으면 가장 많이 운행한 기사가 기본", () => {
+    const rows: VehicleMonthRow[] = [
+      { ...base, id: "1", driverName: null, operator: "임걸" },
+      { ...base, id: "2", driverName: null, operator: "임걸" },
+      { ...base, id: "3", driverName: null, operator: "김혜영" },
+    ];
+    assignSettleOperators(rows);
+    expect(summarizeVehicleMonth(rows).map((v) => [v.key, v.driverName, v.total.calls])).toEqual([
+      ["v9660", "임걸", 2],
+      ["v9660~김혜영", "김혜영", 1],
     ]);
   });
 });

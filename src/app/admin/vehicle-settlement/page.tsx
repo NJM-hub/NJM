@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL, summarizeOperators, type DayCount } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, OWN_CALL, type DayCount } from "@/lib/settlement/vehicleMonthly";
 import {
   addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, deleteVehicleMonthQuick, deleteWholeMonth, resetVehicleSettlement,
   saveAmounts, saveExpenses, setSettlementStatus,
@@ -52,7 +52,7 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
   const month = isMonth(sp.month) ? sp.month : todayKst().slice(0, 7);
   const { supabase } = await requireAdmin();
   const report = await loadVehicleMonth(supabase, month);
-  const selected = sp.v ? report.vehicles.find((v) => v.vehicleId === sp.v) : undefined;
+  const selected = sp.v ? report.vehicles.find((v) => v.key === sp.v) : undefined;
 
   return (
     <div className="space-y-6">
@@ -67,18 +67,18 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
           <select id="v" name="v" defaultValue={sp.v ?? ""} className="input">
             <option value="">전체 차량</option>
             {report.vehicles.map((v) => (
-              <option key={v.vehicleId} value={v.vehicleId}>{vehicleTitle(v.plate, v.driverName)}</option>
+              <option key={v.key} value={v.key}>{vehicleTitle(v.plate, v.driverName)}{v.operator ? " (차량 빌려 운행)" : ""}</option>
             ))}
           </select>
         </div>
         <button className="btn-secondary">조회</button>
         <div className="ml-auto flex flex-wrap gap-2">
           {selected ? (
-            <a className="btn" href={`/admin/vehicle-settlement/xlsx?month=${month}&v=${selected.vehicleId}`}>{selected.plate} 정산서 엑셀</a>
+            <a className="btn" href={`/admin/vehicle-settlement/xlsx?month=${month}&v=${encodeURIComponent(selected.key)}`}>{vehicleTitle(selected.plate, selected.driverName)} 정산서 엑셀</a>
           ) : (
             <a className="btn" href={`/admin/vehicle-settlement/xlsx?month=${month}`}>전체 차량 정산서 엑셀</a>
           )}
-          <a className="btn-secondary" href={`/admin/vehicle-settlement/export?month=${month}${selected ? `&v=${selected.vehicleId}` : ""}`}>CSV</a>
+          <a className="btn-secondary" href={`/admin/vehicle-settlement/export?month=${month}${selected ? `&v=${encodeURIComponent(selected.key)}` : ""}`}>CSV</a>
         </div>
       </form>
 
@@ -123,19 +123,12 @@ function Overview({ report }: { report: VehicleMonthReport }) {
           </thead>
           <tbody>
             {report.vehicles.map((v) => (
-              <tr key={v.vehicleId}>
+              <tr key={v.key} className={v.operator ? "bg-amber-50/60" : ""}>
                 <td>
-                  <Link href={`/admin/vehicle-settlement?month=${report.month}&v=${v.vehicleId}`} className="font-medium text-blue-700 hover:underline">
+                  <Link href={`/admin/vehicle-settlement?month=${report.month}&v=${encodeURIComponent(v.key)}`} className="font-medium text-blue-700 hover:underline">
                     {vehicleTitle(v.plate, v.driverName)}
                   </Link>
-                  {(() => {
-                    const others = summarizeOperators(v.rows, v.driverName).filter((o) => o.name !== v.driverName);
-                    return others.length > 0 ? (
-                      <div className="text-xs text-amber-700">
-                        다른 기사 운행: {others.map((o) => `${o.name} ${o.calls + o.own}건`).join(", ")}
-                      </div>
-                    ) : null;
-                  })()}
+                  {v.operator && <span className="badge ml-2 bg-amber-100 text-amber-800">차량 빌려 운행</span>}
                   {v.status === "confirmed" && <span className="badge ml-2 bg-green-100 text-green-800">확정</span>}
                 </td>
                 <td className="text-right">{v.total.workDays}일</td>
@@ -153,6 +146,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                     <form action={deleteVehicleMonthQuick} className="flex items-center gap-1">
                       <input type="hidden" name="month" value={report.month} />
                       <input type="hidden" name="vehicleId" value={v.vehicleId} />
+                      <input type="hidden" name="operator" value={v.operator} />
                       <label className="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" name="confirm" /> 확인</label>
                       <SubmitButton className="btn-danger !px-2 !py-1 text-xs" pendingText="...">삭제</SubmitButton>
                     </form>
@@ -236,6 +230,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
     <>
       <input type="hidden" name="month" value={report.month} />
       <input type="hidden" name="vehicleId" value={v.vehicleId} />
+      <input type="hidden" name="operator" value={v.operator} />
     </>
   );
   return (
@@ -254,7 +249,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
       </div>
       {locked ? (
         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
-          확정된 정산입니다. 금액·비용·항목이 잠겨 있고, 기사 화면에 이 내역이 보입니다. 고치려면 &quot;확정 해제&quot;를 누르세요.
+          확정된 정산입니다. 금액·비용·항목이 잠겨 있고, {v.operator ? "관리자만 볼 수 있습니다(차량을 빌려 운행한 기사)" : "기사 화면에 이 내역이 보입니다"}. 고치려면 &quot;확정 해제&quot;를 누르세요.
         </p>
       ) : (
         <p className="text-sm text-gray-500">금액·비용을 확인한 뒤 &quot;정산 확정&quot;을 누르면 잠기고 기사 화면에 정산서가 표시됩니다.</p>
@@ -298,32 +293,19 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         </form>
       </div>
 
-      {/* 같은 차량번호를 운행한 기사별 */}
+      {/* 같은 차량을 운행한 다른 기사의 정산 (따로 정산) */}
       {(() => {
-        const ops = summarizeOperators(v.rows, v.driverName);
-        return (
-          <div className="card">
-            <h3 className="mb-2 font-semibold">
-              운행 기사별 <span className="text-sm font-normal text-gray-500">같은 차량({v.plate})을 운행한 기사를 시트 기사 칸 기준으로 나눕니다</span>
-            </h3>
-            <table className="table">
-              <thead><tr><th>기사</th><th className="text-right">픽업</th><th className="text-right">샌딩</th><th className="text-right">외부오더</th><th className="text-right">합계</th><th className="text-right">금액</th><th className="text-right">별도 수금</th></tr></thead>
-              <tbody>
-                {ops.map((o) => (
-                  <tr key={o.name} className={o.name !== v.driverName ? "bg-amber-50" : ""}>
-                    <td className="font-medium">{o.name}{o.name === v.driverName ? <span className="ml-1 text-xs text-gray-500">(담당)</span> : <span className="ml-1 text-xs text-amber-700">(차량 빌려 운행)</span>}</td>
-                    <td className="text-right">{num(o.pickup)}</td>
-                    <td className="text-right">{num(o.sending)}</td>
-                    <td className="text-right text-violet-700">{num(o.own)}</td>
-                    <td className="text-right font-semibold">{num(o.calls + o.own)}</td>
-                    <td className="text-right">{won(o.amount)}</td>
-                    <td className="text-right text-violet-700">{o.ownAmount ? won(o.ownAmount) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        const same = report.vehicles.filter((x) => x.vehicleId === v.vehicleId && x.key !== v.key);
+        return same.length > 0 ? (
+          <div className="card border-amber-200 bg-amber-50/50 text-sm">
+            <b>같은 차량({v.plate})의 다른 기사 정산</b> — 시트 기사 칸 기준으로 기사별 따로 정산합니다:{" "}
+            {same.map((x) => (
+              <Link key={x.key} href={`/admin/vehicle-settlement?month=${report.month}&v=${encodeURIComponent(x.key)}`} className="mr-3 font-medium text-blue-700 underline">
+                {vehicleTitle(x.plate, x.driverName)} ({x.total.calls + x.total.own}건 · 지급 {won(x.payout.pay)})
+              </Link>
+            ))}
           </div>
-        );
+        ) : null;
       })()}
 
       {/* 날짜별 건수 */}

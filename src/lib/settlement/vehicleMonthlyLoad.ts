@@ -6,12 +6,13 @@ import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
 import { fareFor } from "./fare";
 import {
-  OWN_CALL, computePayout, ownCallAmount, summarizeVehicleMonth, tripKind,
+  OWN_CALL, assignSettleOperators, computePayout, ownCallAmount, settleKey, summarizeVehicleMonth, tripKind,
   type Expenses, type Payout, type VehicleMonth, type VehicleMonthRow,
 } from "./vehicleMonthly";
 
 type Row = {
   id: string;
+  booking_id: string | null;
   vehicle_id: string | null;
   unassigned_reason: string | null;
   fare: number;
@@ -29,7 +30,7 @@ type Row = {
 
 /** 정산에 직접 추가한 항목 (TALIXO 등) */
 type ItemRow = {
-  id: string; vehicle_id: string; work_date: string; work_time: string | null; source: string; ref_no: string | null;
+  id: string; vehicle_id: string; operator: string | null; work_date: string; work_time: string | null; source: string; ref_no: string | null;
   trip_type: string | null; flight_no: string | null; vehicle_class: string | null; pax: number | null; memo: string | null; amount: number;
 };
 
@@ -67,14 +68,14 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     db
       .from("dispatch_assignments")
       .select(
-        "id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
+        "id,booking_id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
           "bookings(booking_no,flight_no,trip_type,source,pickup_at,vehicle_class,pax,memo,fare,pickup_address,dropoff_address,pickup_place,dropoff_place,raw)",
       )
       .eq("dispatch_runs.status", "confirmed")
       .gte("dispatch_runs.service_date", from)
       .lte("dispatch_runs.service_date", to),
     db.from("dispatch_runs").select("service_date,status").gte("service_date", from).lte("service_date", to),
-    db.from("vehicle_month_expenses").select("vehicle_id,fuel,fines,tolls,engine_oil,other,memo,status,confirmed_at").eq("month", month),
+    db.from("vehicle_month_expenses").select("vehicle_id,operator,fuel,fines,tolls,engine_oil,other,memo,status,confirmed_at").eq("month", month),
     db.from("vehicle_month_items").select("*").eq("month", month),
   ]);
   if (error) throw new Error(error.message);
@@ -105,8 +106,10 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         pax: r.bookings?.pax ?? null,
         memo: r.bookings?.memo ?? null,
         operator: operatorOf(r.bookings?.raw),
+        bookingId: r.booking_id,
       };
     });
+  assignSettleOperators(vehicleRows);
 
   // 직접 추가한 항목: 그 차량의 번호·기사 이름이 필요하다
   if (manual.length) {
@@ -130,6 +133,8 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         manualSource: m.source,
         amount: m.amount,
         bookingNo: m.ref_no ?? m.source,
+        settleOperator: m.operator ?? "",
+        ...(m.operator ? { driverName: m.operator, operator: m.operator } : {}),
         flightNo: m.flight_no,
         pickupAt: m.work_time && /^\d{1,2}:\d{2}$/.test(m.work_time) ? `${m.work_date}T${m.work_time.padStart(5, "0")}:00+09:00` : null,
         vehicleClass: m.vehicle_class,
@@ -151,8 +156,8 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
 
   const confirmed = new Set((runs ?? []).filter((r) => r.status === "confirmed").map((r) => r.service_date as string));
   const draftOnlyDates = [...new Set((runs ?? []).map((r) => r.service_date as string))].filter((d) => !confirmed.has(d)).sort();
-  type ExpenseRow = Expenses & { vehicle_id: string; status: string | null; confirmed_at: string | null };
-  const expenseOf = new Map(((expenses ?? []) as ExpenseRow[]).map((e) => [e.vehicle_id, e]));
+  type ExpenseRow = Expenses & { vehicle_id: string; operator: string | null; status: string | null; confirmed_at: string | null };
+  const expenseOf = new Map(((expenses ?? []) as ExpenseRow[]).map((e) => [settleKey(e.vehicle_id, e.operator ?? ""), e]));
   const tax = withholdingOf(settings);
 
   return {
@@ -160,7 +165,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     companyName: settings.company_name,
     ownCallFee,
     vehicles: summarizeVehicleMonth(vehicleRows).map((v) => {
-      const e = expenseOf.get(v.vehicleId) ?? null;
+      const e = expenseOf.get(v.key) ?? null;
       const ex: Expenses | null = e ? { fuel: e.fuel, fines: e.fines, tolls: e.tolls, engine_oil: e.engine_oil, other: e.other, memo: e.memo } : null;
       return {
         ...v,

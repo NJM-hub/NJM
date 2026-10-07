@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import writeXlsxFile, { type Sheet, type SheetData } from "write-excel-file/node";
 import { getSession } from "@/lib/auth";
 import { fmtTime, isMonth } from "@/lib/format";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL, summarizeOperators } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, OWN_CALL } from "@/lib/settlement/vehicleMonthly";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
 
 const MONEY = "#,##0";
@@ -39,12 +39,6 @@ function vehicleSheet(report: VehicleMonthReport, v: V, used: Set<string>): Shee
       ? [[null, null, null, null, null, null, null, null, { value: `외부오더 ${v.total.own}건 · 별도 수금`, textColor: "#6D28D9" }, money(v.total.ownAmount, { textColor: "#6D28D9" })]]
       : []),
     [],
-    [{ value: "운행 기사별", fontWeight: "bold" }],
-    ["기사", "픽업", "샌딩", "외부오더", "합계", "금액", "별도 수금"].map((h) => ({ value: h, ...HEAD })),
-    ...summarizeOperators(v.rows, v.driverName).map((o) => [
-      o.name === v.driverName ? `${o.name} (담당)` : `${o.name} (차량 빌려 운행)`, o.pickup, o.sending, o.own, o.calls + o.own, money(o.amount), money(o.ownAmount),
-    ]),
-    [],
     [...EXPENSE_KEYS.map((k) => ({ value: EXPENSE_LABELS[k], ...HEAD })), { value: "비용 합계", ...HEAD }],
     [...EXPENSE_KEYS.map((k) => money(v.expenses?.[k] ?? 0)), money(p.expenses, { fontWeight: "bold" })],
     v.expenses?.memo ? [{ value: `비용 메모: ${v.expenses.memo}` }] : [],
@@ -72,7 +66,7 @@ function summarySheet(report: VehicleMonthReport, used: Set<string>): Sheet<neve
     [{ value: `${report.companyName ?? ""} ${Number(report.month.slice(5))}월 차량별 정산 요약`.trim(), fontWeight: "bold", fontSize: 14 }],
     heads.map((h) => ({ value: h, ...HEAD })),
     ...report.vehicles.map((v) => [
-      v.plate, v.driverName ?? "", v.status === "confirmed" ? "확정" : "작성 중", v.total.workDays, v.total.pickup, v.total.sending, v.total.own,
+      v.plate, `${v.driverName ?? ""}${v.operator ? " (차량 빌려 운행)" : ""}`, v.status === "confirmed" ? "확정" : "작성 중", v.total.workDays, v.total.pickup, v.total.sending, v.total.own,
       money(v.payout.amount), ...EXPENSE_KEYS.map((k) => money(v.expenses?.[k] ?? 0)), money(v.payout.expenses),
       money(v.payout.diff), money(v.payout.tax), money(v.payout.pay, { fontWeight: "bold" }), money(v.total.ownAmount),
     ]),
@@ -98,7 +92,7 @@ export async function GET(request: NextRequest) {
   let sheets: Sheet<never>[];
   let name: string;
   if (only) {
-    const v = report.vehicles.find((x) => x.vehicleId === only);
+    const v = report.vehicles.find((x) => x.key === only);
     if (!v) return new NextResponse("해당 차량의 정산 내역이 없습니다.", { status: 404 });
     sheets = [vehicleSheet(report, v, used)];
     name = `${mon}월_정산_${v.plate}${v.driverName ? `_${v.driverName}` : ""}.xlsx`;

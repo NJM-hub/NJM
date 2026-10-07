@@ -31,6 +31,10 @@ export type VehicleMonthRow = {
   manualSource?: string | null;
   /** 시트에 적힌 그날 실제 운행 기사 (차량을 빌려 운행한 경우 차량 담당 기사와 다를 수 있음) */
   operator?: string | null;
+  /** 따로 정산할 기사 (빈 값 = 차량 담당 기사). 같은 차량이라도 이 값이 다르면 정산을 나눈다 */
+  settleOperator?: string;
+  /** 예약 id (배차 건만) */
+  bookingId?: string | null;
 };
 
 export type DayCount = {
@@ -42,7 +46,11 @@ export type DayCount = {
 };
 
 export type VehicleMonth = {
+  /** 정산 단위 키: 차량 id, 다른 기사가 운행한 건은 "차량 id~기사" */
+  key: string;
   vehicleId: string;
+  /** 따로 정산하는 운행 기사 (빈 값 = 차량 담당 기사) */
+  operator: string;
   plate: string;
   driverName: string | null;
   days: ({ date: string } & DayCount)[];
@@ -87,11 +95,38 @@ const empty = (): DayCount => ({ pickup: 0, sending: 0, other: 0, own: 0, amount
 /** 차량번호 뒤 4자리 순으로 (예: 9661, 9754, 9755 …) */
 const plateKey = (p: string) => p.replace(/\D/g, "").slice(-4).padStart(4, "0") + p;
 
+/**
+ * 같은 차량을 여러 기사가 운행했으면 기사별로 정산을 나눈다.
+ * 차량 담당 기사(차량에 등록된 기사 이름)의 건과 기사 칸이 없는 건은 기본(빈 값),
+ * 그 외 운행 기사는 그 이름으로 따로. 차량에 기사 이름이 없으면 가장 많이 운행한 기사가 기본.
+ */
+export function assignSettleOperators(rows: VehicleMonthRow[]) {
+  const byVehicle = new Map<string, VehicleMonthRow[]>();
+  for (const r of rows) byVehicle.set(r.vehicleId, [...(byVehicle.get(r.vehicleId) ?? []), r]);
+  for (const list of byVehicle.values()) {
+    let main = list.find((r) => r.driverName)?.driverName ?? null;
+    if (!main) {
+      const counts = new Map<string, number>();
+      for (const r of list) if (r.operator) counts.set(r.operator, (counts.get(r.operator) ?? 0) + 1);
+      main = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    }
+    for (const r of list) {
+      const other = r.operator && r.operator !== main;
+      r.settleOperator = other ? r.operator! : "";
+      r.driverName = other ? r.operator! : main;
+    }
+  }
+}
+
+/** 정산 단위 키 (URL·선택 값에 쓴다) */
+export const settleKey = (vehicleId: string, operator = "") => (operator ? `${vehicleId}~${operator}` : vehicleId);
+
 export function summarizeVehicleMonth(rows: VehicleMonthRow[]): VehicleMonth[] {
   const byVehicle = new Map<string, { info: VehicleMonthRow; days: Map<string, DayCount>; rows: VehicleMonthRow[] }>();
   for (const r of rows) {
-    const v = byVehicle.get(r.vehicleId) ?? { info: r, days: new Map<string, DayCount>(), rows: [] as VehicleMonthRow[] };
-    byVehicle.set(r.vehicleId, v);
+    const key = settleKey(r.vehicleId, r.settleOperator);
+    const v = byVehicle.get(key) ?? { info: r, days: new Map<string, DayCount>(), rows: [] as VehicleMonthRow[] };
+    byVehicle.set(key, v);
     v.rows.push(r);
     if (!v.info.driverName && r.driverName) v.info = r;
     const d = v.days.get(r.serviceDate) ?? empty();
@@ -124,9 +159,11 @@ export function summarizeVehicleMonth(rows: VehicleMonthRow[]): VehicleMonth[] {
           Number(a.source === OWN_CALL) - Number(b.source === OWN_CALL) ||
           (a.pickupAt ?? a.serviceDate).localeCompare(b.pickupAt ?? b.serviceDate),
       );
-      return { vehicleId: info.vehicleId, plate: info.plate, driverName: info.driverName, days: dayList, total, rows: sorted };
+      const operator = info.settleOperator ?? "";
+      return { key: settleKey(info.vehicleId, operator), vehicleId: info.vehicleId, operator, plate: info.plate, driverName: info.driverName, days: dayList, total, rows: sorted };
     })
-    .sort((a, b) => plateKey(a.plate).localeCompare(plateKey(b.plate)));
+    // 차량번호 순, 같은 차량은 담당 기사 먼저
+    .sort((a, b) => plateKey(a.plate).localeCompare(plateKey(b.plate)) || Number(!!a.operator) - Number(!!b.operator) || a.operator.localeCompare(b.operator));
 }
 
 export type Payout = { amount: number; expenses: number; diff: number; tax: number; incomeTax: number; localTax: number; pay: number };

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   let rows: unknown[][];
   let name: string;
 
-  const v = only ? report.vehicles.find((x) => x.vehicleId === only) : undefined;
+  const v = only ? report.vehicles.find((x) => x.key === only) : undefined;
   if (only && !v) return new NextResponse("해당 차량의 확정 배차가 없습니다.", { status: 404 });
 
   if (v) {
