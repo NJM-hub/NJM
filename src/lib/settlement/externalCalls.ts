@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/fetchAll";
 import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
 import { loadSettings } from "@/lib/settings";
@@ -64,7 +65,7 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
   const { from, to } = monthRange(month);
   const settings = await loadSettings(db);
   const ownCallFee = settings.own_call_fee ?? 15000;
-  const { data, error } = await db
+  const data = await fetchAll((a, b) => db
     .from("dispatch_assignments")
     .select(
       "id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
@@ -72,9 +73,10 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
     )
     .eq("dispatch_runs.status", "confirmed")
     .gte("dispatch_runs.service_date", from)
-    .lte("dispatch_runs.service_date", to);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as Row[];
+    .lte("dispatch_runs.service_date", to)
+    .order("id")
+    .range(a, b));
+  const rows = data as unknown as Row[];
 
   const out: OutCall[] = rows
     .filter((r) => !r.vehicle_id && r.unassigned_reason === "EXTERNAL")

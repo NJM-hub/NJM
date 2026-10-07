@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/fetchAll";
 import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
 import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
@@ -64,8 +65,8 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
   const settings = await loadSettings(db);
   const ownCallFee = settings.own_call_fee ?? 15000;
   const rules = fareRulesOf(settings);
-  const [{ data, error }, { data: runs }, { data: expenses }, { data: items }] = await Promise.all([
-    db
+  const [data, { data: runs }, { data: expenses }, { data: items }] = await Promise.all([
+    fetchAll((a, b) => db
       .from("dispatch_assignments")
       .select(
         "id,booking_id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
@@ -73,13 +74,14 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
       )
       .eq("dispatch_runs.status", "confirmed")
       .gte("dispatch_runs.service_date", from)
-      .lte("dispatch_runs.service_date", to),
+      .lte("dispatch_runs.service_date", to)
+      .order("id")
+      .range(a, b)),
     db.from("dispatch_runs").select("service_date,status").gte("service_date", from).lte("service_date", to),
     db.from("vehicle_month_expenses").select("vehicle_id,operator,fuel,fines,tolls,engine_oil,other,memo,status,confirmed_at").eq("month", month),
     db.from("vehicle_month_items").select("*").eq("month", month),
   ]);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as Row[];
+  const rows = data as unknown as Row[];
   const manual = (items ?? []) as ItemRow[];
 
   const vehicleRows: VehicleMonthRow[] = rows

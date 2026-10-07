@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { fetchAll } from "@/lib/fetchAll";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DeleteAllSchedules, DeleteDateButton } from "./DeleteControls";
 
@@ -10,8 +11,8 @@ const dayLabel = (date: string) => {
 
 /** 날짜별 배차 일정 목록 + 날짜별/전체 삭제 */
 export async function ScheduleManager({ supabase }: { supabase: SupabaseClient }) {
-  const [{ data: bookings }, { data: runs }] = await Promise.all([
-    supabase.from("bookings").select("service_date").limit(20000),
+  const [bookings, { data: runs }] = await Promise.all([
+    fetchAll((a, b) => supabase.from("bookings").select("service_date").order("id").range(a, b)),
     supabase.from("dispatch_runs").select("service_date,status"),
   ]);
   const counts = new Map<string, number>();

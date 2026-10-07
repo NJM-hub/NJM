@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchAll } from "@/lib/fetchAll";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { monthRange } from "@/lib/format";
 import { computeWithholding, type Withholding, type WithholdingOptions } from "@/lib/tax";
@@ -28,17 +29,18 @@ type Row = {
 /** 해당 월 확정 배차를 기사별로 합산하고 원천징수액을 계산 */
 export async function computeSettlement(db: SupabaseClient, month: string, opts: WithholdingOptions): Promise<DriverSettlement[]> {
   const { from, to } = monthRange(month);
-  const { data, error } = await db
+  const data = await fetchAll((a, b) => db
     .from("dispatch_assignments")
     .select("driver_id,fare,settle_amount,vehicles(plate_number,driver_name),dispatch_runs!inner(service_date,status),bookings(booking_no,product_name,pickup_at,source)")
     .eq("dispatch_runs.status", "confirmed")
     .gte("dispatch_runs.service_date", from)
     .lte("dispatch_runs.service_date", to)
-    .not("vehicle_id", "is", null);
-  if (error) throw new Error(error.message);
+    .not("vehicle_id", "is", null)
+    .order("id")
+    .range(a, b));
   // 기사가 외부에서 직접 받아온 콜은 회사 정산 대상이 아니다
   // 기사가 외부에서 직접 받은 콜은 회사 지급 대상이 아니다. 차량별 월정산에서 금액을 고친 건은 그 금액으로
-  const rows = ((data ?? []) as unknown as Row[])
+  const rows = (data as unknown as Row[])
     .filter((r) => r.bookings?.source !== "driver_own")
     .map((r) => ({ ...r, fare: r.settle_amount ?? r.fare }));
 
