@@ -16,9 +16,8 @@ export async function GET(request: NextRequest) {
   const rows =
     type === "out"
       ? [
-          ["날짜", "시간", "구분", "예약번호", "항공편", "차급", "인원", "출발", "도착", "준 금액"],
-          ...out.map((c) => [c.date, c.pickupAt ? fmtTime(c.pickupAt) : "", t(c.tripType), c.bookingNo, c.flightNo, c.vehicleClass, c.pax, c.from, c.to, c.fare]),
-          ["합계", "", "", `${out.length}건`, "", "", "", "", "", out.reduce((a, c) => a + c.fare, 0)],
+          ["날짜", "시간", "구분", "예약번호", "항공편", "차급", "인원", "출발", "도착", "KKday 정산(부가세 포함)", "부가세 제외", "준 금액", "차액"],
+          ...out.map((c) => [c.date, c.pickupAt ? fmtTime(c.pickupAt) : "", t(c.tripType), c.bookingNo, c.flightNo, c.vehicleClass, c.pax, c.from, c.to, c.kkdayAmount ?? "-", c.kkdayNet ?? "-", c.fare, c.diff ?? "-"]),
         ]
       : [
           ["날짜", "시간", "차량", "기사", "구분", "내용", "시트 요금", "정산 금액", "입금"],

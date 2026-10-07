@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll } from "@/lib/fetchAll";
+import { withoutVat } from "@/lib/kkday/statement";
 import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
 import { loadSettings } from "@/lib/settings";
@@ -21,6 +22,12 @@ export type OutCall = {
   flightNo: string | null;
   /** 외부 업체에 준 금액 (시트 숫자) */
   fare: number;
+  /** KKday 정산내역서 최종 금액 (부가세 포함, 내역서를 올리지 않았으면 null) */
+  kkdayAmount: number | null;
+  /** 부가세 뺀 금액 */
+  kkdayNet: number | null;
+  /** 차액 = 부가세 뺀 금액 − 외부에 준 금액 */
+  diff: number | null;
 };
 
 /** 외부에서 받은 콜: 기사가 직접 받아온 자체 콜 (시트 표 아래 기사별 칸) */
@@ -94,9 +101,28 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         to: b?.dropoff_place ?? b?.dropoff_address ?? null,
         flightNo: b?.flight_no ?? null,
         fare: r.fare ?? 0,
-      };
+        kkdayAmount: null,
+        kkdayNet: null,
+        diff: null,
+      } as OutCall;
     })
     .sort(byTime);
+
+  // KKday 정산내역서 금액 붙이기
+  const nos = [...new Set(out.map((c) => c.bookingNo).filter((n): n is string => !!n))];
+  const amountOf = new Map<string, number>();
+  for (let i = 0; i < nos.length; i += 200) {
+    const { data: st, error: sErr } = await db.from("kkday_statements").select("booking_no,amount").in("booking_no", nos.slice(i, i + 200));
+    if (sErr) throw new Error(sErr.message);
+    for (const s of st ?? []) amountOf.set(s.booking_no as string, s.amount as number);
+  }
+  for (const c of out) {
+    const a = c.bookingNo ? amountOf.get(c.bookingNo) : undefined;
+    if (a == null) continue;
+    c.kkdayAmount = a;
+    c.kkdayNet = withoutVat(a);
+    c.diff = c.kkdayNet - c.fare;
+  }
 
   const inCalls: InCall[] = rows
     .filter((r) => r.bookings?.source === OWN_CALL)

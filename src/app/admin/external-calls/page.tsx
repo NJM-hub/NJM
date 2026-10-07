@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, tripLabel, won } from "@/lib/format";
 import { loadExternalCalls, type InCall, type OutCall } from "@/lib/settlement/externalCalls";
+import { StatementUpload } from "./StatementUpload";
 
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const dayLabel = (date: string) => {
@@ -27,6 +28,8 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
   const outByDate = new Map<string, OutCall[]>();
   for (const c of out) outByDate.set(c.date, [...(outByDate.get(c.date) ?? []), c]);
   const outTotal = out.reduce((s, c) => s + c.fare, 0);
+  // 금액 칸: 정산내역서에 없으면 "-", 마이너스는 -로
+  const money = (n: number | null) => (n == null ? <span className="text-gray-400">-</span> : <span className={amountColor(n)}>{won(n)}</span>);
 
   // 외부에서 받은 콜: 차량별 합계
   const inByVehicle = new Map<string, InCall[]>();
@@ -59,6 +62,11 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
         <h2 className="text-lg font-semibold">
           {mon}월 외부로 준 콜 <span className="text-base font-normal text-gray-600">{out.length}건 · {won(outTotal)}</span>
         </h2>
+        <StatementUpload />
+        <p className="text-xs text-gray-500">
+          건별 차액 = KKday 정산내역서의 그 예약 금액(부가세 포함)에서 부가세를 뺀 금액(÷1.1) − 외부 업체에 준 금액. 예: 60,000원 → 54,545원 − 50,000원 = 4,545원.
+          정산내역서에 없는 건은 &quot;-&quot;로 표시됩니다.
+        </p>
         {out.length ? (
           <>
             <div className="flex flex-wrap gap-2 text-xs">
@@ -70,7 +78,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
             </div>
             <div className="max-h-[32rem] overflow-auto">
               <table className="table">
-                <thead><tr><th>날짜</th><th>시간</th><th>구분</th><th>예약번호</th><th>차급</th><th className="text-right">인원</th><th>출발 → 도착</th><th className="text-right">준 금액</th></tr></thead>
+                <thead><tr><th>날짜</th><th>시간</th><th>구분</th><th>예약번호</th><th>차급</th><th className="text-right">인원</th><th>출발 → 도착</th><th className="text-right">KKday 정산(부가세 포함)</th><th className="text-right">부가세 제외</th><th className="text-right">준 금액</th><th className="text-right">차액</th></tr></thead>
                 <tbody>
                   {out.map((c) => (
                     <tr key={c.id}>
@@ -81,11 +89,14 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
                       <td className="text-xs">{c.vehicleClass}</td>
                       <td className="text-right">{c.pax}</td>
                       <td className="max-w-80 truncate text-xs text-gray-600" title={`${c.from ?? ""} → ${c.to ?? ""}`}>{c.from} → {c.to}</td>
+                      <td className="text-right">{money(c.kkdayAmount)}</td>
+                      <td className="text-right">{money(c.kkdayNet)}</td>
                       <td className="text-right">{won(c.fare)}</td>
+                      <td className="text-right font-semibold">{money(c.diff)}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr className="font-semibold"><td colSpan={7} className="px-3 py-2">합계 {out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td></tr></tfoot>
+                <tfoot><tr className="font-semibold"><td colSpan={9} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td /></tr></tfoot>
               </table>
             </div>
           </>
