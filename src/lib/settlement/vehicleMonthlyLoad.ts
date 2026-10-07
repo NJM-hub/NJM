@@ -88,7 +88,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     .filter((r) => r.vehicle_id)
     .map((r) => {
       const own = r.bookings?.source === OWN_CALL;
-      // 기본 금액: 외부오더는 시트 금액(없으면 −차감액), 그 외는 콜 금액 규칙(기본·김포·피켓). 손으로 고친 값이 있으면 그 값
+      // 기본 금액: 외부오더는 시트 금액(없으면 −차감액), 그 외는 콜 금액 규칙(기본·김포·피켓·어린이 좌석). 손으로 고친 값이 있으면 그 값
       const base = own ? ownCallAmount(r.bookings?.fare, ownCallFee) : r.bookings ? fareFor(r.bookings, rules) : r.fare ?? 0;
       return {
         id: r.id,

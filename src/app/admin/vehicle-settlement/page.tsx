@@ -347,7 +347,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="font-semibold">건별 내역 ({v.rows.length}건)</h3>
           <p className="text-xs text-gray-500">
-            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −시트 금액, 없으면 −{won(report.ownCallFee)}).
+            기본 금액은 설정의 콜 금액 규칙(기본·김포·피켓·어린이 좌석)으로 채워집니다. 고친 뒤 저장하세요. 칸을 비우면 기본값으로 돌아갑니다 (외부오더는 −시트 금액, 없으면 −{won(report.ownCallFee)}).
           </p>
           {!locked && <SubmitButton className="ml-auto">금액 저장</SubmitButton>}
         </div>
