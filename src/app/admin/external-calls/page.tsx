@@ -29,6 +29,8 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
   for (const c of out) outByDate.set(c.date, [...(outByDate.get(c.date) ?? []), c]);
   const outTotal = out.reduce((s, c) => s + c.fare, 0);
   const diffTotal = out.reduce((s, c) => s + (c.diff ?? 0), 0);
+  const kkdayTotal = out.reduce((s, c) => s + (c.kkdayAmount ?? 0), 0);
+  const netTotal = out.reduce((s, c) => s + (c.kkdayNet ?? 0), 0);
   const inTotal = inCalls.reduce((s, c) => s + c.settleAmount, 0);
   // 금액 칸: 정산내역서에 없으면 "-", 마이너스는 -로
   const money = (n: number | null) => (n == null ? <span className="text-gray-400">-</span> : <span className={amountColor(n)}>{won(n)}</span>);
@@ -95,7 +97,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr className="font-semibold"><td colSpan={6} className="px-3 py-2">{out.length}건</td><td className="px-3 py-2 text-right">{won(outTotal)}</td><td className="whitespace-nowrap px-3 py-2 text-right">{money(diffTotal)}</td></tr></tfoot>
+                <tfoot><tr className="font-semibold"><td colSpan={4} className="px-3 py-2">{out.length}건</td><td className="whitespace-nowrap px-3 py-2 text-right">{won(kkdayTotal)}</td><td className="whitespace-nowrap px-3 py-2 text-right">{won(netTotal)}</td><td className="whitespace-nowrap px-3 py-2 text-right">{won(outTotal)}</td><td className="whitespace-nowrap px-3 py-2 text-right">{money(diffTotal)}</td></tr></tfoot>
               </table>
             </div>
           </>
