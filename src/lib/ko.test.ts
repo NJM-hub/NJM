@@ -24,6 +24,7 @@ describe("한국어 표시", () => {
     expect(ko("降落60~90分后出发，司机协商")).toBe("착륙 60~90분 후 출발, 기사와 협의");
     expect(ko("Test Hotel")).toBe("Test Hotel");
     expect(ko(null)).toBeNull();
+    expect([ko("郑胜虎"), ko("金慧煐")]).toEqual(["정승호", "김혜영"]);
   });
 
   it("일본어", () => {
