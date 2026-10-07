@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canonicalDriver, parseDriverAliases } from "@/lib/driverAlias";
 import { fetchAll } from "@/lib/fetchAll";
 import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
@@ -111,6 +112,12 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         bookingId: r.booking_id,
       };
     });
+  // 같은 사람 다른 이름은 한 이름으로 (설정 → 같은 기사 이름 합치기)
+  const aliases = parseDriverAliases(settings.driver_aliases);
+  for (const r of vehicleRows) {
+    r.driverName = canonicalDriver(r.driverName, aliases);
+    r.operator = canonicalDriver(r.operator, aliases);
+  }
   assignSettleOperators(vehicleRows);
 
   // 직접 추가한 항목: 그 차량의 번호·기사 이름이 필요하다
@@ -129,7 +136,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         serviceDate: m.work_date,
         vehicleId: m.vehicle_id,
         plate: v?.plate_number ?? "(삭제된 차량)",
-        driverName: ko(driverOf.get(m.vehicle_id) ?? v?.driver_name ?? null),
+        driverName: canonicalDriver(ko(driverOf.get(m.vehicle_id) ?? v?.driver_name ?? null), aliases),
         tripType: m.trip_type,
         source: null,
         manualSource: m.source,

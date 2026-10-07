@@ -35,6 +35,11 @@ export default async function SettingsPage() {
         <F name="local_tax_rate_pct" label="지방소득세(소득세 대비 %)" value={s.local_tax_rate * 100} step="1" />
         <F name="company_name" label="지급자 상호" value={s.company_name ?? ""} />
         <F name="company_brn" label="지급자 사업자등록번호" value={s.company_brn ?? ""} />
+        <div className="sm:col-span-2">
+          <label className="label" htmlFor="driver_aliases">같은 기사 이름 합치기</label>
+          <textarea id="driver_aliases" name="driver_aliases" defaultValue={s.driver_aliases ?? ""} rows={3} className="input font-mono text-sm" placeholder={"김성원 = JACKY"} />
+          <p className="mt-1 text-xs text-gray-500">같은 사람인데 시트·차량에 이름이 다르게 적힌 경우, 한 줄에 &quot;다른 이름 = 정산에 쓸 이름&quot;. 차량별 월정산·외부 콜에서 한 사람으로 합쳐집니다 (차량 목록은 그대로).</p>
+        </div>
       </section>
       <SubmitButton>저장</SubmitButton>
     </form>

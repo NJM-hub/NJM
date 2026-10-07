@@ -26,6 +26,7 @@ export async function saveSettings(formData: FormData) {
     business_code: String(formData.get("business_code") ?? "").trim() || "940909",
     company_name: String(formData.get("company_name") ?? "").trim() || null,
     company_brn: String(formData.get("company_brn") ?? "").trim() || null,
+    driver_aliases: String(formData.get("driver_aliases") ?? "").trim().slice(0, 5000),
     updated_at: new Date().toISOString(),
   };
   const { error } = await supabase.from("app_settings").update(row).eq("id", 1);

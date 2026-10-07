@@ -25,6 +25,8 @@ export type AppSettings = {
   fare_picket_extra: number;
   /** 어린이 좌석 추가금 (1개당) */
   fare_child_seat_extra: number;
+  /** 같은 사람인데 이름이 다른 기사 ("다른 이름 = 정산에 쓸 이름" 줄 목록) */
+  driver_aliases: string | null;
 };
 
 export function fareRulesOf(s: AppSettings): FareRules {

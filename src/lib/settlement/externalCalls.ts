@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canonicalDriver, parseDriverAliases } from "@/lib/driverAlias";
 import { fetchAll } from "@/lib/fetchAll";
 import { withoutVat } from "@/lib/kkday/statement";
 import { monthRange } from "@/lib/format";
@@ -134,7 +135,7 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         pickupAt: b.pickup_at,
         vehicleId: r.vehicle_id,
         plate: r.vehicles?.plate_number ?? null,
-        driverName: ko(r.drivers?.name ?? r.vehicles?.driver_name ?? b.raw?.["기사"] ?? null),
+        driverName: canonicalDriver(ko(r.drivers?.name ?? r.vehicles?.driver_name ?? b.raw?.["기사"] ?? null), parseDriverAliases(settings.driver_aliases)),
         tripType: b.trip_type,
         content: b.raw?.["내용"] ?? b.memo ?? "",
         charterFare: b.fare,
