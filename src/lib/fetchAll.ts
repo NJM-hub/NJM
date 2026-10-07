@@ -1,17 +1,19 @@
 /**
- * Supabase 는 한 번에 최대 1000행만 돌려준다 (서버 max-rows).
- * 한 달 배차처럼 1000행이 넘을 수 있는 조회는 id 순으로 1000행씩 끝까지 받아온다.
+ * 한 달 배차처럼 건수가 많은 조회를 끝까지 받아온다.
+ * 한 번에 PAGE(3000)건씩 요청하고, 서버 설정(max-rows)이 더 작아 덜 오면 받은 만큼 넘어가며 이어 받는다.
  * page(from, to) 는 매번 새 쿼리를 만들어 .order("id").range(from, to) 를 붙여 돌려줘야 한다.
  */
+export const PAGE = 3000;
+
 export async function fetchAll<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-  size = 1000,
+  size = PAGE,
 ): Promise<T[]> {
   const out: T[] = [];
-  for (let from = 0; ; from += size) {
-    const { data, error } = await page(from, from + size - 1);
+  for (;;) {
+    const { data, error } = await page(out.length, out.length + size - 1);
     if (error) throw new Error(error.message);
-    out.push(...(data ?? []));
-    if (!data || data.length < size) return out;
+    if (!data?.length) return out;
+    out.push(...data);
   }
 }
