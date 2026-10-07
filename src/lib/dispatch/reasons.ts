@@ -5,6 +5,7 @@ export const EXTRA_REASON_LABEL: Record<string, string> = {
   MANUAL: "수동으로 배차 해제",
   EXTERNAL: "외부(타업체) 배차",
   SHEET_EMPTY: "시트에 기사 없음",
+  SHEET_NO_VEHICLE: "시트 차량이 차량 목록에 없음",
   NOT_IN_SHEET: "시트에 없는 예약",
 };
 

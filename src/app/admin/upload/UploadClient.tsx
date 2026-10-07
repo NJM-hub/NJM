@@ -216,7 +216,7 @@ export function UploadClient() {
                     <span className="inline-block w-20">{b.sheet}</span>
                     {b.date && <Link href={`/admin/dispatch?date=${b.date}`} className="mr-2 text-blue-700 underline">{b.date}</Link>}
                     {!b.result ? <span className="text-gray-400">대기</span>
-                      : b.result.ok ? <span className="text-green-700">예약 {b.result.count}건 · 배차 {b.result.assigned} · 외부 {b.result.external} · 자체 콜 {b.result.ownCalls}{b.result.vehiclesCreated.length ? ` · 새 차량 ${b.result.vehiclesCreated.join(", ")}` : ""}</span>
+                      : b.result.ok ? <span className="text-green-700">예약 {b.result.count}건 · 배차 {b.result.assigned} · 외부 {b.result.external} · 자체 콜 {b.result.ownCalls}{b.result.unmatchedVehicles.length ? ` · 목록에 없는 차량 ${b.result.unmatchedVehicles.map((x) => ko(x)).join(", ")}(미배정)` : ""}</span>
                       : <span className="text-red-600">{b.result.error}</span>}
                   </li>
                 ))}
@@ -267,7 +267,7 @@ export function UploadClient() {
             )}
           </ul>
           <p className="mt-2">
-            저장하면 예약을 등록하고, 차량번호 뒤 4자리로 등록 차량을 찾아(없으면 새로 등록) <b>시트와 똑같이 배차를 확정</b>합니다.
+            저장하면 예약을 등록하고, 차량번호 뒤 4자리로 등록 차량을 찾아(차량 목록은 고치지 않음, 없는 차량의 건은 미배정) <b>시트와 똑같이 배차를 확정</b>합니다.
           </p>
         </div>
       )}
@@ -330,10 +330,10 @@ export function UploadClient() {
               <div className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
                 예약 {sheetResult.count}건 저장, 차량 배차 {sheetResult.assigned}건(자체 콜 {sheetResult.ownCalls}건 포함) · 외부 {sheetResult.external}건
                 {sheetResult.unassigned > 0 && ` · 미배정 ${sheetResult.unassigned}건`} 으로 확정했습니다.
-                {sheetResult.vehiclesCreated.length > 0 && (
-                  <div className="mt-1">
-                    새로 등록한 차량: {sheetResult.vehiclesCreated.join(", ")} —{" "}
-                    <Link href="/admin/vehicles" className="font-medium text-blue-700 underline">차량 관리</Link>에서 전체 차량번호·차종을 확인하세요.
+                {sheetResult.unmatchedVehicles.length > 0 && (
+                  <div className="mt-1 text-amber-700">
+                    차량 목록에 없는 시트 차량 {sheetResult.unmatchedVehicles.map((x) => ko(x)).join(", ")} 의 건은 미배정으로 두었습니다 —{" "}
+                    <Link href="/admin/vehicles" className="font-medium text-blue-700 underline">차량 관리</Link>에서 차량을 등록한 뒤 다시 불러오면 배정됩니다.
                   </div>
                 )}
                 <div className="mt-1">

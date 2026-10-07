@@ -340,13 +340,14 @@ export async function unconfirmRun(formData: FormData) {
 export type SheetImportResult =
   | {
       ok: true; count: number; dates: string[]; assigned: number; external: number; unassigned: number; ownCalls: number;
-      vehiclesCreated: string[];
+      /** 차량 목록에 없어 미배정으로 둔 시트 차량(번호 뒤 4자리 또는 기사명) */
+      unmatchedVehicles: string[];
     }
   | { ok: false; error: string };
 
 /**
  * 구글 시트 배차표를 그대로 전산에 반영한다.
- * 예약을 저장하고, 시트의 기사/차량(차량번호 뒤 4자리)을 차량 목록과 맞춰(없으면 새로 등록)
+ * 예약을 저장하고, 시트의 기사/차량(차량번호 뒤 4자리)을 차량 목록과 맞춰 (차량 목록은 고치지 않는다. 없는 차량의 건은 미배정)
  * 날짜별로 시트와 똑같은 배차를 만들어 확정한다. 금액만 적힌 건은 외부 배차로 기록한다.
  * 표 아래 기사별 칸의 자체 콜은 출처(driver_own)를 달아 그 기사 차량에 고정한다.
  */
@@ -367,20 +368,12 @@ export async function importSheetDispatch(
   const opts: DispatchOptions = dispatchOptionsOf(settings);
   const valid = rows.filter((r) => r.serviceDate);
 
-  // 1. 차량 맞추기 / 새로 등록
+  // 1. 차량 맞추기 (차량 목록은 새로 만들거나 고치지 않는다)
   const { data: vehicles, error: vErr } = await supabase.from("vehicles").select("id,plate_number,driver_name");
   if (vErr) return { ok: false, error: vErr.message };
   const plan = planSheetVehicles(valid, vehicles ?? []);
   const vehicleOf = new Map(plan.matched);
-  if (plan.create.length) {
-    const { data: created, error } = await supabase
-      .from("vehicles")
-      .insert(plan.create.map((v) => ({ plate_number: v.plate_number, driver_name: v.driver_name, seats: v.seats, grade: v.grade, memo: "배차 시트에서 자동 등록 (차량번호 전체로 수정하세요)" })))
-      .select("id,plate_number");
-    if (error || !created) return { ok: false, error: `차량 등록 실패: ${error?.message}` };
-    for (const c of plan.create) vehicleOf.set(c.key, created.find((v) => v.plate_number === c.plate_number)!.id);
-  }
-  await Promise.all(plan.setDriverName.map((u) => supabase.from("vehicles").update({ driver_name: u.driver_name }).eq("id", u.id)));
+  const unmatchedVehicles = plan.create.map((c) => c.key);
 
   // 기사 자체 콜: 차량 고정, 시트에서 지워진 자체 콜은 삭제
   const ownSheet = valid.filter((r) => r.source === OWN_CALL_SOURCE && r.bookingNo);
@@ -450,7 +443,7 @@ export async function importSheetDispatch(
     for (const b of bookings) {
       if (vehicleIdOf(b)) continue;
       const d = b.booking_no ? sheetByNo.get(b.booking_no)?.sheetDriver : undefined;
-      const reason = d === undefined ? "NOT_IN_SHEET" : d?.kind === "external" ? "EXTERNAL" : "SHEET_EMPTY";
+      const reason = d === undefined ? "NOT_IN_SHEET" : d?.kind === "external" ? "EXTERNAL" : d?.kind === "vehicle" ? "SHEET_NO_VEHICLE" : "SHEET_EMPTY";
       rowsOut.push({
         booking_id: b.id, vehicle_id: null, driver_id: null, seq: null, ready_at: null, deadhead_km: null, deadhead_min: null,
         unassigned_reason: reason, fare: d?.kind === "external" ? d.fare : fareFor(b, fareRulesOf(settings)),
@@ -500,5 +493,5 @@ export async function importSheetDispatch(
 
   revalidatePath("/admin/dispatch");
   revalidatePath("/admin/vehicles");
-  return { ok: true, count: saved.count, dates: saved.dates, ...totals, vehiclesCreated: plan.create.map((c) => c.plate_number) };
+  return { ok: true, count: saved.count, dates: saved.dates, ...totals, unmatchedVehicles };
 }
