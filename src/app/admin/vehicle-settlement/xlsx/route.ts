@@ -66,7 +66,7 @@ function summarySheet(report: VehicleMonthReport, used: Set<string>): Sheet<neve
     [{ value: `${report.companyName ?? ""} ${Number(report.month.slice(5))}월 차량별 정산 요약`.trim(), fontWeight: "bold", fontSize: 14 }],
     heads.map((h) => ({ value: h, ...HEAD })),
     ...report.vehicles.map((v) => [
-      v.plate, `${v.driverName ?? ""}${v.operator ? " (차량 빌려 운행)" : ""}`, v.status === "confirmed" ? "확정" : "작성 중", v.total.workDays, v.total.pickup, v.total.sending, v.total.own,
+      v.plate, v.driverName ?? "", v.status === "confirmed" ? "확정" : "작성 중", v.total.workDays, v.total.pickup, v.total.sending, v.total.own,
       money(v.payout.amount), ...EXPENSE_KEYS.map((k) => money(v.expenses?.[k] ?? 0)), money(v.payout.expenses),
       money(v.payout.diff), money(v.payout.tax), money(v.payout.pay, { fontWeight: "bold" }), money(v.total.ownAmount),
     ]),

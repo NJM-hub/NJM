@@ -67,7 +67,7 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
           <select id="v" name="v" defaultValue={sp.v ?? ""} className="input">
             <option value="">전체 차량</option>
             {report.vehicles.map((v) => (
-              <option key={v.key} value={v.key}>{vehicleTitle(v.plate, v.driverName)}{v.operator ? " (차량 빌려 운행)" : ""}</option>
+              <option key={v.key} value={v.key}>{vehicleTitle(v.plate, v.driverName)}</option>
             ))}
           </select>
         </div>
@@ -123,12 +123,11 @@ function Overview({ report }: { report: VehicleMonthReport }) {
           </thead>
           <tbody>
             {report.vehicles.map((v) => (
-              <tr key={v.key} className={v.operator ? "bg-amber-50/60" : ""}>
+              <tr key={v.key}>
                 <td>
                   <Link href={`/admin/vehicle-settlement?month=${report.month}&v=${encodeURIComponent(v.key)}`} className="font-medium text-blue-700 hover:underline">
                     {vehicleTitle(v.plate, v.driverName)}
                   </Link>
-                  {v.operator && <span className="badge ml-2 bg-amber-100 text-amber-800">차량 빌려 운행</span>}
                   {v.status === "confirmed" && <span className="badge ml-2 bg-green-100 text-green-800">확정</span>}
                 </td>
                 <td className="text-right">{v.total.workDays}일</td>
@@ -249,7 +248,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
       </div>
       {locked ? (
         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
-          확정된 정산입니다. 금액·비용·항목이 잠겨 있고, {v.operator ? "관리자만 볼 수 있습니다(차량을 빌려 운행한 기사)" : "기사 화면에 이 내역이 보입니다"}. 고치려면 &quot;확정 해제&quot;를 누르세요.
+          확정된 정산입니다. 금액·비용·항목이 잠겨 있고, {v.operator ? "관리자만 볼 수 있습니다" : "기사 화면에 이 내역이 보입니다"}. 고치려면 &quot;확정 해제&quot;를 누르세요.
         </p>
       ) : (
         <p className="text-sm text-gray-500">금액·비용을 확인한 뒤 &quot;정산 확정&quot;을 누르면 잠기고 기사 화면에 정산서가 표시됩니다.</p>
