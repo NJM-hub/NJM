@@ -5,7 +5,7 @@ import { getSnapshot } from "@/lib/data";
 import { fmtDate } from "@/lib/dates";
 import { effectiveStatus } from "@/lib/engine";
 import { phoneDigits, won } from "@/lib/format";
-import { unitLabel } from "@/lib/views";
+import { compareUnits, unitLabel } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +16,14 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   const scopeUnits = new Set(s.units.map((u) => u.unit.id));
   const needle = (sp.q ?? "").trim().toLowerCase();
   const digits = phoneDigits(needle);
+  const unitById = new Map(ds.units.map((u) => [u.id, u]));
   const rows = ds.tenants
     .map((t) => {
       const cs = ds.contracts.filter((c) => c.tenant_id === t.id).sort((a, b) => b.start_date.localeCompare(a.start_date));
       const current = cs.find((c) => ["active", "expiring", "planned"].includes(effectiveStatus(c, s.today)));
       const unpaid = s.arrears.filter((a) => a.contract.tenant_id === t.id).reduce((x, a) => x + a.total, 0);
-      return { t, cs, current, unpaid };
+      const unit = unitById.get((current ?? cs[0])?.unit_id ?? "");
+      return { t, cs, current, unpaid, unit };
     })
     .filter((r) => r.cs.length === 0 || r.cs.some((c) => scopeUnits.has(c.unit_id)))
     .filter((r) => sp.all || r.current || r.unpaid > 0 || r.cs.length === 0)
@@ -32,7 +34,8 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
         (digits.length >= 3 && phoneDigits(r.t.phone).includes(digits)) ||
         (r.t.biz_no ?? "").includes(needle),
     )
-    .sort((a, b) => b.unpaid - a.unpaid || a.t.name.localeCompare(b.t.name, "ko"));
+    // 빌딩 순서 (현재 계약 호실, 없으면 마지막 계약 호실) → 계약 없는 임차인은 맨 뒤
+    .sort((a, b) => compareUnits(ds, a.unit, b.unit) || Number(!a.current) - Number(!b.current) || a.t.name.localeCompare(b.t.name, "ko"));
 
   return (
     <div>
