@@ -16,6 +16,8 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
   const sumBucket = (b: string) => s.arrears.filter((a) => a.bucket === b);
   const list = bucket ? s.arrears.filter((a) => a.bucket === bucket) : s.arrears;
   const tones = ["yellow", "orange", "orange", "red"] as const;
+  // 미납 개월수 = 납부일이 지났는데 다 못 받은 달 (일부만 받은 달도 1개월)
+  const months = (items: typeof s.arrears) => items.reduce((x, a) => x + a.charges.length, 0);
 
   return (
     <div className="space-y-4">
@@ -30,9 +32,9 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
         }
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="총 미납" value={wonShort(s.totals.unpaid)} sub={`${s.arrears.length}명`} tone={s.totals.unpaid ? "red" : "green"} href="/arrears" />
+        <StatCard label="총 미납" value={wonShort(s.totals.unpaid)} sub={`${s.arrears.length}명 · ${months(s.arrears)}개월`} tone={s.totals.unpaid ? "red" : "green"} href="/arrears" />
         {AGING_BUCKETS.map((b, i) => (
-          <StatCard key={b} label={b} value={wonShort(sumBucket(b).reduce((x, a) => x + a.total, 0))} sub={`${sumBucket(b).length}명`} tone={sumBucket(b).length ? tones[i] : "gray"} href={`/arrears?bucket=${encodeURIComponent(b)}`} />
+          <StatCard key={b} label={b} value={wonShort(sumBucket(b).reduce((x, a) => x + a.total, 0))} sub={`${sumBucket(b).length}명 · ${months(sumBucket(b))}개월`} tone={sumBucket(b).length ? tones[i] : "gray"} href={`/arrears?bucket=${encodeURIComponent(b)}`} />
         ))}
       </div>
       <Card title={bucket ? `${bucket} 미납` : "미납 목록"} actions={bucket && <Link href="/arrears" className="link">전체 보기</Link>}>
@@ -46,6 +48,7 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
                 <th>부동산 / 호실</th>
                 <th>연락처</th>
                 <th>미납 월</th>
+                <th className="num">미납 개월</th>
                 <th className="num">미납기간</th>
                 <th>구분</th>
                 <th className="num">총 미납액</th>
@@ -68,6 +71,7 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
                       </div>
                     ))}
                   </td>
+                  <td className={`num font-bold ${a.days > 90 ? "text-red-700" : "text-red-600"}`}>{a.charges.length}개월</td>
                   <td className={`num font-semibold ${a.days > 90 ? "text-red-700" : ""}`}>{a.days}일</td>
                   <td>
                     <Badge tone={agingTone(a.days)}>{a.bucket}</Badge>
@@ -76,6 +80,14 @@ export default async function ArrearsPage({ searchParams }: { searchParams: Prom
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-50 font-semibold">
+                <td colSpan={4}>합계 ({list.length}명)</td>
+                <td className="num text-red-600">{months(list)}개월</td>
+                <td colSpan={2} />
+                <td className="num text-red-600">{won(list.reduce((x, a) => x + a.total, 0))}</td>
+              </tr>
+            </tfoot>
           </Table>
         )}
       </Card>
