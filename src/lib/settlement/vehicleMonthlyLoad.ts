@@ -167,6 +167,16 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
   const draftOnlyDates = [...new Set((runs ?? []).map((r) => r.service_date as string))].filter((d) => !confirmed.has(d)).sort();
   type ExpenseRow = Expenses & { vehicle_id: string; operator: string | null; status: string | null; confirmed_at: string | null };
   const expenseOf = new Map(((expenses ?? []) as ExpenseRow[]).map((e) => [settleKey(e.vehicle_id, e.operator ?? ""), e]));
+  // KKday 정산내역서 금액 붙이기 (예약번호 기준, 직접 추가 항목은 참조번호)
+  const nos = [...new Set(vehicleRows.map((r) => r.bookingNo).filter((n): n is string => !!n && /^\d*KK/i.test(n)))];
+  const kkdayOf = new Map<string, number>();
+  for (let i = 0; i < nos.length; i += 200) {
+    const { data: st, error: sErr } = await db.from("kkday_statements").select("booking_no,amount").in("booking_no", nos.slice(i, i + 200));
+    if (sErr) throw new Error(sErr.message);
+    for (const s of st ?? []) kkdayOf.set(s.booking_no as string, s.amount as number);
+  }
+  for (const r of vehicleRows) r.kkdayAmount = r.bookingNo ? kkdayOf.get(r.bookingNo) ?? null : null;
+
   const tax = withholdingOf(settings);
 
   return {

@@ -84,3 +84,18 @@ describe("같은 차량 여러 기사: 기사별 따로 정산", () => {
     ]);
   });
 });
+
+describe("KKday 차액", () => {
+  it("부가세 뺀 정산 금액 − 기사 지급액, 외부오더·내역서 없음은 제외", async () => {
+    const { kkdayDiffOf, kkdayTotals } = await import("./vehicleMonthly");
+    expect(kkdayDiffOf({ kkdayAmount: 60000, amount: 45000, source: null })).toEqual({ net: 54545, diff: 9545 });
+    expect(kkdayDiffOf({ kkdayAmount: 56800, amount: 55000, source: null })).toEqual({ net: 51636, diff: -3364 });
+    expect(kkdayDiffOf({ kkdayAmount: null, amount: 40000, source: null })).toBeNull();
+    expect(kkdayDiffOf({ kkdayAmount: 60000, amount: -15000, source: OWN_CALL })).toBeNull();
+    const base = { serviceDate: "2026-09-01", vehicleId: "v", plate: "9754", driverName: "차수영", tripType: null, source: null };
+    expect(kkdayTotals([
+      { ...base, id: "1", amount: 45000, kkdayAmount: 60000 },
+      { ...base, id: "2", amount: 40000, kkdayAmount: null },
+    ])).toEqual({ count: 1, amount: 60000, net: 54545, paid: 45000, diff: 9545 });
+  });
+});

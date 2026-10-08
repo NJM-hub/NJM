@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
-import { EXPENSE_LABELS, inOutLabel, OWN_CALL, tripKind, type DayCount } from "@/lib/settlement/vehicleMonthly";
+import { EXPENSE_LABELS, inOutLabel, kkdayDiffOf, kkdayTotals, OWN_CALL, tripKind, type DayCount } from "@/lib/settlement/vehicleMonthly";
 import {
   addManualItem, deleteManualItem, deleteSelectedRows, deleteVehicleMonth, deleteVehicleMonthQuick, deleteWholeMonth, resetVehicleSettlement,
   saveAmounts, saveExpenses, setSettlementStatus,
@@ -24,6 +24,9 @@ function vehicleTitle(plate: string, driverName: string | null): string {
 }
 
 const num = (n: number) => (n ? n.toLocaleString("ko-KR") : "-");
+/** 차액 표시: 마이너스는 빨간 -, 없으면 - */
+const diffCell = (n: number | null | undefined) =>
+  n == null ? <span className="text-gray-400">-</span> : <span className={n < 0 ? "text-red-600" : "text-gray-900"}>{won(n)}</span>;
 
 /** 건별 내역의 고칠 수 있는 칸: 원래 값(o_)과 함께 보내 바뀐 것만 저장한다 */
 function Editable({ id, f, value, type = "text", className = "", placeholder }: {
@@ -137,7 +140,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
             <tr>
               <th>차량 · 기사</th><th className="text-right">운행일</th>{COUNT_HEAD}
               <th className="text-right">금액 합계</th><th className="text-right">비용</th><th className="text-right">차액</th>
-              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right">별도 수금</th><th>삭제</th>
+              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right">별도 수금</th><th className="text-right" title="KKday 정산 금액에서 부가세 뺀 금액 − 기사에게 준 금액 (정산내역서에 있는 건만)">KKday 차액</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -157,6 +160,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="text-right">{won(v.payout.tax)}</td>
                 <td className="text-right font-semibold">{won(v.payout.pay)}</td>
                 <td className="text-right text-violet-700">{v.total.ownAmount ? won(v.total.ownAmount) : "-"}</td>
+                <td className="whitespace-nowrap text-right font-semibold">{(() => { const k = kkdayTotals(v.rows); return k.count ? diffCell(k.diff) : diffCell(null); })()}</td>
                 <td>
                   {v.status === "confirmed" ? (
                     <span className="text-xs text-gray-400" title="확정 해제 후 삭제할 수 있습니다">확정됨</span>
@@ -172,7 +176,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 </td>
               </tr>
             ))}
-            {!report.vehicles.length && <tr><td colSpan={14} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
+            {!report.vehicles.length && <tr><td colSpan={15} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
           </tbody>
           {report.vehicles.length > 0 && (
             <tfoot>
@@ -190,6 +194,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.tax))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.pay))}</td>
                 <td className="px-3 py-2 text-right text-violet-700">{won(sum((v) => v.total.ownAmount))}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">{diffCell(sum((v) => kkdayTotals(v.rows).diff))}</td>
                 <td />
               </tr>
             </tfoot>
@@ -374,7 +379,7 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
         <div className="overflow-x-auto">
           <table className="table">
             <thead>
-              <tr>{!locked && <th><SelectAll name="sel" /></th>}<th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>운행 기사</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th></tr>
+              <tr>{!locked && <th><SelectAll name="sel" /></th>}<th>예약번호</th><th>항공편</th><th>인아웃</th><th>날짜</th><th>시간</th><th>운행 기사</th><th>차량스펙</th><th className="text-right">인원</th><th>비고</th><th className="text-right">금액</th><th className="text-right" title="KKday 정산내역서 금액(부가세 포함) ÷ 1.1">KKday 부가세 제외</th><th className="text-right">차액</th></tr>
             </thead>
             <tbody>
               {v.rows.map((r) => {
@@ -425,6 +430,15 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                         className={`input !w-28 !py-1 text-right ${r.edited ? "border-blue-400 bg-blue-50" : ""} ${r.amount < 0 ? "text-red-600" : ""}`}
                       />
                     </td>
+                    {(() => {
+                      const k = kkdayDiffOf(r);
+                      return (
+                        <>
+                          <td className="whitespace-nowrap text-right text-gray-600" title={r.kkdayAmount != null ? `KKday 정산 ${won(r.kkdayAmount)} (부가세 포함)` : undefined}>{k ? won(k.net) : <span className="text-gray-400">-</span>}</td>
+                          <td className="whitespace-nowrap text-right font-semibold">{diffCell(k?.diff)}</td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 );
               })}
@@ -433,11 +447,21 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
               <tr className="font-semibold">
                 <td colSpan={locked ? 9 : 10} className="px-3 py-2">금액 합계 (지급 대상, 외부오더 제외)</td>
                 <td className="px-3 py-2 text-right">{won(v.total.amount)}</td>
+                {(() => {
+                  const k = kkdayTotals(v.rows);
+                  return (
+                    <>
+                      <td className="whitespace-nowrap px-3 py-2 text-right" title={`KKday 정산 ${won(k.amount)} (부가세 포함, ${k.count}건)`}>{won(k.net)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{diffCell(k.count ? k.diff : null)}</td>
+                    </>
+                  );
+                })()}
               </tr>
               {v.total.own > 0 && (
                 <tr className="font-semibold text-violet-700">
                   <td colSpan={locked ? 9 : 10} className="px-3 py-2">외부오더 {v.total.own}건 · 별도 수금 (지급에서 빼지 않음)</td>
                   <td className="px-3 py-2 text-right">{won(v.total.ownAmount)}</td>
+                  <td colSpan={2} />
                 </tr>
               )}
             </tfoot>

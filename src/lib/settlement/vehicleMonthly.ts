@@ -35,7 +35,31 @@ export type VehicleMonthRow = {
   settleOperator?: string;
   /** 예약 id (배차 건만) */
   bookingId?: string | null;
+  /** KKday 정산내역서의 이 예약 금액 (부가세 포함, 내역서에 없으면 null) */
+  kkdayAmount?: number | null;
 };
+
+/** KKday 차액 = 정산 금액(부가세 포함)에서 부가세 뺀 금액 − 기사에게 준 금액. 내역서에 없거나 외부오더면 null */
+export function kkdayDiffOf(r: Pick<VehicleMonthRow, "kkdayAmount" | "amount" | "source">): { net: number; diff: number } | null {
+  if (r.kkdayAmount == null || r.source === OWN_CALL) return null;
+  const net = Math.round(r.kkdayAmount / 1.1);
+  return { net, diff: net - r.amount };
+}
+
+/** 정산 단위의 KKday 차액 합계 (내역서에 있는 건만) */
+export function kkdayTotals(rows: VehicleMonthRow[]) {
+  const t = { count: 0, amount: 0, net: 0, paid: 0, diff: 0 };
+  for (const r of rows) {
+    const d = kkdayDiffOf(r);
+    if (!d) continue;
+    t.count++;
+    t.amount += r.kkdayAmount!;
+    t.net += d.net;
+    t.paid += r.amount;
+    t.diff += d.diff;
+  }
+  return t;
+}
 
 export type DayCount = {
   pickup: number; sending: number; other: number; own: number;
