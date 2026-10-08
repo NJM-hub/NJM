@@ -220,77 +220,125 @@ export async function runDispatch(formData: FormData) {
   redirect(`/admin/dispatch?date=${date}&run=${run.id}`);
 }
 
+type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
+
 /**
- * 배차 결과를 수동으로 옮긴다. 옮긴 뒤 두 차량의 경로를 다시 계산해 순번/공차 정보를 갱신하고
- * 시간상 불가능하면 에러를 돌려준다 (force 면 그대로 저장).
+ * 배차 결과를 수동으로 옮긴다 (초안·확정 모두). 옮긴 뒤 관련 차량의 경로를 다시 계산해 순번/공차 정보를 갱신한다.
+ * 시간상 무리한 동선이 되는 차량 id 목록을 돌려준다 (dryRun 이면 저장하지 않고 확인만).
+ * 그 달 정산을 확정한 차량에서 빼거나 넣는 것은 막는다 (정산 확정 해제 후 가능).
  */
+async function applyMoves(db: Db, runId: string, moves: Map<string, string | null>, dryRun = false): Promise<{ conflicts: string[]; serviceDate: string }> {
+  const { data: run, error: rErr } = await db.from("dispatch_runs").select("status,service_date,options").eq("id", runId).single();
+  if (rErr || !run) throw new Error("배차 정보를 찾을 수 없습니다.");
+  const opts = run.options as DispatchOptions;
+
+  const { data: all } = await db
+    .from("dispatch_assignments")
+    .select("id,vehicle_id,booking_id,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax,vehicle_class,wait_min)")
+    .eq("run_id", runId);
+  const rows = all ?? [];
+  for (const id of moves.keys()) if (!rows.some((x) => x.id === id)) throw new Error("같은 날짜 배차의 예약만 옮길 수 있습니다.");
+  const affected = [
+    ...new Set(
+      rows.filter((x) => moves.has(x.id)).flatMap((x) => [x.vehicle_id, moves.get(x.id) ?? null]).filter((v): v is string => !!v),
+    ),
+  ];
+
+  // 확정된 배차를 고치면 정산에 반영되므로, 그 달 정산을 확정한 차량은 막는다
+  if (run.status === "confirmed" && affected.length) {
+    const { data: locked } = await db
+      .from("vehicle_month_expenses")
+      .select("vehicle_id")
+      .eq("month", String(run.service_date).slice(0, 7))
+      .eq("status", "confirmed")
+      .in("vehicle_id", affected);
+    if (locked?.length) throw new Error("정산을 확정한 차량이 있어 옮길 수 없습니다. 차량별 월정산에서 확정을 해제한 뒤 옮기세요.");
+  }
+
+  const [{ data: vehicles }, { data: drivers }] = await Promise.all([
+    affected.length ? db.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", affected) : Promise.resolve({ data: [] as VehicleRow[] }),
+    affected.length ? db.from("drivers").select("id,vehicle_id").eq("status", "approved").in("vehicle_id", affected) : Promise.resolve({ data: [] as { id: string; vehicle_id: string }[] }),
+  ]);
+  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
+  const list = rows.map((x) => ({ ...x, vehicle_id: moves.has(x.id) ? moves.get(x.id)! : x.vehicle_id }));
+  const strict = (opts as DispatchOptions & { strictClass?: boolean }).strictClass === true;
+  const toBooking = (x: (typeof list)[number]) => {
+    const d = toDispatchBooking(x.bookings as unknown as BookingRow);
+    return strict ? d : { ...d, minSeats: null, grade: null };
+  };
+
+  const conflicts: string[] = [];
+  const updates: { id: string; seq: number; ready_at: string; deadhead_km: number | null; deadhead_min: number }[] = [];
+  for (const v of vehicles ?? []) {
+    const own = list.filter((x) => x.vehicle_id === v.id);
+    const bs = own.map(toBooking).filter((b) => b.pickupAt != null);
+    bs.sort((p, q) => p.pickupAt! - q.pickupAt!);
+    // 최대 콜 수는 수동 조정에서는 경고만: 한도 없이 시뮬레이션
+    const stops = simulateRoute(toDispatchVehicle(v), bs as Parameters<typeof simulateRoute>[1], { ...opts, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER });
+    if (!stops) {
+      conflicts.push(v.id);
+      // 무리한 동선이면 시간순으로 순번만 매긴다
+      bs.forEach((b, i) => updates.push({ id: own.find((x) => x.booking_id === b.id)!.id, seq: i + 1, ready_at: new Date(b.pickupAt!).toISOString(), deadhead_km: null, deadhead_min: 0 }));
+      continue;
+    }
+    for (const st of stops) {
+      const row = own.find((x) => x.booking_id === st.bookingId)!;
+      updates.push({ id: row.id, seq: st.seq, ready_at: new Date(st.readyAt).toISOString(), deadhead_km: st.deadheadKm, deadhead_min: st.deadheadMin });
+    }
+  }
+  if (dryRun) return { conflicts, serviceDate: run.service_date };
+
+  for (const [id, target] of moves) {
+    const { error } = await db
+      .from("dispatch_assignments")
+      .update({ vehicle_id: target, driver_id: target ? driverOf.get(target) ?? null : null, unassigned_reason: target ? null : "MANUAL", seq: null })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  await Promise.all(
+    updates.map((u) => db.from("dispatch_assignments").update({ seq: u.seq, ready_at: u.ready_at, deadhead_km: u.deadhead_km, deadhead_min: u.deadhead_min }).eq("id", u.id)),
+  );
+  await refreshSummary(db, runId);
+  revalidatePath("/admin/dispatch");
+  revalidatePath("/admin/vehicle-settlement");
+  return { conflicts, serviceDate: run.service_date };
+}
+
+/** 한 건 옮기기. 옮길 차량 동선이 시간상 무리하면 확인 화면으로 (force 면 그대로 저장) */
 export async function moveAssignment(formData: FormData) {
   const { supabase } = await assertAdmin();
   const id = String(formData.get("assignmentId"));
   const target = String(formData.get("vehicleId") || "") || null;
   const force = formData.get("force") === "1";
-
-  const { data: a, error } = await supabase
-    .from("dispatch_assignments")
-    .select("id,run_id,vehicle_id,dispatch_runs(status,service_date,options)")
-    .eq("id", id)
-    .single();
-  if (error || !a) throw new Error("배차 정보를 찾을 수 없습니다.");
-  const run = a.dispatch_runs as unknown as { status: string; service_date: string; options: DispatchOptions };
-  if (run.status !== "draft") throw new Error("확정된 배차는 수정할 수 없습니다. 먼저 확정을 해제하세요.");
-
-  const opts = run.options;
-  const affected = [a.vehicle_id, target].filter((v): v is string => !!v);
-
-  const { data: all } = await supabase
-    .from("dispatch_assignments")
-    .select("id,vehicle_id,booking_id,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax,vehicle_class,wait_min)")
-    .eq("run_id", a.run_id);
-  const { data: vehicles } = affected.length
-    ? await supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", affected)
-    : { data: [] as VehicleRow[] };
-  const { data: drivers } = target
-    ? await supabase.from("drivers").select("id").eq("vehicle_id", target).eq("status", "approved")
-    : { data: [] as { id: string }[] };
-
-  const list = (all ?? []).map((x) => ({ ...x, vehicle_id: x.id === id ? target : x.vehicle_id }));
-  const updates: { id: string; seq: number; ready_at: string; deadhead_km: number | null; deadhead_min: number }[] = [];
-  for (const v of vehicles ?? []) {
-    const own = list.filter((x) => x.vehicle_id === v.id);
-    const bs = own.map((x) => toDispatchBooking(x.bookings as unknown as BookingRow)).filter((b) => b.pickupAt != null);
-    bs.sort((p, q) => p.pickupAt! - q.pickupAt!);
-    // 최대 콜 수는 수동 조정에서는 경고만: 한도 없이 시뮬레이션
-    const stops = simulateRoute(toDispatchVehicle(v), bs as Parameters<typeof simulateRoute>[1], {
-      ...opts,
-      maxCallsPerVehicle: Number.MAX_SAFE_INTEGER,
-    });
-    if (!stops && !force && v.id === target) {
-      redirect(`/admin/dispatch?date=${run.service_date}&run=${a.run_id}&conflict=${id}&to=${target}`);
-    }
-    for (const s of stops ?? []) {
-      const row = own.find((x) => x.booking_id === s.bookingId)!;
-      updates.push({ id: row.id, seq: s.seq, ready_at: new Date(s.readyAt).toISOString(), deadhead_km: s.deadheadKm, deadhead_min: s.deadheadMin });
-    }
+  const { data: a } = await supabase.from("dispatch_assignments").select("run_id").eq("id", id).single();
+  if (!a) throw new Error("배차 정보를 찾을 수 없습니다.");
+  const moves = new Map([[id, target]]);
+  if (!force && target) {
+    const check = await applyMoves(supabase, a.run_id, moves, true);
+    if (check.conflicts.includes(target)) redirect(`/admin/dispatch?date=${check.serviceDate}&run=${a.run_id}&conflict=${id}&to=${target}`);
   }
-
-  await supabase
-    .from("dispatch_assignments")
-    .update({
-      vehicle_id: target,
-      driver_id: drivers?.[0]?.id ?? null,
-      unassigned_reason: target ? null : "MANUAL",
-      seq: null, // 아래 경로 재계산에서 채워진다
-    })
-    .eq("id", id);
-  await Promise.all(
-    updates.map((u) => supabase.from("dispatch_assignments").update({ seq: u.seq, ready_at: u.ready_at, deadhead_km: u.deadhead_km, deadhead_min: u.deadhead_min }).eq("id", u.id)),
-  );
-  await refreshSummary(supabase, a.run_id);
-  revalidatePath("/admin/dispatch");
-  redirect(`/admin/dispatch?date=${run.service_date}&run=${a.run_id}`);
+  const { serviceDate } = await applyMoves(supabase, a.run_id, moves);
+  redirect(`/admin/dispatch?date=${serviceDate}&run=${a.run_id}`);
 }
 
-async function refreshSummary(db: Awaited<ReturnType<typeof assertAdmin>>["supabase"], runId: string) {
+/** 체크한 여러 건을 한 차량으로 한 번에 옮기기 (배차 해제·외부 포함 아무 상태에서나) */
+export async function moveSelected(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const runId = String(formData.get("runId"));
+  const date = String(formData.get("date"));
+  const target = String(formData.get("vehicleId") || "") || null;
+  const ids = [...new Set(formData.getAll("sel").map(String))];
+  const back = (msg: string) => redirect(`/admin/dispatch?date=${date}&run=${runId}&msg=${encodeURIComponent(msg)}`);
+  if (!ids.length) back("옮길 예약을 체크하세요.");
+  const { conflicts } = await applyMoves(supabase, runId, new Map(ids.map((id) => [id, target])));
+  const { data: vs } = conflicts.length ? await supabase.from("vehicles").select("plate_number").in("id", conflicts) : { data: [] };
+  back(
+    `${ids.length}건을 ${target ? "옮겼습니다" : "배차 해제했습니다"}.` +
+      (vs?.length ? ` 시간상 무리한 동선이 된 차량: ${vs.map((v) => v.plate_number).join(", ")} (순번만 시간순으로 매김)` : ""),
+  );
+}
+
+async function refreshSummary(db: Db, runId: string) {
   const { data: run } = await db.from("dispatch_runs").select("summary").eq("id", runId).single();
   const { data: rows } = await db.from("dispatch_assignments").select("vehicle_id,unassigned_reason,deadhead_km").eq("run_id", runId);
   if (!run || !rows) return;

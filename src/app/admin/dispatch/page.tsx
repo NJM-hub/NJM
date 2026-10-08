@@ -5,7 +5,7 @@ import { OWN_CALL_SOURCE } from "@/lib/kkday/sheet";
 import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
-import { confirmRun, moveAssignment, runDispatch, unconfirmRun } from "./actions";
+import { confirmRun, moveAssignment, moveSelected, runDispatch, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
 import { DeleteDateButton } from "../schedule/DeleteControls";
@@ -52,7 +52,7 @@ type Assignment = {
 export default async function DispatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string }>;
+  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string; msg?: string }>;
 }) {
   const sp = await searchParams;
   const date = isDate(sp.date) ? sp.date : todayKst();
@@ -103,6 +103,14 @@ export default async function DispatchPage({
   const maxCalls: number = run?.options?.maxCallsPerVehicle ?? 4;
   const summary = run?.summary ?? {};
   const editable = run?.status === "draft";
+  // 예약 옮기기는 초안·확정 모두 가능 (확정본을 고치면 정산에 바로 반영)
+  const movable = !!run;
+  const countOf = new Map(routes.map((r) => [r.vehicleId, r.items.length]));
+  // 차량 선택 목록: 번호 · 기사 · 현재 콜 수
+  const vehicleOptions = (vehicles ?? []).map((v) => ({
+    id: v.id,
+    label: `${v.plate_number.slice(-4)} ${driverNameOfVehicle.get(v.id) ?? driverOfVehicle.get(v.id)?.name ?? ""} (${countOf.get(v.id) ?? 0}콜)`.replace(/\s+/g, " "),
+  }));
 
   const reasonGroups = new Map<string, Assignment[]>();
   for (const u of unassigned) {
@@ -199,8 +207,26 @@ export default async function DispatchPage({
         </div>
       )}
 
+      {sp.msg && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{sp.msg}</p>}
+
       {run && (
         <>
+          {/* 체크한 예약을 한 번에 옮기기 (각 표의 체크박스가 이 폼에 연결됨) */}
+          <form id="bulk-move" action={moveSelected} className="card flex flex-wrap items-center gap-3 text-sm">
+            <input type="hidden" name="runId" value={run.id} />
+            <input type="hidden" name="date" value={date} />
+            <b>예약 재배차</b>
+            <span className="text-gray-500">아래 표에서 예약을 체크한 뒤</span>
+            <select name="vehicleId" className="input !w-56 !py-1" defaultValue="">
+              <option value="">배차 해제 (미배정으로)</option>
+              {vehicleOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </select>
+            <SubmitButton className="btn !py-1" pendingText="옮기는 중...">선택한 예약 옮기기</SubmitButton>
+            <span className="text-xs text-gray-500">
+              한 건은 각 줄의 &quot;차량 변경&quot;으로도 옮길 수 있습니다.{run.status === "confirmed" ? " 확정된 배차를 옮기면 차량별 월정산에 바로 반영됩니다." : ""}
+            </span>
+          </form>
+
           <div className="card flex flex-wrap items-center gap-6">
             <div>
               <span className={`badge ${run.status === "confirmed" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}`}>
@@ -241,7 +267,7 @@ export default async function DispatchPage({
                   <li className="text-red-700">→ 모두 소화하려면 차량 약 <b>{summary.extraVehiclesNeeded}대</b>가 더 필요합니다.</li>
                 )}
               </ul>
-              <AssignmentTable items={unassigned} vehicles={vehicles ?? []} editable={editable} showReason />
+              <AssignmentTable items={unassigned} editable={movable} vehicleOptions={vehicleOptions} showReason />
               <CopyBox title="배차 불가 요약 복사 (카톡 전달용)" text={unassignedText} />
             </div>
           )}
@@ -251,7 +277,7 @@ export default async function DispatchPage({
               <h2 className="mb-2 font-semibold">
                 외부(타업체) 배차 ({external.length}건 · {won(external.reduce((s, a) => s + (a.fare ?? 0), 0))})
               </h2>
-              <AssignmentTable items={external} vehicles={vehicles ?? []} editable={editable} showReason />
+              <AssignmentTable items={external} editable={movable} vehicleOptions={vehicleOptions} showReason />
             </div>
           )}
 
@@ -276,7 +302,7 @@ export default async function DispatchPage({
                     <span className="ml-auto text-sm text-gray-500">{d ?? "기사 미지정"}</span>
                   </div>
                   {r.items.length ? (
-                    <AssignmentTable items={r.items} vehicles={vehicles ?? []} editable={editable} />
+                    <AssignmentTable items={r.items} editable={movable} vehicleOptions={vehicleOptions} />
                   ) : (
                     <p className="text-sm text-gray-400">배차 없음</p>
                   )}
@@ -303,13 +329,13 @@ function Stat({ label, value, danger }: { label: string; value: React.ReactNode;
 
 function AssignmentTable({
   items,
-  vehicles,
   editable,
+  vehicleOptions,
   showReason,
 }: {
   items: Assignment[];
-  vehicles: { id: string; plate_number: string; seats: number }[];
   editable: boolean;
+  vehicleOptions: { id: string; label: string }[];
   showReason?: boolean;
 }) {
   return (
@@ -317,6 +343,7 @@ function AssignmentTable({
       <table className="table">
         <thead>
           <tr>
+            {editable && <th className="w-8" />}
             <th>픽업</th>
             <th>예약</th>
             <th>동선</th>
@@ -335,6 +362,9 @@ function AssignmentTable({
               a.ready_at && b.pickup_at ? Math.round((new Date(b.pickup_at).getTime() - new Date(a.ready_at).getTime()) / 60000) : null;
             return (
               <tr key={a.id}>
+                {editable && (
+                  <td><input type="checkbox" name="sel" value={a.id} form="bulk-move" aria-label="재배차할 예약 선택" /></td>
+                )}
                 <td className="whitespace-nowrap">
                   <div className="font-semibold">{fmtTime(b.pickup_at)}</div>
                   <div className="text-xs text-gray-500">{b.wait_min ? `대기 ~${b.wait_min}분` : b.duration_min ? `${b.duration_min}분` : ""}</div>
@@ -372,10 +402,10 @@ function AssignmentTable({
                   <td>
                     <form action={moveAssignment} className="flex gap-1">
                       <input type="hidden" name="assignmentId" value={a.id} />
-                      <select name="vehicleId" defaultValue={a.vehicle_id ?? ""} className="input !w-32 !py-1 text-xs">
+                      <select name="vehicleId" defaultValue={a.vehicle_id ?? ""} className="input !w-44 !py-1 text-xs">
                         <option value="">배차 해제</option>
-                        {vehicles.map((v) => (
-                          <option key={v.id} value={v.id}>{v.plate_number}</option>
+                        {vehicleOptions.map((v) => (
+                          <option key={v.id} value={v.id}>{v.label}</option>
                         ))}
                       </select>
                       <SubmitButton className="btn-secondary !px-2 !py-1 text-xs" pendingText="...">이동</SubmitButton>
