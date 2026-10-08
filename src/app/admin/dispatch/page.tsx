@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { splitContact } from "@/lib/contact";
 import { requireAdmin } from "@/lib/auth";
 import { reasonLabel } from "@/lib/dispatch/reasons";
 import { OWN_CALL_SOURCE } from "@/lib/kkday/sheet";
 import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
-import { confirmRun, moveAssignment, moveSelected, runDispatch, unconfirmRun } from "./actions";
+import { confirmRun, moveAssignment, moveSelected, runDispatch, setExternalFare, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
 import { DeleteDateButton } from "../schedule/DeleteControls";
@@ -122,7 +123,10 @@ export default async function DispatchPage({
     `[${date} 배차 불가 ${unassigned.length}건]`,
     ...[...reasonGroups].flatMap(([reason, list]) => [
       `■ ${reason} (${list.length}건)`,
-      ...list.map((u) => `- ${fmtTime(u.bookings.pickup_at)} ${tag(u.bookings)}${u.bookings.booking_no ?? ""} ${u.bookings.customer_name ?? ""} ${u.bookings.pax}명 ${u.bookings.vehicle_class ?? ""} / ${place(u.bookings.pickup_address, u.bookings.pickup_place)} → ${place(u.bookings.dropoff_address, u.bookings.dropoff_place)}`),
+      ...list.map((u) => {
+        const c = splitContact(u.bookings.customer_phone, u.bookings.memo);
+        return `- ${fmtTime(u.bookings.pickup_at)} ${tag(u.bookings)}${u.bookings.booking_no ?? ""} ${u.bookings.customer_name ?? ""} ${u.bookings.pax}명 ${u.bookings.vehicle_class ?? ""} / ${place(u.bookings.pickup_address, u.bookings.pickup_place)} → ${place(u.bookings.dropoff_address, u.bookings.dropoff_place)}${c.contact ? `\n   연락처: ${c.contact}` : ""}`;
+      }),
     ]),
     summary.extraVehiclesNeeded ? `※ 모두 소화하려면 차량 약 ${summary.extraVehiclesNeeded}대 추가 필요` : "",
   ].filter(Boolean).join("\n");
@@ -132,7 +136,11 @@ export default async function DispatchPage({
     .map((r) => {
       return [
         `[${vehicleName.get(r.vehicleId) ?? "차량"}] ${driverLabel(r.vehicleId)?.replace(" · ", " ") ?? "기사 미지정"}`,
-        ...r.items.map((a, i) => `${i + 1}. ${fmtTime(a.bookings.pickup_at)} ${tag(a.bookings)}${a.bookings.vehicle_class ?? a.bookings.product_name ?? ""} ${a.bookings.booking_no ?? ""} ${a.bookings.customer_name ?? ""}(${a.bookings.pax}명) ${a.bookings.customer_phone ?? ""}\n   ${place(a.bookings.pickup_address, a.bookings.pickup_place)} → ${place(a.bookings.dropoff_address, a.bookings.dropoff_place)}${a.bookings.flight_no ? ` ✈${a.bookings.flight_no}` : ""}${a.bookings.memo ? `\n   메모: ${a.bookings.memo}` : ""}`),
+        ...r.items.map((a, i) => {
+          // 손님 연락처: 전화번호 + 메모에 적힌 메신저(WHATSAPP·WECHAT·KAKAO 등). 메모에서는 메신저를 뺀다
+          const c = splitContact(a.bookings.customer_phone, a.bookings.memo);
+          return `${i + 1}. ${fmtTime(a.bookings.pickup_at)} ${tag(a.bookings)}${a.bookings.vehicle_class ?? a.bookings.product_name ?? ""} ${a.bookings.booking_no ?? ""} ${a.bookings.customer_name ?? ""}(${a.bookings.pax}명)\n   ${place(a.bookings.pickup_address, a.bookings.pickup_place)} → ${place(a.bookings.dropoff_address, a.bookings.dropoff_place)}${a.bookings.flight_no ? ` ✈${a.bookings.flight_no}` : ""}${c.contact ? `\n   연락처: ${c.contact}` : ""}${c.memo ? `\n   메모: ${c.memo}` : ""}`;
+        }),
       ].join("\n");
     })
     .join("\n\n");
@@ -223,6 +231,7 @@ export default async function DispatchPage({
             <span className="text-gray-500">아래 표에서 예약을 체크한 뒤</span>
             <select name="vehicleId" className="input !w-56 !py-1" defaultValue="">
               <option value="">배차 해제 (미배정으로)</option>
+              <option value="__external">외부콜 (기본 55,000원)</option>
               {vehicleOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
             <SubmitButton className="btn !py-1" pendingText="옮기는 중...">선택한 예약 옮기기</SubmitButton>
@@ -388,7 +397,15 @@ function AssignmentTable({
                 </td>
                 <td className="text-xs whitespace-nowrap">
                   {a.unassigned_reason === "EXTERNAL" ? (
-                    <span className="text-gray-700">{won(a.fare)}</span>
+                    editable ? (
+                      <form action={setExternalFare} className="flex items-center gap-1">
+                        <input type="hidden" name="assignmentId" value={a.id} />
+                        <input name="fare" type="number" step="1000" min={0} defaultValue={a.fare} className="input !w-24 !py-1 text-right text-xs" aria-label="외부콜 금액" />
+                        <SubmitButton className="btn-secondary !px-2 !py-1 text-xs" pendingText="...">금액 저장</SubmitButton>
+                      </form>
+                    ) : (
+                      <span className="text-gray-700">{won(a.fare)}</span>
+                    )
                   ) : showReason ? (
                     <span className="text-red-600">{reasonLabel(a.unassigned_reason)}</span>
                   ) : (
@@ -406,8 +423,9 @@ function AssignmentTable({
                   <td>
                     <form action={moveAssignment} className="flex gap-1">
                       <input type="hidden" name="assignmentId" value={a.id} />
-                      <select name="vehicleId" defaultValue={a.vehicle_id ?? ""} className="input !w-44 !py-1 text-xs">
+                      <select name="vehicleId" defaultValue={a.unassigned_reason === "EXTERNAL" ? "__external" : a.vehicle_id ?? ""} className="input !w-44 !py-1 text-xs">
                         <option value="">배차 해제</option>
+                        <option value="__external">외부콜 (55,000원)</option>
                         {vehicleOptions.map((v) => (
                           <option key={v.id} value={v.id}>{v.label}</option>
                         ))}

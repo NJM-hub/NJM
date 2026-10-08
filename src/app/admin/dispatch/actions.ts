@@ -219,6 +219,10 @@ export async function runDispatch(formData: FormData) {
 
 type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
 
+/** 차량 변경에서 "외부콜"을 고를 때의 값과 기본 금액 (외부 업체에 주는 금액, 나중에 고칠 수 있음) */
+const EXTERNAL = "__external";
+const EXTERNAL_DEFAULT_FARE = 55000;
+
 /**
  * 배차 결과를 수동으로 옮긴다 (초안·확정 모두). 옮긴 뒤 관련 차량의 경로를 다시 계산해 순번/공차 정보를 갱신한다.
  * 시간상 무리한 동선이 되는 차량 id 목록을 돌려준다 (dryRun 이면 저장하지 않고 확인만).
@@ -231,13 +235,14 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
 
   const { data: all } = await db
     .from("dispatch_assignments")
-    .select("id,vehicle_id,booking_id,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax,vehicle_class,wait_min)")
+    .select("id,vehicle_id,booking_id,unassigned_reason,fare,bookings(id,pickup_at,duration_min,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,pax,vehicle_class,wait_min,fare,memo,source,pickup_address,dropoff_address,pickup_place,dropoff_place)")
     .eq("run_id", runId);
   const rows = all ?? [];
+  const vehicleOfTarget = (t: string | null | undefined) => (t && t !== EXTERNAL ? t : null);
   for (const id of moves.keys()) if (!rows.some((x) => x.id === id)) throw new Error("같은 날짜 배차의 예약만 옮길 수 있습니다.");
   const affected = [
     ...new Set(
-      rows.filter((x) => moves.has(x.id)).flatMap((x) => [x.vehicle_id, moves.get(x.id) ?? null]).filter((v): v is string => !!v),
+      rows.filter((x) => moves.has(x.id)).flatMap((x) => [x.vehicle_id, vehicleOfTarget(moves.get(x.id))]).filter((v): v is string => !!v),
     ),
   ];
 
@@ -257,7 +262,7 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
     affected.length ? db.from("drivers").select("id,vehicle_id").eq("status", "approved").in("vehicle_id", affected) : Promise.resolve({ data: [] as { id: string; vehicle_id: string }[] }),
   ]);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
-  const list = rows.map((x) => ({ ...x, vehicle_id: moves.has(x.id) ? moves.get(x.id)! : x.vehicle_id }));
+  const list = rows.map((x) => ({ ...x, vehicle_id: moves.has(x.id) ? vehicleOfTarget(moves.get(x.id)) : x.vehicle_id }));
   const strict = (opts as DispatchOptions & { strictClass?: boolean }).strictClass === true;
   const toBooking = (x: (typeof list)[number]) => {
     const d = toDispatchBooking(x.bookings as unknown as BookingRow);
@@ -286,10 +291,27 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
   }
   if (dryRun) return { conflicts, serviceDate: run.service_date };
 
+  const rules = fareRulesOf(await loadSettings(db));
   for (const [id, target] of moves) {
+    const row = rows.find((x) => x.id === id)!;
+    const b = row.bookings as unknown as BookingRow & { source: string | null };
+    const vehicleId = vehicleOfTarget(target);
+    // 외부콜: 기본 55,000원 (이미 외부콜이던 건은 금액 유지). 차량으로 옮기면 차량 기본 금액으로
+    const fare =
+      target === EXTERNAL
+        ? row.unassigned_reason === "EXTERNAL" ? row.fare : EXTERNAL_DEFAULT_FARE
+        : vehicleId
+          ? b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)
+          : row.fare;
     const { error } = await db
       .from("dispatch_assignments")
-      .update({ vehicle_id: target, driver_id: target ? driverOf.get(target) ?? null : null, unassigned_reason: target ? null : "MANUAL", seq: null })
+      .update({
+        vehicle_id: vehicleId,
+        driver_id: vehicleId ? driverOf.get(vehicleId) ?? null : null,
+        unassigned_reason: target === EXTERNAL ? "EXTERNAL" : vehicleId ? null : "MANUAL",
+        fare,
+        seq: null,
+      })
       .eq("id", id);
     if (error) throw new Error(error.message);
   }
@@ -302,6 +324,27 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
   return { conflicts, serviceDate: run.service_date };
 }
 
+/** 외부콜 금액 수정 (외부 업체에 주는 금액) */
+export async function setExternalFare(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const id = String(formData.get("assignmentId"));
+  const fare = Number(String(formData.get("fare") ?? "").replace(/[,\s원]/g, ""));
+  if (!Number.isFinite(fare) || fare < 0 || fare > 10_000_000) throw new Error("금액이 올바르지 않습니다.");
+  const { data: row, error } = await supabase
+    .from("dispatch_assignments")
+    .update({ fare: Math.round(fare) })
+    .eq("id", id)
+    .eq("unassigned_reason", "EXTERNAL")
+    .is("vehicle_id", null)
+    .select("run_id,dispatch_runs(service_date)")
+    .single();
+  if (error || !row) throw new Error(error?.message ?? "외부콜이 아닙니다.");
+  revalidatePath("/admin/dispatch");
+  revalidatePath("/admin/external-calls");
+  const date = (row.dispatch_runs as unknown as { service_date: string }).service_date;
+  redirect(`/admin/dispatch?date=${date}&run=${row.run_id}`);
+}
+
 /** 한 건 옮기기. 옮길 차량 동선이 시간상 무리하면 확인 화면으로 (force 면 그대로 저장) */
 export async function moveAssignment(formData: FormData) {
   const { supabase } = await assertAdmin();
@@ -311,7 +354,7 @@ export async function moveAssignment(formData: FormData) {
   const { data: a } = await supabase.from("dispatch_assignments").select("run_id").eq("id", id).single();
   if (!a) throw new Error("배차 정보를 찾을 수 없습니다.");
   const moves = new Map([[id, target]]);
-  if (!force && target) {
+  if (!force && target && target !== EXTERNAL) {
     const check = await applyMoves(supabase, a.run_id, moves, true);
     if (check.conflicts.includes(target)) redirect(`/admin/dispatch?date=${check.serviceDate}&run=${a.run_id}&conflict=${id}&to=${target}`);
   }
@@ -331,7 +374,7 @@ export async function moveSelected(formData: FormData) {
   const { conflicts } = await applyMoves(supabase, runId, new Map(ids.map((id) => [id, target])));
   const { data: vs } = conflicts.length ? await supabase.from("vehicles").select("plate_number").in("id", conflicts) : { data: [] };
   back(
-    `${ids.length}건을 ${target ? "옮겼습니다" : "배차 해제했습니다"}.` +
+    `${ids.length}건을 ${target === EXTERNAL ? `외부콜로 넘겼습니다 (기본 ${EXTERNAL_DEFAULT_FARE.toLocaleString("ko-KR")}원, 금액은 외부 배차 표에서 고칠 수 있음)` : target ? "옮겼습니다" : "배차 해제했습니다"}.` +
       (vs?.length ? ` 시간상 무리한 동선이 된 차량: ${vs.map((v) => v.plate_number).join(", ")} (순번만 시간순으로 매김)` : ""),
   );
 }
