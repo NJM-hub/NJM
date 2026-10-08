@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertAdmin } from "@/lib/auth";
-import { dispatch, simulateRoute, type DispatchBooking, type DispatchVehicle, type DispatchOptions, DEFAULT_SHIFT } from "@/lib/dispatch/algorithm";
+import { dispatch, simulateRoute, type DispatchBooking, type DispatchVehicle, type DispatchOptions, DEFAULT_SHIFT, DEFAULT_RUSH } from "@/lib/dispatch/algorithm";
 import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
@@ -134,6 +134,12 @@ export async function runDispatch(formData: FormData) {
   // 기사 피로 고려: 새벽 시작 차량은 밤늦은 콜 제외 (불가피하면 오후에 3시간 이상 쉬는 경우만)
   const fatigue = formData.get("fatigue") === "on";
   if (fatigue) opts.shift = DEFAULT_SHIFT;
+  // 퇴근 정체(17~19시): 이동·운행 시간 1.5배, 콜 사이 여유 +15분
+  const rush = formData.get("rush") === "on";
+  if (rush) opts.rush = DEFAULT_RUSH;
+  // 전날 근무 반영: 늦게까지 일한 기사는 휴식 후 시작, 전날 많이 일한 기사는 덜·적게 일한 기사는 더 (공평 배분)
+  const prevDay = formData.get("prevDay") === "on";
+  if (prevDay) opts.balanceWeight = 4;
 
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
@@ -158,7 +164,18 @@ export async function runDispatch(formData: FormData) {
     const d = toDispatchBooking(b);
     return strictClass ? d : { ...d, minSeats: null, grade: null };
   };
-  const result = dispatch(bookings.map(toBooking), usable.map(toDispatchVehicle), opts);
+  const prevLoad = prevDay ? await previousDayLoad(supabase, date) : new Map<string, { calls: number; lastPickup: number }>();
+  const avgPrev = prevLoad.size ? [...prevLoad.values()].reduce((n, x) => n + x.calls, 0) / prevLoad.size : 0;
+  const toVehicle = (v: VehicleRow) => {
+    const d = toDispatchVehicle(v);
+    if (!prevDay) return d;
+    const p = prevLoad.get(v.id);
+    // 전날 마지막 콜이 끝난 뒤(픽업 + 약 2시간) 최소 8시간은 쉬게
+    const earliestStart = p ? p.lastPickup + (2 + REST_HOURS) * 3_600_000 : null;
+    // 전날 콜 수가 평균보다 많으면 건당 +, 적거나 쉬었으면 − (분 단위 비용)
+    return { ...d, earliestStart, costPerCall: ((p?.calls ?? 0) - avgPrev) * 8 };
+  };
+  const result = dispatch(bookings.map(toBooking), usable.map(toVehicle), opts);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
   const rules = fareRulesOf(settings);
   const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)]));
@@ -175,7 +192,7 @@ export async function runDispatch(formData: FormData) {
     .from("dispatch_runs")
     .insert({
       service_date: date,
-      options: { ...opts, vehicleIds: usable.map((v) => v.id), strictClass, fatigue },
+      options: { ...opts, vehicleIds: usable.map((v) => v.id), strictClass, fatigue, rush, prevDay },
       summary: result.summary,
       created_by: user.id,
     })
@@ -218,6 +235,32 @@ export async function runDispatch(formData: FormData) {
 }
 
 type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
+
+/** 전날 마지막 콜이 끝난 뒤 다음 날 첫 콜까지 최소 휴식 (시간) */
+const REST_HOURS = 8;
+
+/** 전날 확정 배차의 차량별 콜 수(자체 콜 포함)와 마지막 픽업 시각 */
+async function previousDayLoad(db: Db, date: string) {
+  const prev = new Date(`${date}T00:00:00+09:00`);
+  prev.setUTCDate(prev.getUTCDate() - 1);
+  const prevDate = new Date(prev.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  const { data } = await db
+    .from("dispatch_assignments")
+    .select("vehicle_id,bookings(pickup_at),dispatch_runs!inner(service_date,status)")
+    .eq("dispatch_runs.status", "confirmed")
+    .eq("dispatch_runs.service_date", prevDate)
+    .not("vehicle_id", "is", null);
+  const out = new Map<string, { calls: number; lastPickup: number }>();
+  for (const a of data ?? []) {
+    const t = (a.bookings as unknown as { pickup_at: string | null } | null)?.pickup_at;
+    const x = out.get(a.vehicle_id as string) ?? { calls: 0, lastPickup: -Infinity };
+    x.calls++;
+    if (t) x.lastPickup = Math.max(x.lastPickup, new Date(t).getTime());
+    out.set(a.vehicle_id as string, x);
+  }
+  for (const [k, x] of out) if (!Number.isFinite(x.lastPickup)) out.set(k, { ...x, lastPickup: prev.getTime() });
+  return out;
+}
 
 /** 차량 변경에서 "외부콜"을 고를 때의 값과 기본 금액 (외부 업체에 주는 금액, 나중에 고칠 수 있음) */
 const EXTERNAL = "__external";

@@ -19,3 +19,21 @@ describe("기사 피로 규칙", () => {
     expect(shiftCheck([stop("05:00", "07:00"), stop("17:00", "19:00")], DEFAULT_SHIFT)).toEqual({ longDay: false, ok: true });
   });
 });
+
+describe("전날 휴식·정체 시간대", async () => {
+  const { simulateRoute, DEFAULT_OPTIONS, DEFAULT_RUSH } = await import("./algorithm");
+  const v = { id: "v", seats: 9, base: null };
+  const bk = (id: string, hhmm: string) => ({ id, pickupAt: at(hhmm), durationMin: 60, pickup: { lat: 37.45, lng: 126.45 }, dropoff: { lat: 37.56, lng: 126.98 }, pax: 2 });
+  it("휴식 시각 전 첫 콜은 받지 않음", () => {
+    expect(simulateRoute({ ...v, earliestStart: at("09:30") }, [bk("a", "06:00")], DEFAULT_OPTIONS)).toBeNull();
+    expect(simulateRoute({ ...v, earliestStart: at("09:30") }, [bk("a", "10:00")], DEFAULT_OPTIONS)).not.toBeNull();
+  });
+  it("17~19시엔 이동을 넉넉히 잡아 빠듯한 연속 콜은 안 됨", () => {
+    // 16:00 콜(60분) 끝 17:00 → 시내에서 공항까지 이동 후 19:30 픽업
+    const route = [bk("a", "16:00"), { ...bk("b", "19:30"), pickup: { lat: 37.45, lng: 126.45 } }];
+    const normal = simulateRoute(v, route, DEFAULT_OPTIONS);
+    const rush = simulateRoute(v, route, { ...DEFAULT_OPTIONS, rush: DEFAULT_RUSH });
+    expect(normal).not.toBeNull();
+    expect(rush === null || rush[1].readyAt > normal![1].readyAt).toBe(true);
+  });
+});

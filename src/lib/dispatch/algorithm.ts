@@ -26,6 +26,10 @@ export type DispatchVehicle = {
   base: LatLng | null;
   /** 차량 등급 (예: 컴포트). null 이면 기본 등급 */
   grade?: string | null;
+  /** 이 시각(epoch ms) 전에는 첫 콜을 주지 않음 (전날 늦게까지 일한 기사의 휴식) */
+  earliestStart?: number | null;
+  /** 콜 1건당 더하는 비용(분). 전날 많이 일한 기사는 +, 적게 일한 기사는 − (공평 배분) */
+  costPerCall?: number;
 };
 
 /** 차량이 예약 조건(인원, 차급 좌석 수, 등급)을 만족하는지 */
@@ -50,7 +54,22 @@ export type DispatchOptions = TravelOptions & {
   timeBudgetMs: number;
   /** 기사 피로 고려 (새벽 시작 차량은 밤늦은 콜 제외, 불가피하면 오후 휴식 필요). 없으면 적용 안 함 */
   shift?: ShiftRule | null;
+  /** 정체 시간대: 이동·운행 시간을 늘리고 콜 사이 여유를 더 둔다 */
+  rush?: RushRule | null;
+  /** 같은 날 한 차량에 콜이 몰리지 않게 (콜 수 제곱 × 이 값) */
+  balanceWeight?: number;
 };
+
+/** 정체 시간대 (한국시간 자정부터 분) */
+export type RushRule = { fromMin: number; toMin: number; factor: number; extraBufferMin: number };
+export const DEFAULT_RUSH: RushRule = { fromMin: 17 * 60, toMin: 19 * 60, factor: 1.5, extraBufferMin: 15 };
+
+/** 이 시각이 정체 시간대인지 */
+function inRush(t: number, rush: RushRule | null | undefined): boolean {
+  if (!rush || !Number.isFinite(t)) return false;
+  const m = (((t + 9 * 60 * 60_000) % 86_400_000) + 86_400_000) % 86_400_000 / 60_000;
+  return m >= rush.fromMin && m < rush.toMin;
+}
 
 /** 시각은 한국시간 자정부터 분 단위 */
 export type ShiftRule = {
@@ -163,7 +182,11 @@ const MIN = 60_000;
 /** 운행 종료 시각 = 도착시각 + 최대 대기 + 운행시간(없으면 픽업→하차 이동시간, 그것도 모르면 기본값) */
 function endOf(b: Timed, opts: DispatchOptions): number {
   let trip = b.durationMin;
-  if (trip == null) trip = b.pickup && b.dropoff ? estimateTravel(b.pickup, b.dropoff, opts).min : opts.defaultDurationMin;
+  if (trip == null) {
+    trip = b.pickup && b.dropoff ? estimateTravel(b.pickup, b.dropoff, opts).min : opts.defaultDurationMin;
+    // 정체 시간대에 출발하는 운행은 더 오래 걸린다
+    if (inRush(b.pickupAt + (b.waitMin ?? 0) * MIN, opts.rush)) trip *= opts.rush!.factor;
+  }
   return b.pickupAt + ((b.waitMin ?? 0) + trip) * MIN;
 }
 
@@ -183,14 +206,19 @@ export function simulateRoute(
   for (const [i, b] of bookings.entries()) {
     if (!canServe(vehicle, b)) return null;
     const isFirst = i === 0;
+    if (isFirst && vehicle.earliestStart != null && b.pickupAt < vehicle.earliestStart) return null;
     // 첫 콜에 차고지가 없으면 이동 제약을 두지 않는다.
-    const travel =
+    const base =
       isFirst && !loc
         ? { km: null, min: 0 }
         : estimateTravel(loc, b.pickup, opts);
+    // 정체 시간대(이전 콜 끝나고 출발하거나 픽업 시각이 그 시간대)면 이동시간을 늘리고 여유를 더 둔다
+    const rushed = !isFirst && (inRush(freeAt, opts.rush) || inRush(b.pickupAt, opts.rush));
+    const travel = rushed ? { km: base.km, min: base.min * opts.rush!.factor } : base;
+    const buffer = opts.bufferMin + (rushed ? opts.rush!.extraBufferMin : 0);
     const readyAt = isFirst
       ? b.pickupAt - travel.min * MIN // 첫 콜은 제시간에 출발한다고 가정
-      : freeAt + (opts.bufferMin + travel.min) * MIN;
+      : freeAt + (buffer + travel.min) * MIN;
     if (readyAt > b.pickupAt) return null;
     const endAt = endOf(b, opts);
     stops.push({
@@ -215,8 +243,10 @@ function insertSorted(list: Timed[], b: Timed): Timed[] {
   return out;
 }
 
-function routeCost(stops: Stop[], opts: DispatchOptions): number {
+function routeCost(stops: Stop[], opts: DispatchOptions, vehicle?: DispatchVehicle): number {
   let cost = opts.shift && shiftCheck(stops, opts.shift).longDay ? opts.shift.longDayPenalty : 0;
+  // 공평 배분: 전날 근무량에 따른 건당 비용 + 같은 날 콜이 몰릴수록 커지는 비용
+  cost += (vehicle?.costPerCall ?? 0) * stops.length + (opts.balanceWeight ?? 0) * stops.length * stops.length;
   for (const [i, s] of stops.entries()) {
     cost += s.deadheadMin;
     if (i > 0) cost += ((s.pickupAt - s.readyAt) / MIN) * opts.idleWeight;
@@ -245,7 +275,7 @@ function bestInsertion(
     const bookings = insertSorted(st.bookings, b);
     const stops = simulateRoute(st.vehicle, bookings, opts);
     if (!stops) continue;
-    const cost = routeCost(stops, opts);
+    const cost = routeCost(stops, opts, st.vehicle);
     // 이미 운행 중인 차량을 약간 우선해서 동선을 묶는다.
     const openPenalty = st.bookings.length === 0 ? 5 : 0;
     const seatWaste = (st.vehicle.seats - Math.max(b.pax, b.minSeats ?? 0)) * opts.seatWasteWeight;
@@ -258,7 +288,7 @@ function bestInsertion(
 function apply(ins: { state: State; bookings: Timed[]; stops: Stop[] }, opts: DispatchOptions) {
   ins.state.bookings = ins.bookings;
   ins.state.stops = ins.stops;
-  ins.state.cost = routeCost(ins.stops, opts);
+  ins.state.cost = routeCost(ins.stops, opts, ins.state.vehicle);
 }
 
 /**
@@ -279,7 +309,7 @@ function tryRelocate(states: State[], u: Timed, opts: DispatchOptions, depth: nu
       const saved = { bookings: st.bookings, stops: st.stops, cost: st.cost };
       st.bookings = withU;
       st.stops = stops;
-      st.cost = routeCost(stops, opts);
+      st.cost = routeCost(stops, opts, st.vehicle);
       const moved = bestInsertion(states, victim, opts, st);
       if (moved) {
         apply(moved, opts);
@@ -313,7 +343,7 @@ function fixedState(v: DispatchVehicle, fixed: Timed[], opts: DispatchOptions): 
     bookings.map((b, i) => ({
       bookingId: b.id, seq: i + 1, deadheadKm: null, deadheadMin: 0, readyAt: b.pickupAt, pickupAt: b.pickupAt, endAt: endOf(b, opts),
     }));
-  return { vehicle: v, bookings, stops, cost: routeCost(stops, opts) };
+  return { vehicle: v, bookings, stops, cost: routeCost(stops, opts, v) };
 }
 
 /** 주어진 순서대로 한 번 배정하고 보정까지 수행 */

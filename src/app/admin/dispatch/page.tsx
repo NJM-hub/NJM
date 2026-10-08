@@ -197,6 +197,14 @@ export default async function DispatchPage({
               <input type="checkbox" name="fatigue" defaultChecked={run?.options?.fatigue !== false} />
               기사 피로 고려 (새벽 시작이면 밤늦은 콜 제외)
             </label>
+            <label className="flex items-center gap-2" title="전날 마지막 콜이 끝난 뒤 8시간 이상 쉬고 시작, 전날 콜이 많았던 기사는 덜·적었던 기사는 더 배정, 같은 날 한 차량에 몰리지 않게">
+              <input type="checkbox" name="prevDay" defaultChecked={run?.options?.prevDay !== false} />
+              전날 근무 반영·공평 배분
+            </label>
+            <label className="flex items-center gap-2" title="17~19시에는 이동·운행 시간을 1.5배로 보고 콜 사이 여유를 15분 더 둠">
+              <input type="checkbox" name="rush" defaultChecked={run?.options?.rush !== false} />
+              퇴근 정체(17~19시) 여유
+            </label>
           </div>
           <SubmitButton pendingText="배차 계산 중...">{run ? "다시 자동 배차" : "자동 배차 실행"}</SubmitButton>
           {run?.status === "confirmed" && <span className="ml-3 text-xs text-gray-500">다시 배차하면 새 초안이 만들어지고, 확정본은 새 초안을 확정할 때까지 유지됩니다.</span>}
