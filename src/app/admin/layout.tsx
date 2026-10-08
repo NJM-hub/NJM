@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { user } = await requireAdmin();
   return (
     <>
-      <Nav links={links} email={user.email ?? ""} title="렌트카 배차" />
+      <Nav links={links} email={user.email ?? ""} title="(주)우정렌트카 공항 샌딩 픽업" />
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </>
   );
