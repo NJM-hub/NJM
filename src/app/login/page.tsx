@@ -41,6 +41,9 @@ export default function LoginPage() {
         <p className="text-center text-sm text-gray-500">
           기사님이신가요? <Link href="/signup" className="text-blue-600 hover:underline">기사 회원가입</Link>
         </p>
+        <p className="text-center text-sm text-gray-500">
+          배차·차량 관리 직원이신가요? <Link href="/signup/staff" className="text-blue-600 hover:underline">직원 회원가입</Link>
+        </p>
       </form>
     </main>
   );

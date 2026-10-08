@@ -11,13 +11,18 @@ const links = [
   { href: "/admin/external-calls", label: "외부 콜" },
   { href: "/admin/settlement", label: "정산·세무" },
   { href: "/admin/settings", label: "설정" },
+  { href: "/admin/staff", label: "직원" },
 ];
 
+/** 직원(배차·차량 관리)에게는 보이지 않는 관리자 전용 메뉴 */
+const OWNER_ONLY = new Set(["/admin/vehicle-settlement", "/admin/settlement", "/admin/settings", "/admin/staff"]);
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user } = await requireAdmin();
+  const { user, role } = await requireAdmin();
+  const visible = role === "admin" ? links : links.filter((l) => !OWNER_ONLY.has(l.href));
   return (
     <>
-      <Nav links={links} email={user.email ?? ""} title="(주)우정렌트카 공항 샌딩 픽업" />
+      <Nav links={visible} email={user.email ?? ""} title="(주)우정렌트카 공항 샌딩 픽업" />
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </>
   );

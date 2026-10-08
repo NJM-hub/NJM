@@ -1,10 +1,10 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { loadSettings } from "@/lib/settings";
 import { SubmitButton } from "@/components/SubmitButton";
 import { saveSettings } from "./actions";
 
 export default async function SettingsPage() {
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireOwner();
   const s = await loadSettings(supabase);
   const kakao = !!process.env.KAKAO_REST_API_KEY;
 

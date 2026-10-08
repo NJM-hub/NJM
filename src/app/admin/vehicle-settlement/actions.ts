@@ -1,13 +1,13 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { assertAdmin } from "@/lib/auth";
+import { assertOwner } from "@/lib/auth";
 import { isMonth, monthRange } from "@/lib/format";
 import { dropEmptyRuns } from "@/lib/scheduleCleanup";
 import { EXPENSE_LABELS, inOutLabel, settleKey } from "@/lib/settlement/vehicleMonthly";
 import { loadVehicleMonth, MANUAL_PREFIX } from "@/lib/settlement/vehicleMonthlyLoad";
 
-type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
+type Db = Awaited<ReturnType<typeof assertOwner>>["supabase"];
 
 const won = (v: FormDataEntryValue | null) => {
   const n = Number(String(v ?? "").replace(/[,\s원]/g, "") || 0);
@@ -33,7 +33,7 @@ async function assertUnlocked(db: Db, month: string, vehicleId: string, operator
 
 /** 차량 월 비용 (주유·과태료·통행료·엔진오일·기타) */
 export async function saveExpenses(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const row: Record<string, unknown> = { vehicle_id: vehicleId, month, operator, updated_at: new Date().toISOString() };
@@ -83,7 +83,7 @@ function contentEdits(formData: FormData) {
  * 배차 건은 비우면 기본값(콜 금액 규칙, 외부오더는 −차감액)으로 되돌린다. 직접 추가한 항목(m_…)은 그 금액을 고친다.
  */
 export async function saveAmounts(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const updates: { id: string; value: number | null }[] = [];
@@ -129,7 +129,7 @@ export async function saveAmounts(formData: FormData) {
 
 /** 배차에 없는 콜(TALIXO 등)이나 가감 항목을 정산에 직접 추가 */
 export async function addManualItem(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const workDate = String(formData.get("work_date") ?? "");
@@ -155,7 +155,7 @@ export async function addManualItem(formData: FormData) {
 }
 
 export async function deleteManualItem(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const id = String(formData.get("itemId") ?? "").replace(MANUAL_PREFIX, "");
@@ -169,7 +169,7 @@ export async function deleteManualItem(formData: FormData) {
  * 확정 해제하면 다시 수정할 수 있다.
  */
 export async function setSettlementStatus(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator, key } = target(formData);
   const confirm = formData.get("status") === "confirmed";
 
@@ -252,7 +252,7 @@ function deleteInputs(db: Db, month: string, vehicleId: string, operator: string
  * 배차 건은 예약 자체를 지워 배차에서도 빠지고, 직접 추가한 항목은 그 항목만 지운다.
  */
 export async function deleteSelectedRows(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator, key } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const selected = formData.getAll("sel").map(String);
@@ -279,7 +279,7 @@ export async function deleteSelectedRows(formData: FormData) {
 
 /** 정산 입력 초기화: 비용, 직접 추가 항목, 건별 금액 수정을 지운다 (운행 내역은 그대로) */
 export async function resetVehicleSettlement(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator, key } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   if (formData.get("confirmReset") !== "on") redirect(backTo(month, key, "초기화하려면 확인에 체크하세요."));
@@ -297,7 +297,7 @@ export async function resetVehicleSettlement(formData: FormData) {
 
 /** 이 차량의 이 달 운행 내역 전체 삭제 ('삭제' 입력 확인): 예약·배차, 직접 추가 항목, 비용 */
 export async function deleteVehicleMonth(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator, key } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   if (String(formData.get("confirmWord") ?? "").trim() !== "삭제") {
@@ -316,7 +316,7 @@ export async function deleteVehicleMonth(formData: FormData) {
 
 /** 목록 화면: 차량 한 대의 그 달 운행·정산 입력 삭제 (확인 체크) */
 export async function deleteVehicleMonthQuick(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const { month, vehicleId, operator, key } = target(formData);
   const list = `/admin/vehicle-settlement?month=${month}`;
   if (formData.get("confirm") !== "on") redirect(`${list}&msg=${encodeURIComponent("삭제하려면 그 줄의 확인에 체크하세요.")}`);
@@ -337,7 +337,7 @@ export async function deleteVehicleMonthQuick(formData: FormData) {
  * 그 달의 예약·배차(외부 콜 포함), 직접 추가 항목, 비용·확정 정산을 모두 지운다. 차량·기사·설정은 남긴다.
  */
 export async function deleteWholeMonth(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const month = String(formData.get("month"));
   if (!isMonth(month)) throw new Error("정산 월이 올바르지 않습니다.");
   const list = `/admin/vehicle-settlement?month=${month}`;

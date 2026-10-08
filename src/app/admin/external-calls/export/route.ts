@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, isManager } from "@/lib/auth";
 import { fmtTime, isMonth, tripLabel } from "@/lib/format";
 import { loadExternalCalls } from "@/lib/settlement/externalCalls";
 import { toCsv } from "@/lib/tax";
 
 export async function GET(request: NextRequest) {
   const s = await getSession();
-  if (!s || s.role !== "admin") return new NextResponse("권한이 없습니다.", { status: 403 });
+  if (!s || !isManager(s.role)) return new NextResponse("권한이 없습니다.", { status: 403 });
   const month = request.nextUrl.searchParams.get("month");
   const type = request.nextUrl.searchParams.get("type") === "in" ? "in" : "out";
   if (!isMonth(month)) return new NextResponse("month=YYYY-MM 이 필요합니다.", { status: 400 });

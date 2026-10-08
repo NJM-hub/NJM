@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { isMonth, todayKst, won } from "@/lib/format";
 import { loadSettings, withholdingOf } from "@/lib/settings";
 import { computeSettlement } from "@/lib/settlement/compute";
@@ -12,7 +12,7 @@ function prevMonth(today: string): string {
 export default async function SettlementPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : prevMonth(todayKst());
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireOwner();
   const settings = await loadSettings(supabase);
   const list = await computeSettlement(supabase, month, withholdingOf(settings));
   const total = list.reduce(

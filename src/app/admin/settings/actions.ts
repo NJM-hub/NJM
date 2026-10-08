@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { assertAdmin } from "@/lib/auth";
+import { assertOwner } from "@/lib/auth";
 
 export async function saveSettings(formData: FormData) {
-  const { supabase } = await assertAdmin();
+  const { supabase } = await assertOwner();
   const n = (k: string, min: number, max: number) => {
     const v = Number(formData.get(k));
     if (!Number.isFinite(v) || v < min || v > max) throw new Error(`${k} 값이 올바르지 않습니다 (${min}~${max}).`);

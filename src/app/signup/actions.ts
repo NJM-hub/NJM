@@ -19,3 +19,29 @@ export async function signUpWithoutEmail(email: string, password: string): Promi
   }
   return { ok: true };
 }
+
+/**
+ * 직원(배차·차량 관리) 회원가입: 승인 대기로 가입되고, 관리자가 승인하면 관리 화면을 쓸 수 있다.
+ * 가입 표시(signup_type)는 서버에서만 넣으므로 직접 관리자·직원 권한을 얻을 수 없다.
+ */
+export async function signUpStaff(input: { name: string; phone: string; email: string; password: string }): Promise<SignupResult> {
+  const name = input.name.trim().slice(0, 40);
+  const phone = input.phone.trim().slice(0, 30);
+  const e = input.email.trim().toLowerCase();
+  if (!name) return { ok: false, error: "이름을 입력하세요." };
+  if (!phone) return { ok: false, error: "연락처를 입력하세요." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return { ok: false, error: "이메일 형식을 확인하세요." };
+  if (input.password.length < 8) return { ok: false, error: "비밀번호는 8자 이상이어야 합니다." };
+
+  const { error } = await createAdminClient().auth.admin.createUser({
+    email: e,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { signup_type: "staff", name, phone },
+  });
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) return { ok: false, error: "이미 가입된 이메일입니다." };
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}

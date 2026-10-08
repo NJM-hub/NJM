@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, isManager } from "@/lib/auth";
 import { reasonLabel } from "@/lib/dispatch/reasons";
 import { fmtTime, tripLabel } from "@/lib/format";
 import { ko } from "@/lib/ko";
@@ -7,7 +7,7 @@ import { toCsv } from "@/lib/tax";
 
 export async function GET(request: NextRequest) {
   const s = await getSession();
-  if (!s || s.role !== "admin") return new NextResponse("권한이 없습니다.", { status: 403 });
+  if (!s || !isManager(s.role)) return new NextResponse("권한이 없습니다.", { status: 403 });
   const runId = request.nextUrl.searchParams.get("run");
   if (!runId) return new NextResponse("run 파라미터가 필요합니다.", { status: 400 });
 

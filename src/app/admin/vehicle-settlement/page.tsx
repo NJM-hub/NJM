@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
@@ -72,7 +72,7 @@ const COUNT_HEAD = (
 export default async function VehicleSettlementPage({ searchParams }: { searchParams: Promise<{ month?: string; v?: string; msg?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : todayKst().slice(0, 7);
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireOwner();
   const report = await loadVehicleMonth(supabase, month);
   const selected = sp.v ? report.vehicles.find((v) => v.key === sp.v) : undefined;
 

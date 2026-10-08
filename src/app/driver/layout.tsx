@@ -1,12 +1,14 @@
 import { Nav } from "@/components/Nav";
-import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { isManager, requireUser } from "@/lib/auth";
 
 export default async function DriverLayout({ children }: { children: React.ReactNode }) {
   const { user, role } = await requireUser();
+  if (role === "staff_pending") redirect("/pending");
   const links = [
     { href: "/driver", label: "내 배차" },
     { href: "/driver/profile", label: "내 정보" },
-    ...(role === "admin" ? [{ href: "/admin", label: "관리자" }] : []),
+    ...(isManager(role) ? [{ href: "/admin", label: "관리자" }] : []),
   ];
   return (
     <>
