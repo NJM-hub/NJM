@@ -31,7 +31,7 @@ export function ArrearsList({ items, limit }: { items: ArrearItem[]; limit?: num
                   {a.tenant?.name} <span className="font-normal text-slate-500">/ {where(a.property, a.unit)}</span>
                 </div>
                 <div className="mt-0.5 text-xs text-slate-500">
-                  {months} 월세 미납 · 미납기간 {a.days}일
+                  {months} 월세 미납 ({a.charges.length}개월) · 미납기간 {a.days}일
                 </div>
               </div>
               <div className="shrink-0 text-right">
