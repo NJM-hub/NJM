@@ -2,13 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertAdmin } from "@/lib/auth";
-import {
-  dispatch,
-  simulateRoute,
-  type DispatchBooking,
-  type DispatchVehicle,
-  type DispatchOptions,
-} from "@/lib/dispatch/algorithm";
+import { dispatch, simulateRoute, type DispatchBooking, type DispatchVehicle, type DispatchOptions, DEFAULT_SHIFT } from "@/lib/dispatch/algorithm";
 import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
@@ -137,6 +131,9 @@ export async function runDispatch(formData: FormData) {
   const maxCalls = Number(formData.get("maxCalls"));
   if (Number.isInteger(maxCalls) && maxCalls >= 1 && maxCalls <= 20) opts.maxCallsPerVehicle = maxCalls;
   const strictClass = formData.get("strictClass") === "on";
+  // 기사 피로 고려: 새벽 시작 차량은 밤늦은 콜 제외 (불가피하면 오후에 3시간 이상 쉬는 경우만)
+  const fatigue = formData.get("fatigue") === "on";
+  if (fatigue) opts.shift = DEFAULT_SHIFT;
 
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
@@ -178,7 +175,7 @@ export async function runDispatch(formData: FormData) {
     .from("dispatch_runs")
     .insert({
       service_date: date,
-      options: { ...opts, vehicleIds: usable.map((v) => v.id), strictClass },
+      options: { ...opts, vehicleIds: usable.map((v) => v.id), strictClass, fatigue },
       summary: result.summary,
       created_by: user.id,
     })
@@ -274,7 +271,8 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
     const bs = own.map(toBooking).filter((b) => b.pickupAt != null);
     bs.sort((p, q) => p.pickupAt! - q.pickupAt!);
     // 최대 콜 수는 수동 조정에서는 경고만: 한도 없이 시뮬레이션
-    const stops = simulateRoute(toDispatchVehicle(v), bs as Parameters<typeof simulateRoute>[1], { ...opts, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER });
+    // 손으로 옮길 때는 시간·이동만 확인 (기사 피로 규칙은 자동 배차에서만)
+    const stops = simulateRoute(toDispatchVehicle(v), bs as Parameters<typeof simulateRoute>[1], { ...opts, shift: null, maxCallsPerVehicle: Number.MAX_SAFE_INTEGER });
     if (!stops) {
       conflicts.push(v.id);
       // 무리한 동선이면 시간순으로 순번만 매긴다

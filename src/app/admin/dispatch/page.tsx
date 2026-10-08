@@ -185,6 +185,10 @@ export default async function DispatchPage({
               <input type="checkbox" name="strictClass" defaultChecked={run?.options?.strictClass === true} />
               차급(컴포트·인승) 엄격 적용
             </label>
+            <label className="flex items-center gap-2" title="첫 콜이 08:00 전인 차량은 20:00 이후 콜을 받지 않음. 불가피하면 11~18시 사이 3시간 이상 비는 경우만 허용">
+              <input type="checkbox" name="fatigue" defaultChecked={run?.options?.fatigue !== false} />
+              기사 피로 고려 (새벽 시작이면 밤늦은 콜 제외)
+            </label>
           </div>
           <SubmitButton pendingText="배차 계산 중...">{run ? "다시 자동 배차" : "자동 배차 실행"}</SubmitButton>
           {run?.status === "confirmed" && <span className="ml-3 text-xs text-gray-500">다시 배차하면 새 초안이 만들어지고, 확정본은 새 초안을 확정할 때까지 유지됩니다.</span>}

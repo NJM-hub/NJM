@@ -48,7 +48,54 @@ export type DispatchOptions = TravelOptions & {
   seatWasteWeight: number;
   /** 여러 순서를 시도하는 데 쓸 최대 계산 시간 (ms). 기본 순서 3가지는 항상 계산 */
   timeBudgetMs: number;
+  /** 기사 피로 고려 (새벽 시작 차량은 밤늦은 콜 제외, 불가피하면 오후 휴식 필요). 없으면 적용 안 함 */
+  shift?: ShiftRule | null;
 };
+
+/** 시각은 한국시간 자정부터 분 단위 */
+export type ShiftRule = {
+  /** 첫 콜이 이 시각 전이면 "새벽·이른 아침 시작" */
+  earlyBeforeMin: number;
+  /** 마지막 콜이 이 시각 이후면 "밤늦은 콜" */
+  lateFromMin: number;
+  /** 새벽 시작 + 밤늦은 콜이면 오후 시간대(breakFrom~breakTo)에 이만큼 연속으로 쉬어야 함 */
+  breakMin: number;
+  breakFromMin: number;
+  breakToMin: number;
+  /** 휴식이 있더라도 새벽 시작 + 밤늦은 콜을 피하도록 주는 비용 (분 단위 환산) */
+  longDayPenalty: number;
+};
+
+export const DEFAULT_SHIFT: ShiftRule = {
+  earlyBeforeMin: 8 * 60,
+  lateFromMin: 20 * 60,
+  breakMin: 180,
+  breakFromMin: 11 * 60,
+  breakToMin: 18 * 60,
+  longDayPenalty: 120,
+};
+
+const KST = 9 * 60 * 60_000;
+/** 한국시간 자정부터 몇 분인지 (자정 넘긴 새벽 콜은 24시 이후로) */
+const kstMinutes = (t: number, dayStart: number) => (t + KST - dayStart) / 60_000;
+
+/** 새벽 시작 + 밤늦은 콜인지, 그렇다면 오후 휴식이 충분한지 */
+export function shiftCheck(stops: Stop[], rule: ShiftRule): { longDay: boolean; ok: boolean } {
+  if (!stops.length) return { longDay: false, ok: true };
+  const day = Math.floor((stops[0].pickupAt + KST) / 86_400_000) * 86_400_000;
+  const first = kstMinutes(stops[0].pickupAt, day);
+  const last = kstMinutes(stops[stops.length - 1].pickupAt, day);
+  const longDay = first < rule.earlyBeforeMin && last >= rule.lateFromMin;
+  if (!longDay) return { longDay, ok: true };
+  // 앞 콜 끝 ~ 다음 콜 출발(공차 이동 시작) 사이 빈 시간이 오후 시간대와 breakMin 이상 겹치는지
+  for (let i = 1; i < stops.length; i++) {
+    const freeFrom = kstMinutes(stops[i - 1].endAt, day);
+    const freeTo = kstMinutes(stops[i].pickupAt, day) - stops[i].deadheadMin;
+    const overlap = Math.min(freeTo, rule.breakToMin) - Math.max(freeFrom, rule.breakFromMin);
+    if (overlap >= rule.breakMin) return { longDay, ok: true };
+  }
+  return { longDay, ok: false };
+}
 
 export const DEFAULT_OPTIONS: DispatchOptions = {
   maxCallsPerVehicle: 4,
@@ -158,6 +205,7 @@ export function simulateRoute(
     loc = b.dropoff ?? b.pickup;
     freeAt = endAt;
   }
+  if (opts.shift && !shiftCheck(stops, opts.shift).ok) return null;
   return stops;
 }
 
@@ -168,7 +216,7 @@ function insertSorted(list: Timed[], b: Timed): Timed[] {
 }
 
 function routeCost(stops: Stop[], opts: DispatchOptions): number {
-  let cost = 0;
+  let cost = opts.shift && shiftCheck(stops, opts.shift).longDay ? opts.shift.longDayPenalty : 0;
   for (const [i, s] of stops.entries()) {
     cost += s.deadheadMin;
     if (i > 0) cost += ((s.pickupAt - s.readyAt) / MIN) * opts.idleWeight;
