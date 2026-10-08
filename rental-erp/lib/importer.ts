@@ -29,9 +29,24 @@ export async function nextContractNo(c: pg.PoolClient | null, year = todayKST().
   return `RC-${year}-${String((r?.n ?? 0) + 1).padStart(3, "0")}`;
 }
 
-async function findProperty(c: pg.PoolClient, name: string | null) {
+/**
+ * 부동산 찾기: 이름이 같으면 그것.
+ * loose 이면 띄어쓰기를 무시하고, 그래도 없으면 이름에 포함된 부동산이 하나뿐일 때 그것 (비용·대출 가져오기용)
+ */
+async function findProperty(c: pg.PoolClient, name: string | null, loose = false) {
   if (!name) return null;
-  return q1<{ id: string }>("select id from properties where name = $1 order by created_at limit 1", [name], c);
+  const exact = await q1<{ id: string }>("select id from properties where name = $1 order by created_at limit 1", [name], c);
+  if (exact || !loose) return exact;
+  const key = name.replace(/\s+/g, "");
+  if (!key) return null;
+  const same = await q<{ id: string }>(
+    "select id from properties where regexp_replace(name, '\\s+', '', 'g') = $1 order by created_at",
+    [key],
+    c,
+  );
+  if (same.length) return same[0];
+  const like = await q<{ id: string }>("select id from properties where position($1 in regexp_replace(name, '\\s+', '', 'g')) > 0 limit 2", [key], c);
+  return like.length === 1 ? like[0] : null;
 }
 
 async function findUnit(c: pg.PoolClient, propertyId: string, unitNo: string | null, dong: string | null) {
@@ -237,7 +252,7 @@ export async function importRows(kind: ImportKind, rows: Row[], c: pg.PoolClient
           break;
         }
         case "loans": {
-          const p = await findProperty(c, cellText(r["부동산명"]));
+          const p = await findProperty(c, cellText(r["부동산명"]), true);
           const lender = cellText(r["금융기관"]);
           if (!p || !lender) {
             skip(i, !p ? "부동산을 찾을 수 없음" : "금융기관 없음");
@@ -266,7 +281,7 @@ export async function importRows(kind: ImportKind, rows: Row[], c: pg.PoolClient
             break;
           }
           const pname = cellText(r["부동산명"]);
-          const p = pname && pname !== "(공통)" ? await findProperty(c, pname) : null;
+          const p = pname && pname !== "(공통)" ? await findProperty(c, pname, true) : null;
           if (pname && pname !== "(공통)" && !p) {
             skip(i, `부동산 '${pname}' 없음`);
             break;
