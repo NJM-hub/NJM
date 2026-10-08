@@ -4,7 +4,7 @@ import { Empty, Notice, PageHeader, StatCard, Table } from "@/components/ui";
 import { requirePage } from "@/lib/auth";
 import { EFFECTIVE_STATUS, type EffectiveStatus } from "@/lib/constants";
 import { getSnapshot } from "@/lib/data";
-import { daysBetween, fmtDate } from "@/lib/dates";
+import { daysBetween, fmtDate, monthLabel } from "@/lib/dates";
 import { effectiveStatus, expiryLevel } from "@/lib/engine";
 import { num, won, wonShort } from "@/lib/format";
 import { compareUnits, unitLabel } from "@/lib/views";
@@ -21,6 +21,8 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   const scopeUnits = new Set(s.units.map((u) => u.unit.id));
   const tenant = new Map(ds.tenants.map((t) => [t.id, t]));
   const unpaid = new Map(s.arrears.map((a) => [a.contract.id, a.total]));
+  // 미납 개월수 = 납부일이 지났는데 다 못 받은 달 (일부만 받은 달도 1개월)
+  const unpaidMonths = new Map(s.arrears.map((a) => [a.contract.id, a.charges.map((c) => monthLabel(c.charge.billing_month))]));
   const rows = ds.contracts
     .filter((c) => scopeUnits.has(c.unit_id))
     .map((c) => ({ c, st: effectiveStatus(c, s.today) }));
@@ -35,6 +37,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
     deposit: list.reduce((x, r) => x + r.c.deposit, 0),
     rent: list.reduce((x, r) => x + r.c.monthly_rent, 0),
     unpaid: list.reduce((x, r) => x + (unpaid.get(r.c.id) ?? 0), 0),
+    months: list.reduce((x, r) => x + (unpaidMonths.get(r.c.id)?.length ?? 0), 0),
   };
 
   return (
@@ -65,7 +68,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
       <div className="mb-4 grid grid-cols-3 gap-3">
         <StatCard label="보증금 합계" value={wonShort(total.deposit)} sub={`${list.length}건`} />
         <StatCard label="월세 합계" value={wonShort(total.rent)} sub="월" />
-        <StatCard label="미납 합계" value={wonShort(total.unpaid)} tone={total.unpaid ? "red" : "green"} sub={total.unpaid ? "납부일 지난 금액" : "미납 없음"} />
+        <StatCard label="미납 합계" value={wonShort(total.unpaid)} tone={total.unpaid ? "red" : "green"} sub={total.unpaid ? `총 ${total.months}개월 미납` : "미납 없음"} />
       </div>
       <div className="card card-body">
         {list.length === 0 ? (
@@ -82,6 +85,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
                 <th className="num">남은 기간</th>
                 <th className="num">보증금</th>
                 <th className="num">월세</th>
+                <th className="num">미납 개월</th>
                 <th className="num">미납</th>
               </tr>
             </thead>
@@ -114,6 +118,9 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
                     </td>
                     <td className="num">{wonShort(c.deposit)}</td>
                     <td className="num">{won(c.monthly_rent)}</td>
+                    <td className={`num ${unpaidMonths.get(c.id)?.length ? "font-bold text-red-600" : "text-slate-400"}`} title={unpaidMonths.get(c.id)?.join(", ")}>
+                      {unpaidMonths.get(c.id)?.length ? `${unpaidMonths.get(c.id)!.length}개월` : "-"}
+                    </td>
                     <td className={`num ${unpaid.get(c.id) ? "font-bold text-red-600" : "text-slate-400"}`}>{unpaid.get(c.id) ? num(unpaid.get(c.id)) : "-"}</td>
                   </tr>
                 );
@@ -124,6 +131,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
                 <td colSpan={6}>합계 ({list.length}건)</td>
                 <td className="num">{won(total.deposit)}</td>
                 <td className="num">{won(total.rent)}</td>
+                <td className={`num ${total.months ? "font-bold text-red-600" : "text-slate-400"}`}>{total.months ? `${total.months}개월` : "-"}</td>
                 <td className={`num ${total.unpaid ? "font-bold text-red-600" : "text-slate-400"}`}>{total.unpaid ? won(total.unpaid) : "-"}</td>
               </tr>
             </tfoot>
