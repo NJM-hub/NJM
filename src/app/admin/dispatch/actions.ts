@@ -133,6 +133,10 @@ export async function runDispatch(formData: FormData) {
   const settings = await loadSettings(supabase);
   const opts: DispatchOptions = dispatchOptionsOf(settings);
   const vehicleIds = formData.getAll("vehicle").map(String);
+  // 실행할 때 고르는 옵션: 차량당 최대 콜 수, 차급(컴포트·인승) 엄격 적용 여부
+  const maxCalls = Number(formData.get("maxCalls"));
+  if (Number.isInteger(maxCalls) && maxCalls >= 1 && maxCalls <= 20) opts.maxCallsPerVehicle = maxCalls;
+  const strictClass = formData.get("strictClass") === "on";
 
   const [{ data: bookings, error: bErr }, { data: vehicles, error: vErr }, { data: drivers }] = await Promise.all([
     supabase
@@ -152,7 +156,12 @@ export async function runDispatch(formData: FormData) {
 
   await fillCoordinates(supabase, bookings, usable);
 
-  const result = dispatch(bookings.map(toDispatchBooking), usable.map(toDispatchVehicle), opts);
+  // 실제 운영처럼 차급은 보지 않고 인원만 맞추기 (스타리아 9인승이 컴포트·10인승 예약도 운행)
+  const toBooking = (b: BookingRow) => {
+    const d = toDispatchBooking(b);
+    return strictClass ? d : { ...d, minSeats: null, grade: null };
+  };
+  const result = dispatch(bookings.map(toBooking), usable.map(toDispatchVehicle), opts);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
   const rules = fareRulesOf(settings);
   const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)]));
@@ -169,7 +178,7 @@ export async function runDispatch(formData: FormData) {
     .from("dispatch_runs")
     .insert({
       service_date: date,
-      options: { ...opts, vehicleIds: usable.map((v) => v.id) },
+      options: { ...opts, vehicleIds: usable.map((v) => v.id), strictClass },
       summary: result.summary,
       created_by: user.id,
     })

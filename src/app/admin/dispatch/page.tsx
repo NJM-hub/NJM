@@ -168,6 +168,16 @@ export default async function DispatchPage({
             ))}
             {!vehicles?.length && <Link href="/admin/vehicles" className="text-sm text-blue-600">차량을 먼저 등록하세요 →</Link>}
           </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              차량당 최대 콜
+              <input name="maxCalls" type="number" min={1} max={20} defaultValue={maxCalls} className="input !w-20 !py-1" />
+            </label>
+            <label className="flex items-center gap-2" title="끄면 실제 운영처럼 인원수만 보고 배정합니다 (스타리아 9인승이 컴포트·10인승 예약도 운행)">
+              <input type="checkbox" name="strictClass" defaultChecked={run?.options?.strictClass === true} />
+              차급(컴포트·인승) 엄격 적용
+            </label>
+          </div>
           <SubmitButton pendingText="배차 계산 중...">{run ? "다시 자동 배차" : "자동 배차 실행"}</SubmitButton>
           {run?.status === "confirmed" && <span className="ml-3 text-xs text-gray-500">다시 배차하면 새 초안이 만들어지고, 확정본은 새 초안을 확정할 때까지 유지됩니다.</span>}
         </form>
