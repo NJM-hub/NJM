@@ -12,8 +12,6 @@ export type MonthLedger = {
   kkdayNet: number;
   /** 차량 정산에 입력한 비용 (주유·과태료·통행료·엔진오일·기타) */
   vehicleExpenses: number;
-  /** 외부로 준 콜 비용 */
-  externalFare: number;
   cost: number;
   /** 기사 지급액 (세액 포함 = 금액 − 비용) */
   driverPay: number;
@@ -48,14 +46,13 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   const kkdayAmount = (st as { amount: number }[]).reduce((s, r) => s + r.amount, 0);
   const kkdayNet = withoutVat(kkdayAmount);
   const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses, 0);
-  const externalFare = report.external.reduce((s, d) => s + d.fare, 0);
   const driverPay = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
   const installment = led?.vehicle_installment ?? 0;
   const cashExpense = led?.cash_expense ?? 0;
   const officeExpense = led?.office_expense ?? 0;
-  const cost = vehicleExpenses + externalFare;
+  const cost = vehicleExpenses;
   return {
-    month, kkdayAmount, kkdayNet, vehicleExpenses, externalFare, cost, driverPay,
+    month, kkdayAmount, kkdayNet, vehicleExpenses, cost, driverPay,
     installment, cashExpense, officeExpense, memo: led?.memo ?? null,
     remain: kkdayNet - cost - driverPay - installment - cashExpense - officeExpense,
   };

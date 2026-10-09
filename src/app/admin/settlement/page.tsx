@@ -36,7 +36,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
         <div className="px-4 pt-4">
           <div className="font-semibold">샌딩 · 픽업 전체 정산표</div>
           <p className="mt-1 text-xs text-gray-500">
-            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산의 비용 + 외부로 준 콜 금액, 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
+            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산에 입력한 비용(외부 콜 제외), 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
             차량 할부금·원천 지출(현금)·사무실 지출은 직접 입력 후 저장하세요. 남은 차액 = 부가세 제외 − 비용 − 기사 지급 − 할부금 − 원천 지출 − 사무실 지출.
           </p>
         </div>
@@ -63,10 +63,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                   <td className="whitespace-nowrap font-medium">{monthLabel(r.month)}</td>
                   <td className="text-right">{won(r.kkdayAmount)}</td>
                   <td className="text-right">{won(r.kkdayNet)}</td>
-                  <td className="text-right">
-                    {won(r.cost)}
-                    <div className="whitespace-nowrap text-xs text-gray-500">차량 {won(r.vehicleExpenses)} · 외부 콜 {won(r.externalFare)}</div>
-                  </td>
+                  <td className="text-right">{won(r.cost)}</td>
                   <td className="text-right">{won(r.driverPay)}</td>
                   <td className="text-right"><MoneyInput form={f} name="vehicle_installment" value={r.installment} /></td>
                   <td className="text-right"><MoneyInput form={f} name="cash_expense" value={r.cashExpense} /></td>
