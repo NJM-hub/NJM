@@ -14,7 +14,7 @@ const monthLabel = (m: string) => `${m.slice(2, 4)}년 ${Number(m.slice(5))}월`
 const signed = (n: number) => <span className={n < 0 ? "text-red-600" : ""}>{won(n)}</span>;
 
 function MoneyInput({ form, name, value }: { form: string; name: string; value: number }) {
-  return <input form={form} name={name} defaultValue={value ? value.toLocaleString("ko-KR") : ""} placeholder="0" inputMode="numeric" className="input w-28 text-right" />;
+  return <input form={form} name={name} defaultValue={value ? String(value) : ""} placeholder="0" inputMode="numeric" className="input w-28 text-right" />;
 }
 
 export default async function SettlementPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
@@ -36,7 +36,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
         <div className="px-4 pt-4">
           <div className="font-semibold">샌딩 · 픽업 전체 정산표</div>
           <p className="mt-1 text-xs text-gray-500">
-            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산에 입력한 비용(외부 콜 제외), 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
+            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함) + 조정(잘못 정산된 금액은 마이너스로 입력), 비용은 차량별 월정산에 입력한 비용(외부 콜 제외), 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
             차량 할부금·원천 지출(현금)·사무실 지출은 직접 입력 후 저장하세요. 남은 차액 = 부가세 제외 − 비용 − 기사 지급 − 할부금 − 원천 지출 − 사무실 지출.
           </p>
         </div>
@@ -61,7 +61,13 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
               return (
                 <tr key={r.month}>
                   <td className="whitespace-nowrap font-medium">{monthLabel(r.month)}</td>
-                  <td className="text-right">{won(r.kkdayAmount)}</td>
+                  <td className="text-right">
+                    <div className="font-medium">{won(r.kkdayAmount)}</div>
+                    <div className="mt-1 whitespace-nowrap text-xs text-gray-500">내역서 {won(r.kkdayStatement)}</div>
+                    <label className="mt-1 flex items-center justify-end gap-1 whitespace-nowrap text-xs text-gray-500">
+                      조정 <MoneyInput form={f} name="kkday_adjust" value={r.kkdayAdjust} />
+                    </label>
+                  </td>
                   <td className="text-right">{won(r.kkdayNet)}</td>
                   <td className="text-right">{won(r.cost)}</td>
                   <td className="text-right">{won(r.driverPay)}</td>
