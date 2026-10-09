@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll } from "@/lib/fetchAll";
+import { monthRange } from "@/lib/format";
 import { withoutVat } from "@/lib/kkday/statement";
 import { loadVehicleMonth } from "./vehicleMonthlyLoad";
 
@@ -38,8 +39,9 @@ export async function ledgerMonths(db: SupabaseClient): Promise<string[]> {
 }
 
 export async function loadMonthLedger(db: SupabaseClient, month: string): Promise<MonthLedger> {
+  const { from, to } = monthRange(month);
   const [st, report, { data: led }] = await Promise.all([
-    fetchAll((a, b) => db.from("kkday_statements").select("booking_no,amount").gte("service_date", `${month}-01`).lte("service_date", `${month}-31`).order("booking_no").range(a, b)),
+    fetchAll((a, b) => db.from("kkday_statements").select("booking_no,amount").gte("service_date", from).lte("service_date", to).order("booking_no").range(a, b)),
     loadVehicleMonth(db, month),
     db.from("monthly_ledger").select("*").eq("month", month).maybeSingle(),
   ]);
