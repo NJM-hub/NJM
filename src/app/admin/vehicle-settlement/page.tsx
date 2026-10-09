@@ -132,7 +132,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
       <p className="text-sm text-gray-500">
         <b>확정된 배차</b>만 셉니다. 차량을 누르면 날짜별 건수, 건별 금액, 비용 입력 화면이 나옵니다.
         배차 금액은 전부 지급하고(비용·원천세 3.3%만 뺌), 외부오더(기사 자체 콜)의 −금액(건당 {won(report.ownCallFee)}, 시트에 금액이 적혀 있으면 그 금액)은
-        지급액에서 빼지 않고 <b className="text-violet-700">별도 수금</b>으로 따로 표시합니다.
+        지급액에서 빼지 않습니다 (차량을 누르면 상세에서 확인). KKday 차액은 KKday 정산액에서 부가세를 빼고 그 건들 기사 지급액을 뺀 금액입니다.
       </p>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
@@ -140,7 +140,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
             <tr>
               <th>차량 · 기사</th><th className="text-right">운행일</th>{COUNT_HEAD}
               <th className="text-right">금액 합계</th><th className="text-right">비용</th><th className="text-right">차액</th>
-              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right">별도 수금</th><th className="text-right" title="KKday 정산내역서에서 이 기사가 운행한 건들의 정산 금액 합계 (부가세 포함)">KKday 정산액</th><th className="text-right" title="KKday 정산액 ÷ 1.1">부가세 제외</th><th className="text-right" title="부가세 제외 금액 − 그 건들에 기사에게 준 금액 (정산내역서에 있는 건만)">KKday 차액</th><th>삭제</th>
+              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right" title="KKday 정산내역서에서 이 기사가 운행한 건들의 정산 금액 합계 (부가세 포함)">KKday 정산액</th><th className="text-right" title="KKday 정산액 ÷ 1.1">부가세 제외</th><th className="text-right" title="부가세 제외 금액 − 그 건들에 기사에게 준 금액 (정산내역서에 있는 건만)">KKday 차액</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -159,7 +159,6 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="text-right">{won(v.payout.diff)}</td>
                 <td className="text-right">{won(v.payout.tax)}</td>
                 <td className="text-right font-semibold">{won(v.payout.pay)}</td>
-                <td className="text-right text-violet-700">{v.total.ownAmount ? won(v.total.ownAmount) : "-"}</td>
                 {(() => {
                   const k = kkdayTotals(v.rows);
                   return k.count ? (
@@ -187,7 +186,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 </td>
               </tr>
             ))}
-            {!report.vehicles.length && <tr><td colSpan={17} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
+            {!report.vehicles.length && <tr><td colSpan={16} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
           </tbody>
           {report.vehicles.length > 0 && (
             <tfoot>
@@ -204,7 +203,6 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.diff))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.tax))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.pay))}</td>
-                <td className="px-3 py-2 text-right text-violet-700">{won(sum((v) => v.total.ownAmount))}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{won(sum((v) => kkdayTotals(v.rows).amount))}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{won(sum((v) => kkdayTotals(v.rows).net))}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{diffCell(sum((v) => kkdayTotals(v.rows).diff))}</td>
