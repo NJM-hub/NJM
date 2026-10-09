@@ -1,12 +1,20 @@
 import { requireOwner } from "@/lib/auth";
 import { isMonth, todayKst, won } from "@/lib/format";
-import { loadSettings, withholdingOf } from "@/lib/settings";
-import { computeSettlement } from "@/lib/settlement/compute";
+import { loadSettings } from "@/lib/settings";
+import { ledgerMonths, loadMonthLedger, type MonthLedger } from "@/lib/settlement/monthlyLedger";
 import { filingDeadlines } from "@/lib/tax";
+import { saveMonthLedger } from "./actions";
 
 function prevMonth(today: string): string {
   const [y, m] = today.split("-").map(Number);
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+const monthLabel = (m: string) => `${m.slice(2, 4)}년 ${Number(m.slice(5))}월`;
+const signed = (n: number) => <span className={n < 0 ? "text-red-600" : ""}>{won(n)}</span>;
+
+function MoneyInput({ form, name, value }: { form: string; name: string; value: number }) {
+  return <input form={form} name={name} defaultValue={value ? value.toLocaleString("ko-KR") : ""} placeholder="0" inputMode="numeric" className="input w-28 text-right" />;
 }
 
 export default async function SettlementPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
@@ -14,21 +22,90 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
   const month = isMonth(sp.month) ? sp.month : prevMonth(todayKst());
   const { supabase } = await requireOwner();
   const settings = await loadSettings(supabase);
-  const list = await computeSettlement(supabase, month, withholdingOf(settings));
-  const total = list.reduce(
-    (s, d) => ({ calls: s.calls + d.calls, gross: s.gross + d.gross, incomeTax: s.incomeTax + d.incomeTax, localTax: s.localTax + d.localTax, net: s.net + d.net }),
-    { calls: 0, gross: 0, incomeTax: 0, localTax: 0, net: 0 },
-  );
+  const months = await ledgerMonths(supabase);
+  const rows: MonthLedger[] = await Promise.all(months.map((m) => loadMonthLedger(supabase, m)));
+  const sum = (f: (r: MonthLedger) => number) => rows.reduce((s, r) => s + f(r), 0);
   const deadlines = filingDeadlines(month);
-  const missing = list.filter((d) => !d.driverId || !d.rrnEnc || !d.bankAccountEnc);
   const q = `month=${month}`;
 
   return (
     <div className="space-y-6">
       <h1 className="page-title">정산 · 세무신고</h1>
+
+      <div className="card overflow-x-auto !p-0">
+        <div className="px-4 pt-4">
+          <div className="font-semibold">샌딩 · 픽업 전체 정산표</div>
+          <p className="mt-1 text-xs text-gray-500">
+            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산의 비용 + 외부로 준 콜 금액, 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
+            차량 할부금·원천 지출(현금)·사무실 지출은 직접 입력 후 저장하세요. 남은 차액 = 부가세 제외 − 비용 − 기사 지급 − 할부금 − 원천 지출 − 사무실 지출.
+          </p>
+        </div>
+        <table className="table mt-3">
+          <thead>
+            <tr>
+              <th>월</th>
+              <th className="text-right">KKday 정산 합계</th>
+              <th className="text-right">KKday 부가세 제외</th>
+              <th className="text-right">비용</th>
+              <th className="text-right">기사 지급(세액포함)</th>
+              <th className="text-right">차량 할부금</th>
+              <th className="text-right">원천 지출(현금)</th>
+              <th className="text-right">사무실 지출</th>
+              <th className="text-right">남은 차액</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const f = `ledger-${r.month}`;
+              return (
+                <tr key={r.month}>
+                  <td className="whitespace-nowrap font-medium">{monthLabel(r.month)}</td>
+                  <td className="text-right">{won(r.kkdayAmount)}</td>
+                  <td className="text-right">{won(r.kkdayNet)}</td>
+                  <td className="text-right">
+                    {won(r.cost)}
+                    <div className="whitespace-nowrap text-xs text-gray-500">차량 {won(r.vehicleExpenses)} · 외부 콜 {won(r.externalFare)}</div>
+                  </td>
+                  <td className="text-right">{won(r.driverPay)}</td>
+                  <td className="text-right"><MoneyInput form={f} name="vehicle_installment" value={r.installment} /></td>
+                  <td className="text-right"><MoneyInput form={f} name="cash_expense" value={r.cashExpense} /></td>
+                  <td className="text-right"><MoneyInput form={f} name="office_expense" value={r.officeExpense} /></td>
+                  <td className="whitespace-nowrap text-right font-semibold">{signed(r.remain)}</td>
+                  <td>
+                    <form id={f} action={saveMonthLedger}>
+                      <input type="hidden" name="month" value={r.month} />
+                      <input type="hidden" name="memo" value={r.memo ?? ""} />
+                      <button className="btn-secondary whitespace-nowrap">저장</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
+            {!rows.length && <tr><td colSpan={10} className="text-gray-500">정산할 달이 없습니다.</td></tr>}
+          </tbody>
+          {rows.length > 1 && (
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="px-3 py-2">합계</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.kkdayAmount))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.kkdayNet))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.cost))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.driverPay))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.installment))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.cashExpense))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.officeExpense))}</td>
+                <td className="px-3 py-2 text-right">{signed(sum((r) => r.remain))}</td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+
       <form className="card flex flex-wrap items-end gap-3">
         <div>
-          <label className="label" htmlFor="month">귀속(지급) 월</label>
+          <label className="label" htmlFor="month">원천세 신고 자료 (귀속 월)</label>
           <input id="month" type="month" name="month" defaultValue={month} className="input" />
         </div>
         <button className="btn-secondary">조회</button>
@@ -53,53 +130,6 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
           소득세 {Math.round(settings.income_tax_rate * 1000) / 10}% + 지방소득세(소득세의 {Math.round(settings.local_tax_rate * 100)}%), 10원 미만 절사, 소득세 1,000원 미만 소액부징수.
           업종코드 {settings.business_code}. 기사를 프리랜서(인적용역 사업소득)로 보는 경우 기준이며, 근로계약 관계면 다르게 신고해야 합니다. 첫 신고 전 세무사 확인을 권장합니다.
         </div>
-      </div>
-
-      {missing.length > 0 && (
-        <div className="card border-red-200 text-sm text-red-700">
-          신고 정보가 부족한 대상: {missing.map((d) => d.name).join(", ")} — 기사 미지정 차량의 운행분이거나 주민번호/계좌가 없습니다.
-        </div>
-      )}
-
-      <div className="card overflow-x-auto !p-0">
-        <table className="table">
-          <thead>
-            <tr><th>기사</th><th>주민번호</th><th className="text-right">콜</th><th className="text-right">지급액</th><th className="text-right">소득세</th><th className="text-right">지방소득세</th><th className="text-right">차인지급액</th></tr>
-          </thead>
-          <tbody>
-            {list.map((d) => (
-              <tr key={d.driverId ?? d.name}>
-                <td>
-                  <details>
-                    <summary className="cursor-pointer font-medium">{d.name}</summary>
-                    <ul className="mt-2 space-y-0.5 text-xs text-gray-600">
-                      {d.items.map((it, i) => <li key={i}>{it.date} {it.plate} {it.bookingNo} {it.product} — {won(it.fare)}</li>)}
-                    </ul>
-                  </details>
-                </td>
-                <td className="text-xs">{d.rrnMasked ?? <span className="text-red-600">없음</span>}</td>
-                <td className="text-right">{d.calls}</td>
-                <td className="text-right">{won(d.gross)}</td>
-                <td className="text-right">{won(d.incomeTax)}</td>
-                <td className="text-right">{won(d.localTax)}</td>
-                <td className="text-right font-semibold">{won(d.net)}</td>
-              </tr>
-            ))}
-            {!list.length && <tr><td colSpan={7} className="text-gray-500">{month}에 확정된 배차가 없습니다.</td></tr>}
-          </tbody>
-          {list.length > 0 && (
-            <tfoot>
-              <tr className="font-semibold">
-                <td className="px-3 py-2">합계</td><td />
-                <td className="px-3 py-2 text-right">{total.calls}</td>
-                <td className="px-3 py-2 text-right">{won(total.gross)}</td>
-                <td className="px-3 py-2 text-right">{won(total.incomeTax)}</td>
-                <td className="px-3 py-2 text-right">{won(total.localTax)}</td>
-                <td className="px-3 py-2 text-right">{won(total.net)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
       </div>
     </div>
   );
