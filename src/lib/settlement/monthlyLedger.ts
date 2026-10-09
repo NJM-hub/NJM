@@ -20,6 +20,7 @@ export type MonthLedger = {
   driverPay: number;
   installment: number;
   cashExpense: number;
+  cashSpend: number;
   officeExpense: number;
   memo: string | null;
   remain: number;
@@ -54,11 +55,12 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   const driverPay = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
   const installment = led?.vehicle_installment ?? 0;
   const cashExpense = led?.cash_expense ?? 0;
+  const cashSpend = led?.cash_spend ?? 0;
   const officeExpense = led?.office_expense ?? 0;
   const cost = vehicleExpenses;
   return {
     month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, vehicleExpenses, cost, driverPay,
-    installment, cashExpense, officeExpense, memo: led?.memo ?? null,
-    remain: kkdayNet - cost - driverPay - installment - cashExpense - officeExpense,
+    installment, cashExpense, cashSpend, officeExpense, memo: led?.memo ?? null,
+    remain: kkdayNet - cost - driverPay - installment - cashExpense - cashSpend - officeExpense,
   };
 }

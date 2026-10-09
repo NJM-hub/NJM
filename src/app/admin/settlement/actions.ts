@@ -18,6 +18,7 @@ export async function saveMonthLedger(formData: FormData) {
     month,
     vehicle_installment: won(formData.get("vehicle_installment")),
     cash_expense: won(formData.get("cash_expense")),
+    cash_spend: won(formData.get("cash_spend")),
     office_expense: won(formData.get("office_expense")),
     memo: String(formData.get("memo") ?? "").trim() || null,
     updated_at: new Date().toISOString(),
