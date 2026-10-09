@@ -16,7 +16,6 @@ export async function saveMonthLedger(formData: FormData) {
   if (!isMonth(month)) throw new Error("정산 월이 올바르지 않습니다.");
   const { error } = await supabase.from("monthly_ledger").upsert({
     month,
-    kkday_adjust: won(formData.get("kkday_adjust")),
     vehicle_installment: won(formData.get("vehicle_installment")),
     cash_expense: won(formData.get("cash_expense")),
     office_expense: won(formData.get("office_expense")),
