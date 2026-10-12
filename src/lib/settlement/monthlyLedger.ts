@@ -5,6 +5,20 @@ import { monthRange } from "@/lib/format";
 import { withoutVat } from "@/lib/kkday/statement";
 import { loadVehicleMonth } from "./vehicleMonthlyLoad";
 
+/** 직접 입력 지출 항목: 정산표 칸 ↔ monthly_ledger 컬럼 */
+export const LEDGER_CATEGORIES = [
+  { key: "installment", label: "차량 할부금", column: "vehicle_installment" },
+  { key: "withholding", label: "원천 지출", column: "cash_expense" },
+  { key: "cash", label: "현금 지출", column: "cash_spend" },
+  { key: "office", label: "사무실 지출", column: "office_expense" },
+] as const;
+export type LedgerCategory = (typeof LEDGER_CATEGORIES)[number]["key"];
+
+export type LedgerItem = {
+  id: string; month: string; category: LedgerCategory; spent_on: string | null;
+  description: string; amount: number; memo: string | null;
+};
+
 export type MonthLedger = {
   month: string;
   /** KKday 정산내역서 합계 (실제로 정산 받은 금액, 부가세 포함) */
@@ -23,6 +37,9 @@ export type MonthLedger = {
   cashSpend: number;
   officeExpense: number;
   memo: string | null;
+  /** 상세 내역이 있는 항목 (정산표에서는 상세 합계를 보여주고 직접 입력을 막는다) */
+  itemized: Record<LedgerCategory, boolean>;
+  items: LedgerItem[];
   remain: number;
 };
 
@@ -42,25 +59,30 @@ export async function ledgerMonths(db: SupabaseClient): Promise<string[]> {
 
 export async function loadMonthLedger(db: SupabaseClient, month: string): Promise<MonthLedger> {
   const { from, to } = monthRange(month);
-  const [st, report, { data: led }] = await Promise.all([
+  const [st, report, { data: led }, { data: itemRows, error: iErr }] = await Promise.all([
     fetchAll((a, b) => db.from("kkday_statements").select("booking_no,amount").gte("service_date", from).lte("service_date", to).order("booking_no").range(a, b)),
     loadVehicleMonth(db, month),
     db.from("monthly_ledger").select("*").eq("month", month).maybeSingle(),
+    db.from("monthly_ledger_items").select("*").eq("month", month).order("spent_on", { nullsFirst: false }).order("created_at"),
   ]);
+  if (iErr) throw new Error(iErr.message);
+  const items = (itemRows ?? []) as LedgerItem[];
+  const valueOf = (c: (typeof LEDGER_CATEGORIES)[number]) => {
+    const list = items.filter((i) => i.category === c.key);
+    return list.length ? list.reduce((s, i) => s + i.amount, 0) : ((led?.[c.column] as number | undefined) ?? 0);
+  };
+  const [installment, cashExpense, cashSpend, officeExpense] = LEDGER_CATEGORIES.map(valueOf);
+  const itemized = Object.fromEntries(LEDGER_CATEGORIES.map((c) => [c.key, items.some((i) => i.category === c.key)])) as Record<LedgerCategory, boolean>;
   const kkdayStatement = (st as { amount: number }[]).reduce((s, r) => s + r.amount, 0);
   const kkdayAdjust = led?.kkday_adjust ?? 0;
   const kkdayAmount = kkdayStatement + kkdayAdjust;
   const kkdayNet = withoutVat(kkdayAmount);
   const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses, 0);
   const driverPay = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
-  const installment = led?.vehicle_installment ?? 0;
-  const cashExpense = led?.cash_expense ?? 0;
-  const cashSpend = led?.cash_spend ?? 0;
-  const officeExpense = led?.office_expense ?? 0;
   const cost = vehicleExpenses;
   return {
     month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, vehicleExpenses, cost, driverPay,
-    installment, cashExpense, cashSpend, officeExpense, memo: led?.memo ?? null,
+    installment, cashExpense, cashSpend, officeExpense, memo: led?.memo ?? null, itemized, items,
     remain: kkdayNet - cost - driverPay - installment - cashExpense - cashSpend - officeExpense,
   };
 }
