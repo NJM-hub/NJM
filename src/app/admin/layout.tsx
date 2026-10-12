@@ -12,10 +12,11 @@ const links = [
   { href: "/admin/settlement", label: "정산·세무" },
   { href: "/admin/settings", label: "설정" },
   { href: "/admin/staff", label: "직원" },
+  { href: "/admin/backup", label: "백업" },
 ];
 
 /** 직원(배차·차량 관리)에게는 보이지 않는 관리자 전용 메뉴 */
-const OWNER_ONLY = new Set(["/admin/vehicle-settlement", "/admin/settlement", "/admin/settings", "/admin/staff"]);
+const OWNER_ONLY = new Set(["/admin/vehicle-settlement", "/admin/settlement", "/admin/settings", "/admin/staff", "/admin/backup"]);
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, role } = await requireAdmin();
