@@ -18,6 +18,7 @@ const NAV = [
   { href: "/expenses", label: "비용관리", icon: "💳" },
   { href: "/documents", label: "문서관리", icon: "📁" },
   { href: "/reports", label: "통계/리포트", icon: "📈" },
+  { href: "/backup", label: "백업", icon: "💾" },
   { href: "/settings", label: "설정", icon: "⚙️" },
 ];
 
