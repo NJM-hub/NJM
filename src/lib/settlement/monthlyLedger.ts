@@ -43,19 +43,19 @@ export type MonthLedger = {
   remain: number;
 };
 
-/** 정산내역서·확정 배차·차량별 월정산(직접 추가 항목·비용)·직접 입력이 있는 달, 최신 달 먼저 */
+/** 정산내역서·확정 배차·차량별 월정산 비용·직접 입력이 있는 달, 최신 달 먼저 */
 export async function ledgerMonths(db: SupabaseClient): Promise<string[]> {
-  const [st, { data: runs }, { data: led }, { data: vItems }, { data: vExp }] = await Promise.all([
+  // 한 번에 1,000건까지만 오므로 끝까지 받는다 (직접 추가 항목은 너무 많아 비용 행으로 달을 찾는다)
+  const [st, runs, { data: led }, vExp] = await Promise.all([
     fetchAll((a, b) => db.from("kkday_statements").select("booking_no,service_date").order("booking_no").range(a, b)),
-    db.from("dispatch_runs").select("service_date").eq("status", "confirmed"),
+    fetchAll((a, b) => db.from("dispatch_runs").select("id,service_date").eq("status", "confirmed").order("id").range(a, b)),
     db.from("monthly_ledger").select("month"),
-    db.from("vehicle_month_items").select("month"),
-    db.from("vehicle_month_expenses").select("month"),
+    fetchAll((a, b) => db.from("vehicle_month_expenses").select("vehicle_id,month,operator").order("vehicle_id").order("month").order("operator").range(a, b)),
   ]);
   const set = new Set<string>();
   for (const r of st as { service_date: string | null }[]) if (r.service_date) set.add(r.service_date.slice(0, 7));
-  for (const r of runs ?? []) set.add(String(r.service_date).slice(0, 7));
-  for (const r of [...(led ?? []), ...(vItems ?? []), ...(vExp ?? [])]) set.add(String(r.month));
+  for (const r of runs as { service_date: string }[]) set.add(String(r.service_date).slice(0, 7));
+  for (const r of [...(led ?? []), ...(vExp as { month: string }[])]) set.add(String(r.month));
   return [...set].sort().reverse();
 }
 

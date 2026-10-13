@@ -66,7 +66,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
   const settings = await loadSettings(db);
   const ownCallFee = settings.own_call_fee ?? 15000;
   const rules = fareRulesOf(settings);
-  const [data, { data: runs }, { data: expenses }, { data: items }] = await Promise.all([
+  const [data, { data: runs }, { data: expenses }, items] = await Promise.all([
     fetchAll((a, b) => db
       .from("dispatch_assignments")
       .select(
@@ -80,10 +80,11 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
       .range(a, b)),
     db.from("dispatch_runs").select("service_date,status").gte("service_date", from).lte("service_date", to),
     db.from("vehicle_month_expenses").select("vehicle_id,operator,fuel,fines,tolls,engine_oil,other,memo,status,confirmed_at").eq("month", month),
-    db.from("vehicle_month_items").select("*").eq("month", month),
+    // 급여명세서를 옮긴 달은 직접 추가 항목이 1,000건을 넘는다
+    fetchAll((a, b) => db.from("vehicle_month_items").select("*").eq("month", month).order("id").range(a, b)),
   ]);
   const rows = data as unknown as Row[];
-  const manual = (items ?? []) as ItemRow[];
+  const manual = items as ItemRow[];
 
   const vehicleRows: VehicleMonthRow[] = rows
     .filter((r) => r.vehicle_id)
