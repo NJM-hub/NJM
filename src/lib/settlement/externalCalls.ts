@@ -102,7 +102,7 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         to: b?.dropoff_place ?? b?.dropoff_address ?? null,
         flightNo: b?.flight_no ?? null,
         fare: r.fare ?? 0,
-        // 예약번호 없이 직접 넣은 외부 콜은 예약에 적어 둔 KKday 금액을 쓴다
+        // 예약에 적어 둔 실제 KKday 받은 금액 (예약번호 없이 넣은 외부 콜, 외부기사 오더 엑셀의 추가비고)
         kkdayAmount: Number.isFinite(Number(b?.raw?.["kkday_amount"])) && b?.raw?.["kkday_amount"] ? Number(b.raw["kkday_amount"]) : null,
         kkdayNet: null,
         diff: null,
@@ -119,7 +119,8 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
     for (const s of st ?? []) amountOf.set(s.booking_no as string, s.amount as number);
   }
   for (const c of out) {
-    const a = (c.bookingNo ? amountOf.get(c.bookingNo) : undefined) ?? c.kkdayAmount ?? undefined;
+    // 직접 적어 둔 실제 받은 금액이 있으면 그 금액, 없으면 정산내역서 금액
+    const a = c.kkdayAmount ?? (c.bookingNo ? amountOf.get(c.bookingNo) : undefined);
     if (a == null) continue;
     c.kkdayAmount = a;
     c.kkdayNet = withoutVat(a);
