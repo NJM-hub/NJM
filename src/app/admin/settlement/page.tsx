@@ -26,7 +26,6 @@ function OverrideCell({ form, name, value, auto, overridden }: { form: string; n
         form={form} name={name} defaultValue={overridden ? String(value) : ""} placeholder={auto.toLocaleString("ko-KR")}
         inputMode="numeric" title="비워 두면 차량별 월정산에서 자동 계산" className={`input w-32 text-right ${overridden ? "border-amber-400" : ""}`}
       />
-      {overridden && <div className="mt-1 whitespace-nowrap text-xs text-gray-500">자동 {won(auto)}</div>}
     </td>
   );
 }
