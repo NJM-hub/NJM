@@ -120,6 +120,13 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     r.operator = canonicalDriver(r.operator, aliases);
   }
   assignSettleOperators(vehicleRows);
+  // 직접 추가 항목에 기사 이름을 따로 적어 둔 달(급여명세서를 옮긴 달)은 같은 기사의 배차도 그 이름 줄로 모은다
+  const manualOps = new Map<string, Set<string>>();
+  for (const m of manual) if (m.operator) manualOps.set(m.vehicle_id, (manualOps.get(m.vehicle_id) ?? new Set()).add(canonicalDriver(m.operator, aliases) ?? m.operator));
+  for (const r of vehicleRows) {
+    const name = r.operator ?? r.driverName;
+    if (!r.settleOperator && name && manualOps.get(r.vehicleId)?.has(name)) r.settleOperator = name;
+  }
 
   // 직접 추가한 항목: 그 차량의 번호·기사 이름이 필요하다
   if (manual.length) {

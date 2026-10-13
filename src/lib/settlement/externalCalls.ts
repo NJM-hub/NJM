@@ -5,6 +5,7 @@ import { fetchAll } from "@/lib/fetchAll";
 import { withoutVat } from "@/lib/kkday/statement";
 import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
+import { operatorOf } from "./vehicleMonthlyLoad";
 import { loadSettings } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
 import { OWN_CALL, ownCallAmount } from "./vehicleMonthly";
@@ -137,7 +138,8 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         pickupAt: b.pickup_at,
         vehicleId: r.vehicle_id,
         plate: r.vehicles?.plate_number ?? null,
-        driverName: canonicalDriver(ko(r.drivers?.name ?? r.vehicles?.driver_name ?? b.raw?.["기사"] ?? null), parseDriverAliases(settings.driver_aliases)),
+        // 시트·현금 내역에 적힌 운행 기사가 있으면 그 이름 (차량 담당 기사와 다를 수 있다)
+        driverName: canonicalDriver(operatorOf(b.raw) ?? ko(r.drivers?.name ?? r.vehicles?.driver_name ?? null), parseDriverAliases(settings.driver_aliases)),
         tripType: b.trip_type,
         content: b.raw?.["내용"] ?? b.memo ?? "",
         charterFare: b.fare,
