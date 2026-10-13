@@ -9,15 +9,20 @@ type Cell = string | number | Date | boolean | null | undefined;
 
 const norm = (c: Cell) => String(c ?? "").replace(/^﻿/, "").trim();
 
+/** 한국어·중국어(간체/번체) 내역서 열 이름 */
+const BOOKING_NO = ["예약번호", "订单号码", "訂單號碼"];
+const SERVICE_DATE = ["출발날짜", "出发日期", "出發日期"];
+const STATUS = ["주문 상태", "订单状态", "訂單狀態"];
+
 export function parseKkdayStatement(rows: Cell[][]): StatementBooking[] {
-  const h = rows.findIndex((r) => r.some((c) => norm(c) === "예약번호") && r.some((c) => /Amount/i.test(norm(c))));
+  const h = rows.findIndex((r) => r.some((c) => BOOKING_NO.includes(norm(c))) && r.some((c) => /Amount/i.test(norm(c))));
   if (h < 0) throw new Error("KKday 정산내역서 형식이 아닙니다 (예약번호·Amount 열이 없습니다).");
   const head = rows[h].map(norm);
   const col = (...names: string[]) => names.map((n) => head.indexOf(n)).find((i) => i >= 0) ?? -1;
-  const no = col("예약번호");
+  const no = col(...BOOKING_NO);
   const amt = col("Amount in Local Currency", "Transaction Amount");
-  const date = col("출발날짜");
-  const status = col("주문 상태");
+  const date = col(...SERVICE_DATE);
+  const status = col(...STATUS);
 
   const by = new Map<string, StatementBooking>();
   for (const r of rows.slice(h + 1)) {

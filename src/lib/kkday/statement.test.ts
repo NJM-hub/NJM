@@ -24,6 +24,19 @@ describe("KKday 정산내역서", () => {
     expect(withoutVat(60000)).toBe(54545);
     expect(withoutVat(60000) - 50000).toBe(4545);
   });
+  it("중국어 내역서도 읽는다", () => {
+    const zh = [
+      ["时区皆以KKday总公司 GMT+8为主"],
+      ["供应商订单编号", "订单号码", "Transaction Currency", "Transaction Amount", "类型", "出发日期", "订单状态", "Amount in Local Currency"],
+      [null, "26KK9", "KRW", 55200, "订单成立", "2026-08-28 (GMT+9)", "已取消", 55200],
+      [null, "26KK9", "KRW", -55200, "取消退款", "2026-08-28 (GMT+9)", "已取消", -55200],
+      [null, "26KK8", "KRW", 60000, "订单成立", "2026-08-27 (GMT+9)", "已完成", 60000],
+    ];
+    expect(parseKkdayStatement(zh)).toEqual([
+      { bookingNo: "26KK9", amount: 0, lines: 2, serviceDate: "2026-08-28", status: "已取消" },
+      { bookingNo: "26KK8", amount: 60000, lines: 1, serviceDate: "2026-08-27", status: "已完成" },
+    ]);
+  });
   it("형식이 다르면 오류", () => {
     expect(() => parseKkdayStatement([["a", "b"]])).toThrow();
   });
