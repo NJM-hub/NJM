@@ -61,12 +61,15 @@ export async function ledgerMonths(db: SupabaseClient): Promise<string[]> {
 
 export async function loadMonthLedger(db: SupabaseClient, month: string): Promise<MonthLedger> {
   const { from, to } = monthRange(month);
-  const [st, report, { data: led }, { data: itemRows, error: iErr }] = await Promise.all([
+  const [st, report, { data: led }, { data: itemRows, error: iErr }, { data: manualKk, error: mErr }] = await Promise.all([
     fetchAll((a, b) => db.from("kkday_statements").select("booking_no,amount").gte("service_date", from).lte("service_date", to).order("booking_no").range(a, b)),
     loadVehicleMonth(db, month),
     db.from("monthly_ledger").select("*").eq("month", month).maybeSingle(),
     db.from("monthly_ledger_items").select("*").eq("month", month).order("spent_on", { nullsFirst: false }).order("created_at"),
+    // 예약번호 없이 직접 넣은 외부 콜의 KKday 금액 (정산내역서에 없는 금액)
+    db.from("bookings").select("raw").gte("service_date", from).lte("service_date", to).is("booking_no", null).not("raw->kkday_amount", "is", null),
   ]);
+  if (mErr) throw new Error(mErr.message);
   if (iErr) throw new Error(iErr.message);
   const items = (itemRows ?? []) as LedgerItem[];
   const valueOf = (c: (typeof LEDGER_CATEGORIES)[number]) => {
@@ -75,7 +78,8 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   };
   const [installment, cashExpense, cashSpend, officeExpense] = LEDGER_CATEGORIES.map(valueOf);
   const itemized = Object.fromEntries(LEDGER_CATEGORIES.map((c) => [c.key, items.some((i) => i.category === c.key)])) as Record<LedgerCategory, boolean>;
-  const kkdayStatement = (st as { amount: number }[]).reduce((s, r) => s + r.amount, 0);
+  const manualKkday = (manualKk ?? []).reduce((s, b) => s + (Number((b.raw as Record<string, unknown> | null)?.kkday_amount) || 0), 0);
+  const kkdayStatement = (st as { amount: number }[]).reduce((s, r) => s + r.amount, 0) + manualKkday;
   const kkdayAdjust = led?.kkday_adjust ?? 0;
   const kkdayAmount = kkdayStatement + kkdayAdjust;
   const kkdayNet = withoutVat(kkdayAmount);
