@@ -32,6 +32,11 @@ export type MonthLedger = {
   cost: number;
   /** 기사 지급액 (세액 포함 = 금액 − 비용) */
   driverPay: number;
+  /** 차량별 월정산에서 자동 계산한 비용·기사 지급 (직접 고친 값이 있으면 cost·driverPay 와 다르다) */
+  costAuto: number;
+  driverPayAuto: number;
+  costOverridden: boolean;
+  driverPayOverridden: boolean;
   installment: number;
   cashExpense: number;
   cashSpend: number;
@@ -84,10 +89,14 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   const kkdayAmount = kkdayStatement + kkdayAdjust;
   const kkdayNet = withoutVat(kkdayAmount);
   const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses, 0);
-  const driverPay = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
-  const cost = vehicleExpenses;
+  const driverPayAuto = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
+  const costAuto = vehicleExpenses;
+  const costOverridden = led?.cost_override != null;
+  const driverPayOverridden = led?.driver_pay_override != null;
+  const cost = costOverridden ? (led!.cost_override as number) : costAuto;
+  const driverPay = driverPayOverridden ? (led!.driver_pay_override as number) : driverPayAuto;
   return {
-    month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, vehicleExpenses, cost, driverPay,
+    month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, vehicleExpenses, cost, driverPay, costAuto, driverPayAuto, costOverridden, driverPayOverridden,
     installment, cashExpense, cashSpend, officeExpense, memo: led?.memo ?? null, itemized, items,
     remain: kkdayNet - cost - driverPay - installment - cashExpense - cashSpend - officeExpense,
   };

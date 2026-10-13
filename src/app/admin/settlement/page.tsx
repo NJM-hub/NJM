@@ -18,6 +18,19 @@ function MoneyInput({ form, name, value }: { form: string; name: string; value: 
   return <input form={form} name={name} defaultValue={value ? String(value) : ""} placeholder="0" inputMode="numeric" className="input w-28 text-right" />;
 }
 
+/** 비용·기사 지급: 비워 두면 자동 계산 값, 숫자를 적으면 그 값 */
+function OverrideCell({ form, name, value, auto, overridden }: { form: string; name: string; value: number; auto: number; overridden: boolean }) {
+  return (
+    <td className="text-right">
+      <input
+        form={form} name={name} defaultValue={overridden ? String(value) : ""} placeholder={auto.toLocaleString("ko-KR")}
+        inputMode="numeric" title="비워 두면 차량별 월정산에서 자동 계산" className={`input w-32 text-right ${overridden ? "border-amber-400" : ""}`}
+      />
+      {overridden && <div className="mt-1 whitespace-nowrap text-xs text-gray-500">자동 {won(auto)}</div>}
+    </td>
+  );
+}
+
 /** 상세 내역이 있으면 합계(상세로 이동), 없으면 직접 입력 칸 */
 function LedgerCell({ r, form, name, value, itemized }: { r: MonthLedger; form: string; name: string; value: number; itemized: boolean }) {
   return (
@@ -50,7 +63,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
         <div className="px-4 pt-4">
           <div className="font-semibold">샌딩 · 픽업 전체 정산표</div>
           <p className="mt-1 text-xs text-gray-500">
-            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산에 입력한 비용(외부 콜 제외), 기사 지급은 차량별 월정산의 차액(세액 포함)입니다.
+            KKday 정산 합계는 정산내역서(실제 정산 받은 금액, 부가세 포함), 비용은 차량별 월정산에 입력한 비용(외부 콜 제외), 기사 지급은 차량별 월정산의 차액(세액 포함)이 자동으로 들어가며(흐린 숫자), 직접 적고 저장하면 그 금액을 씁니다. 다시 비우고 저장하면 자동 계산으로 돌아갑니다.
             차량 할부금·원천 지출·현금 지출·사무실 지출은 직접 입력 후 저장하거나, 월을 눌러 지출 상세 내역을 적으면 그 합계가 들어갑니다. 남은 차액 = 부가세 제외 − 비용 − 기사 지급 − 할부금 − 원천 지출 − 현금 지출 − 사무실 지출.
           </p>
         </div>
@@ -80,8 +93,8 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                   </td>
                   <td className="text-right">{won(r.kkdayAmount)}</td>
                   <td className="text-right">{won(r.kkdayNet)}</td>
-                  <td className="text-right">{won(r.cost)}</td>
-                  <td className="text-right">{won(r.driverPay)}</td>
+                  <OverrideCell form={f} name="cost_override" value={r.cost} auto={r.costAuto} overridden={r.costOverridden} />
+                  <OverrideCell form={f} name="driver_pay_override" value={r.driverPay} auto={r.driverPayAuto} overridden={r.driverPayOverridden} />
                   <LedgerCell r={r} form={f} name="vehicle_installment" value={r.installment} itemized={r.itemized.installment} />
                   <LedgerCell r={r} form={f} name="cash_expense" value={r.cashExpense} itemized={r.itemized.withholding} />
                   <LedgerCell r={r} form={f} name="cash_spend" value={r.cashSpend} itemized={r.itemized.cash} />

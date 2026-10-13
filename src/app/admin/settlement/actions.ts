@@ -28,6 +28,12 @@ export async function saveMonthLedger(formData: FormData) {
   const month = monthOf(formData);
   const row: Record<string, unknown> = { month, updated_at: new Date().toISOString() };
   for (const c of LEDGER_CATEGORIES) if (formData.has(c.column)) row[c.column] = won(formData.get(c.column));
+  // 비용·기사 지급: 비워 두면 자동 계산(null), 숫자를 적으면 그 값
+  for (const k of ["cost_override", "driver_pay_override"]) {
+    if (!formData.has(k)) continue;
+    const v = String(formData.get(k) ?? "").trim();
+    row[k] = v === "" ? null : won(v);
+  }
   const { error } = await supabase.from("monthly_ledger").upsert(row);
   if (error) throw new Error(error.message);
   refresh(month);
