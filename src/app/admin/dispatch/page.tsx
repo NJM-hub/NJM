@@ -6,6 +6,7 @@ import { OWN_CALL_SOURCE } from "@/lib/kkday/sheet";
 import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
+import { KkdayFileUpload } from "./KkdayFileUpload";
 import { confirmRun, moveAssignment, moveSelected, runDispatch, setExternalFare, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
@@ -168,6 +169,8 @@ export default async function DispatchPage({
             이 날짜 일정 전체 삭제: <DeleteDateButton date={date} count={bookingCount} />
           </div>
         )}
+
+        <KkdayFileUpload date={date} />
 
         <form action={runDispatch} className="space-y-3 border-t border-gray-100 pt-4">
           <input type="hidden" name="date" value={date} />
