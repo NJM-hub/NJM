@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { updateDriverStatus } from "./actions";
+import { RosterSection } from "./RosterSection";
 
 const STATUS = { pending: ["승인 대기", "bg-amber-100 text-amber-800"], approved: ["승인", "bg-green-100 text-green-800"], inactive: ["비활성", "bg-gray-100 text-gray-600"] } as const;
 
 export default async function DriversPage() {
-  const { supabase } = await requireAdmin();
+  const { supabase, role } = await requireAdmin();
   const [{ data: drivers }, { data: vehicles }] = await Promise.all([
     supabase.from("drivers").select("id,name,phone,email,status,vehicle_id,rrn_masked,bank_name,bank_account_masked,license_expiry,created_at").order("status").order("name"),
     supabase.from("vehicles").select("id,plate_number,model").order("plate_number"),
@@ -16,6 +17,7 @@ export default async function DriversPage() {
   return (
     <div className="space-y-6">
       <h1 className="page-title">기사 관리</h1>
+      {role === "admin" && <RosterSection db={supabase} vehicles={vehicles ?? []} />}
       <p className="text-sm text-gray-500">
         기사는 <b>/signup</b> 에서 직접 가입하고 신상정보를 입력합니다. 가입 링크를 기사님들께 공유하세요. 승인하고 차량을 연결해야 배차에 기사가 표시됩니다.
       </p>
