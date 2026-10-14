@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
+// /api/cron 은 Vercel Cron 이 비밀값(CRON_SECRET)으로 부른다 (로그인 대신 경로 안에서 확인)
+const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/cron"];
 
 /** Supabase 세션 쿠키 갱신 + 비로그인 사용자 로그인 페이지로 이동 */
 export async function proxy(request: NextRequest) {

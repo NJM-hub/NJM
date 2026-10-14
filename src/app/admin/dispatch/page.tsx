@@ -7,7 +7,7 @@ import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { KkdayFileUpload } from "./KkdayFileUpload";
-import { confirmRun, moveAssignment, moveSelected, runDispatch, setExternalFare, unconfirmRun } from "./actions";
+import { addOwnCall, confirmRun, deleteOwnCall, moveAssignment, moveSelected, runDispatch, setExternalFare, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
 import { DeleteDateButton } from "../schedule/DeleteControls";
@@ -35,6 +35,8 @@ type Booking = {
   pickup_geo: string | null;
   dropoff_geo: string | null;
   source: string | null;
+  fare?: number | null;
+  raw?: Record<string, string> | null;
 };
 
 type Assignment = {
@@ -75,7 +77,7 @@ export default async function DispatchPage({
   const { data: assignmentsRaw } = run
     ? await supabase
         .from("dispatch_assignments")
-        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,fare,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min,trip_type,dropoff_lat,pickup_geo,dropoff_geo,source)")
+        .select("id,booking_id,vehicle_id,driver_id,seq,ready_at,deadhead_km,deadhead_min,unassigned_reason,fare,bookings(id,booking_no,product_name,customer_name,customer_phone,pax,pickup_at,duration_min,pickup_address,dropoff_address,flight_no,memo,pickup_lat,pickup_place,dropoff_place,vehicle_class,wait_min,trip_type,dropoff_lat,pickup_geo,dropoff_geo,source,fare,raw)")
         .eq("run_id", run.id)
     : { data: [] };
   const assignments = (assignmentsRaw ?? []) as unknown as Assignment[];
@@ -338,6 +340,74 @@ export default async function DispatchPage({
           {routeText && <CopyBox title="기사별 배차표 복사 (카톡 전달용)" text={routeText} />}
         </>
       )}
+
+      {/* 외부에서 받은 콜(기사 자체 콜) 직접 입력: 차량 동선과 따로, 정산에서는 별도 수금 */}
+      <div id="own-calls" className="card space-y-3">
+        <h2 className="font-semibold">외부에서 받은 콜 직접 입력 ({ownCalls.length}건)</h2>
+        <p className="text-xs text-gray-500">
+          기사가 따로 받은 콜입니다. 차량 동선·콜 수에는 넣지 않고, 확정되면 외부 콜 메뉴의 &quot;외부에서 받은 콜&quot;과 차량별 월정산(별도 수금)에 들어갑니다.
+          금액을 비우면 기본 차감액, 적으면 그 금액(전세·투어 등)으로 처리됩니다.
+        </p>
+        {ownCalls.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr><th>시간</th><th>차량</th><th>기사</th><th>내용</th><th className="text-right">금액</th><th /></tr>
+              </thead>
+              <tbody>
+                {ownCalls.map((a) => {
+                  const who = a.bookings.raw?.["기사"] ?? "";
+                  return (
+                    <tr key={a.id}>
+                      <td className="whitespace-nowrap">{fmtTime(a.bookings.pickup_at)}</td>
+                      <td className="whitespace-nowrap">{(vehicles ?? []).find((v) => v.id === a.vehicle_id)?.plate_number ?? "-"}</td>
+                      <td>{ko(who.replace(/\d{4}/g, "").trim()) || driverLabel(a.vehicle_id ?? "") || "-"}</td>
+                      <td>{a.bookings.raw?.["내용"] ?? a.bookings.memo ?? ""}</td>
+                      <td className="text-right">{a.bookings.fare ? won(a.bookings.fare) : "기본"}</td>
+                      <td>
+                        <form action={deleteOwnCall}>
+                          <input type="hidden" name="bookingId" value={a.booking_id} />
+                          <input type="hidden" name="date" value={date} />
+                          <SubmitButton className="btn-secondary !px-2 !py-1 text-xs text-red-600" pendingText="...">삭제</SubmitButton>
+                        </form>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <form action={addOwnCall} className="flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 text-sm">
+          <input type="hidden" name="date" value={date} />
+          <div>
+            <label className="label">차량</label>
+            <select name="vehicleId" required className="input !w-48" defaultValue="">
+              <option value="" disabled>차량 선택</option>
+              {(vehicles ?? []).map((v) => (
+                <option key={v.id} value={v.id}>{v.plate_number}{v.driver_name ? ` ${v.driver_name}` : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">기사 이름</label>
+            <input name="driverName" placeholder="비우면 차량 기사" className="input !w-32" />
+          </div>
+          <div>
+            <label className="label">예약 시간</label>
+            <input name="time" type="time" required className="input !w-32" />
+          </div>
+          <div>
+            <label className="label">내용 (선택)</label>
+            <input name="content" placeholder="예: 투어, 샌딩" className="input !w-36" />
+          </div>
+          <div>
+            <label className="label">금액 (선택)</label>
+            <input name="amount" inputMode="numeric" placeholder="기본 차감액" className="input !w-28 text-right" />
+          </div>
+          <SubmitButton pendingText="저장 중...">추가</SubmitButton>
+        </form>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,8 @@ import { fareFor } from "@/lib/settlement/fare";
 import { OWN_CALL_SOURCE, type SheetBooking } from "@/lib/kkday/sheet";
 import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
 import { saveBookings } from "../upload/actions";
+import { confirmRunWith } from "@/lib/dispatch/confirm";
+import { ko } from "@/lib/ko";
 
 type BookingRow = {
   id: string;
@@ -452,22 +454,74 @@ async function refreshSummary(db: Db, runId: string) {
 export async function confirmRun(formData: FormData) {
   const { supabase } = await assertAdmin();
   const runId = String(formData.get("runId"));
-  const { data: run } = await supabase.from("dispatch_runs").select("id,service_date").eq("id", runId).single();
-  if (!run) throw new Error("배차를 찾을 수 없습니다.");
+  const { serviceDate } = await confirmRunWith(supabase, runId);
+  revalidatePath("/admin/dispatch");
+  redirect(`/admin/dispatch?date=${serviceDate}&run=${runId}`);
+}
 
-  // 확정 시점의 차량-기사 연결로 기사 정보를 다시 채운다
-  const { data: drivers } = await supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null);
-  const { data: rows } = await supabase.from("dispatch_assignments").select("id,vehicle_id").eq("run_id", runId).not("vehicle_id", "is", null);
-  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
-  await Promise.all(
-    (rows ?? []).map((r) => supabase.from("dispatch_assignments").update({ driver_id: driverOf.get(r.vehicle_id!) ?? null }).eq("id", r.id)),
-  );
+/**
+ * 외부에서 받은 콜(기사 자체 콜)을 직접 넣는다: 차량·기사 이름·예약 시간(·내용·금액).
+ * 그 날짜 배차(없으면 초안을 새로 만든다)에 그 차량으로 고정해서 넣는다.
+ * 금액을 비우면 정산에서 기본 차감액(설정)으로, 적으면 −그 금액으로 별도 수금 처리된다.
+ */
+export async function addOwnCall(formData: FormData) {
+  const { supabase, user } = await assertAdmin();
+  const date = String(formData.get("date"));
+  if (!isDate(date)) throw new Error("날짜가 올바르지 않습니다.");
+  const vehicleId = String(formData.get("vehicleId") ?? "");
+  const driverName = String(formData.get("driverName") ?? "").trim();
+  const time = String(formData.get("time") ?? "").trim();
+  const content = String(formData.get("content") ?? "").trim() || null;
+  const amountRaw = String(formData.get("amount") ?? "").replace(/[,\s원]/g, "");
+  const amount = amountRaw ? Math.round(Number(amountRaw)) : null;
+  if (!vehicleId) throw new Error("차량을 고르세요.");
+  if (!/^\d{1,2}:\d{2}$/.test(time)) throw new Error("예약 시간을 입력하세요.");
+  if (amount != null && (!Number.isFinite(amount) || amount < 0 || amount > 10_000_000)) throw new Error("금액이 올바르지 않습니다.");
 
-  await supabase.from("dispatch_runs").update({ status: "draft", confirmed_at: null }).eq("service_date", run.service_date).eq("status", "confirmed");
-  const { error } = await supabase.from("dispatch_runs").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", runId);
+  const { data: vehicle } = await supabase.from("vehicles").select("id,plate_number,driver_name").eq("id", vehicleId).single();
+  if (!vehicle) throw new Error("차량을 찾을 수 없습니다.");
+  const { data: locked } = await supabase
+    .from("vehicle_month_expenses").select("vehicle_id").eq("month", date.slice(0, 7)).eq("vehicle_id", vehicleId).eq("status", "confirmed");
+  if (locked?.length) throw new Error("이 차량은 그 달 정산을 확정해서 넣을 수 없습니다. 차량별 월정산에서 확정을 해제하세요.");
+
+  const { data: runs } = await supabase.from("dispatch_runs").select("id,status").eq("service_date", date).order("created_at", { ascending: false });
+  let runId = (runs ?? []).find((r) => r.status === "confirmed")?.id ?? runs?.[0]?.id;
+  if (!runId) {
+    const { data: run, error } = await supabase
+      .from("dispatch_runs").insert({ service_date: date, status: "draft", options: {}, summary: {}, created_by: user.id }).select("id").single();
+    if (error || !run) throw new Error(error?.message ?? "배차를 만들지 못했습니다.");
+    runId = run.id;
+  }
+
+  const name = driverName || ko(vehicle.driver_name) || "";
+  const { data: booking, error: bErr } = await supabase
+    .from("bookings")
+    .insert({
+      service_date: date, source: OWN_CALL_SOURCE, pax: 1, pickup_at: `${date}T${time.padStart(5, "0")}:00+09:00`,
+      fare: amount, trip_type: content, memo: content, fixed_vehicle_id: vehicleId,
+      raw: { 기사: `${vehicle.plate_number.slice(-4)} ${name}`.trim(), 내용: content ?? "외부오더", 입력: "직접" },
+    })
+    .select("id")
+    .single();
+  if (bErr || !booking) throw new Error(bErr?.message ?? "저장하지 못했습니다.");
+  const { error: aErr } = await supabase
+    .from("dispatch_assignments").insert({ run_id: runId, booking_id: booking.id, vehicle_id: vehicleId, fare: amount ?? 0 });
+  if (aErr) throw new Error(aErr.message);
+  revalidatePath("/admin/dispatch");
+  redirect(`/admin/dispatch?date=${date}&run=${runId}#own-calls`);
+}
+
+/** 직접 넣은 외부에서 받은 콜 삭제 (예약을 지우면 배차 내역도 함께 지워진다) */
+export async function deleteOwnCall(formData: FormData) {
+  const { supabase } = await assertAdmin();
+  const bookingId = String(formData.get("bookingId"));
+  const date = String(formData.get("date"));
+  const { data: b } = await supabase.from("bookings").select("source").eq("id", bookingId).single();
+  if (b?.source !== OWN_CALL_SOURCE) throw new Error("외부에서 받은 콜만 여기서 지울 수 있습니다.");
+  const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/dispatch");
-  redirect(`/admin/dispatch?date=${run.service_date}&run=${runId}`);
+  redirect(`/admin/dispatch?date=${date}#own-calls`);
 }
 
 export async function unconfirmRun(formData: FormData) {
