@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SubmitButton } from "@/components/SubmitButton";
+import { todayKst } from "@/lib/format";
 import { ledgerMonths } from "@/lib/settlement/monthlyLedger";
 import { deleteRosterDriver, saveRosterDriver } from "./rosterActions";
 
@@ -9,8 +9,6 @@ type Roster = {
   id: string; name: string; vehicle_id: string | null; phone: string | null; rrn_masked: string | null; bank_name: string | null;
   bank_account_masked: string | null; account_holder: string | null; active: boolean; memo: string | null;
 };
-
-const monthLabel = (m: string) => `${m.slice(2, 4)}년 ${Number(m.slice(5))}월`;
 
 function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
   const f = r ? `roster-${r.id}` : "roster-new";
@@ -60,15 +58,14 @@ export async function RosterSection({ db, vehicles }: { db: SupabaseClient; vehi
   const roster = (data ?? []) as Roster[];
   return (
     <>
-      <div className="card space-y-2">
-        <div className="font-semibold">월별 기사 지급표</div>
-        <p className="text-xs text-gray-500">월을 누르면 그 달 정산 기사별 차량·이름·주민번호·계좌번호·지급액을 볼 수 있습니다 (아래 명단과 이름으로 맞춥니다).</p>
-        <div className="flex flex-wrap gap-2">
-          {months.map((m) => (
-            <Link key={m} href={`/admin/drivers/pay?month=${m}`} className="btn-secondary !py-1">{monthLabel(m)}</Link>
-          ))}
+      <form action="/admin/drivers/pay" className="card flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label" htmlFor="pay-month">기사 지급표 월</label>
+          <input id="pay-month" type="month" name="month" defaultValue={months[0] ?? todayKst().slice(0, 7)} required className="input" />
         </div>
-      </div>
+        <button className="btn-secondary">조회</button>
+        <p className="text-xs text-gray-500">그 달 정산 기사별 차량·이름·주민번호·계좌번호·지급액을 봅니다 (아래 명단과 이름으로 맞춥니다).</p>
+      </form>
 
       <div className="card overflow-x-auto !p-0">
         <div className="px-4 pt-4">

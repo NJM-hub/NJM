@@ -55,6 +55,13 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
         <Link href="/admin/drivers" className="text-sm text-blue-700 underline">← 기사 관리</Link>
         <h1 className="page-title">{monthLabel(month)} 기사 지급표</h1>
       </div>
+      <form className="card flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label" htmlFor="month">지급 월</label>
+          <input id="month" type="month" name="month" defaultValue={month} required className="input" />
+        </div>
+        <button className="btn-secondary">조회</button>
+      </form>
       <p className="text-sm text-gray-500">
         지급액은 차량별 월정산의 실제 지급액(원천세 뺀 금액)입니다. 주민번호·계좌는 기사 관리의 소속 기사 명단에서 이름으로 찾아옵니다.
       </p>
