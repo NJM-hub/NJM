@@ -3,11 +3,5 @@
   "framework": "nextjs",
   "regions": [
     "icn1"
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/confirm-runs",
-      "schedule": "0 15 * * *"
-    }
   ]
 }

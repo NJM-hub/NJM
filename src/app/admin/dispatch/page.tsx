@@ -345,7 +345,7 @@ export default async function DispatchPage({
       <div id="own-calls" className="card space-y-3">
         <h2 className="font-semibold">외부에서 받은 콜 직접 입력 ({ownCalls.length}건)</h2>
         <p className="text-xs text-gray-500">
-          기사가 따로 받은 콜입니다. 차량 동선·콜 수에는 넣지 않고, 확정되면 외부 콜 메뉴의 &quot;외부에서 받은 콜&quot;과 차량별 월정산(별도 수금)에 들어갑니다.
+          기사가 따로 받은 콜입니다. 차량 동선·콜 수에는 넣지 않고, 배차 확정을 누르면 외부 콜 메뉴의 &quot;외부에서 받은 콜&quot;과 차량별 월정산(별도 수금)에 들어갑니다 (확정 전에는 반영되지 않습니다).
           금액을 비우면 기본 차감액, 적으면 그 금액(전세·투어 등)으로 처리됩니다.
         </p>
         {ownCalls.length > 0 && (
@@ -380,6 +380,7 @@ export default async function DispatchPage({
         )}
         <form action={addOwnCall} className="flex flex-wrap items-end gap-2 border-t border-gray-100 pt-3 text-sm">
           <input type="hidden" name="date" value={date} />
+          {run && <input type="hidden" name="runId" value={run.id} />}
           <div>
             <label className="label">차량</label>
             <select name="vehicleId" required className="input !w-48" defaultValue="">

@@ -461,7 +461,8 @@ export async function confirmRun(formData: FormData) {
 
 /**
  * 외부에서 받은 콜(기사 자체 콜)을 직접 넣는다: 차량·기사 이름·예약 시간(·내용·금액).
- * 그 날짜 배차(없으면 초안을 새로 만든다)에 그 차량으로 고정해서 넣는다.
+ * 화면에서 보고 있는 배차(없으면 초안을 새로 만든다)에 그 차량으로 고정해서 넣는다.
+ * 초안에 넣으면 배차 확정을 눌러야 정산에 반영된다.
  * 금액을 비우면 정산에서 기본 차감액(설정)으로, 적으면 −그 금액으로 별도 수금 처리된다.
  */
 export async function addOwnCall(formData: FormData) {
@@ -485,7 +486,8 @@ export async function addOwnCall(formData: FormData) {
   if (locked?.length) throw new Error("이 차량은 그 달 정산을 확정해서 넣을 수 없습니다. 차량별 월정산에서 확정을 해제하세요.");
 
   const { data: runs } = await supabase.from("dispatch_runs").select("id,status").eq("service_date", date).order("created_at", { ascending: false });
-  let runId = (runs ?? []).find((r) => r.status === "confirmed")?.id ?? runs?.[0]?.id;
+  const wanted = String(formData.get("runId") ?? "");
+  let runId = (runs ?? []).find((r) => r.id === wanted)?.id ?? (runs ?? []).find((r) => r.status === "confirmed")?.id ?? runs?.[0]?.id;
   if (!runId) {
     const { data: run, error } = await supabase
       .from("dispatch_runs").insert({ service_date: date, status: "draft", options: {}, summary: {}, created_by: user.id }).select("id").single();
