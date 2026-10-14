@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireViewer } from "@/lib/auth";
-import { ReadOnly } from "@/components/ReadOnly";
+import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { decrypt } from "@/lib/crypto";
 import { canonicalDriver, parseDriverAliases } from "@/lib/driverAlias";
 import { isMonth, won } from "@/lib/format";
@@ -63,6 +63,7 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
         </div>
         <button className="btn-secondary">조회</button>
       </form>
+      <ReadOnlyNotice on={readOnly} />
       <p className="text-sm text-gray-500">
         지급액은 차량별 월정산의 실제 지급액(원천세 뺀 금액)입니다. 주민번호·계좌는 기사 관리의 소속 기사 명단에서 이름으로 찾아옵니다.
       </p>
