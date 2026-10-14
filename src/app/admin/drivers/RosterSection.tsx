@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ReadOnly } from "@/components/ReadOnly";
 import { SubmitButton } from "@/components/SubmitButton";
 import { todayKst } from "@/lib/format";
 import { ledgerMonths } from "@/lib/settlement/monthlyLedger";
@@ -49,8 +50,8 @@ function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
   );
 }
 
-/** 소속 기사 명단 + 월별 지급표 바로가기 (관리자 전용) */
-export async function RosterSection({ db, vehicles }: { db: SupabaseClient; vehicles: Vehicle[] }) {
+/** 소속 기사 명단 + 월별 지급표 바로가기 (관리자, 관리자 회원은 보기만) */
+export async function RosterSection({ db, vehicles, readOnly = false }: { db: SupabaseClient; vehicles: Vehicle[]; readOnly?: boolean }) {
   const [{ data }, months] = await Promise.all([
     db.from("driver_roster").select("id,name,vehicle_id,phone,rrn_masked,bank_name,bank_account_masked,account_holder,active,memo").order("active", { ascending: false }).order("name"),
     ledgerMonths(db),
@@ -67,6 +68,7 @@ export async function RosterSection({ db, vehicles }: { db: SupabaseClient; vehi
         <p className="text-xs text-gray-500">그 달 정산 기사별 차량·이름·주민번호·계좌번호·지급액을 봅니다 (아래 명단과 이름으로 맞춥니다).</p>
       </form>
 
+      <ReadOnly on={readOnly}>
       <div className="card overflow-x-auto !p-0">
         <div className="px-4 pt-4">
           <div className="font-semibold">소속 기사 명단 ({roster.filter((r) => r.active).length}명)</div>
@@ -80,10 +82,11 @@ export async function RosterSection({ db, vehicles }: { db: SupabaseClient; vehi
           </thead>
           <tbody>
             {roster.map((r) => <RosterRow key={r.id} r={r} vehicles={vehicles} />)}
-            <RosterRow vehicles={vehicles} />
+            {!readOnly && <RosterRow vehicles={vehicles} />}
           </tbody>
         </table>
       </div>
+      </ReadOnly>
     </>
   );
 }

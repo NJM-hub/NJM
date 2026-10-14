@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireOwner } from "@/lib/auth";
+import { requireViewer } from "@/lib/auth";
+import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { isMonth, monthRange, won } from "@/lib/format";
 import { LEDGER_CATEGORIES, loadMonthLedger, type LedgerCategory, type LedgerItem } from "@/lib/settlement/monthlyLedger";
 import { addLedgerItem, deleteLedgerItem, updateLedgerItem } from "../actions";
@@ -77,7 +78,7 @@ function Section({ month, category, label, items, total, manual }: {
 export default async function MonthLedgerPage({ params }: { params: Promise<{ month: string }> }) {
   const { month } = await params;
   if (!isMonth(month)) notFound();
-  const { supabase } = await requireOwner();
+  const { supabase, readOnly } = await requireViewer();
   const r = await loadMonthLedger(supabase, month);
   const { data: led } = await supabase.from("monthly_ledger").select("*").eq("month", month).maybeSingle();
   const totals: Record<LedgerCategory, number> = { installment: r.installment, withholding: r.cashExpense, cash: r.cashSpend, office: r.officeExpense };
@@ -99,11 +100,14 @@ export default async function MonthLedgerPage({ params }: { params: Promise<{ mo
         <div><div className="text-gray-500">남은 차액</div><b>{signed(r.remain)}</b></div>
       </div>
 
+      <ReadOnlyNotice on={readOnly} />
+      <ReadOnly on={readOnly}>
       {LEDGER_CATEGORIES.map((c) => {
         const items = r.items.filter((i) => i.category === c.key);
         const manual = !items.length && led?.[c.column] ? (led[c.column] as number) : null;
         return <Section key={c.key} month={month} category={c.key} label={c.label} items={items} total={totals[c.key]} manual={manual} />;
       })}
+      </ReadOnly>
     </div>
   );
 }

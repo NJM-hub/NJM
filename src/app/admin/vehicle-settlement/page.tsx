@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireOwner } from "@/lib/auth";
+import { requireViewer } from "@/lib/auth";
+import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { fmtTime, isMonth, todayKst, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { loadVehicleMonth, type VehicleMonthReport } from "@/lib/settlement/vehicleMonthlyLoad";
@@ -72,7 +73,7 @@ const COUNT_HEAD = (
 export default async function VehicleSettlementPage({ searchParams }: { searchParams: Promise<{ month?: string; v?: string; msg?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : todayKst().slice(0, 7);
-  const { supabase } = await requireOwner();
+  const { supabase, readOnly } = await requireViewer();
   const report = await loadVehicleMonth(supabase, month);
   const selected = sp.v ? report.vehicles.find((v) => v.key === sp.v) : undefined;
 
@@ -115,7 +116,8 @@ export default async function VehicleSettlementPage({ searchParams }: { searchPa
         </div>
       )}
 
-      {selected ? <VehicleDetail report={report} v={selected} /> : <Overview report={report} />}
+      <ReadOnlyNotice on={readOnly} />
+      <ReadOnly on={readOnly}>{selected ? <VehicleDetail report={report} v={selected} /> : <Overview report={report} />}</ReadOnly>
     </div>
   );
 }

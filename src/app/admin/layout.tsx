@@ -16,11 +16,16 @@ const links = [
 ];
 
 /** 직원(배차·차량 관리)에게는 보이지 않는 관리자 전용 메뉴 */
+const MANAGER_HIDDEN = new Set(["/admin/settings", "/admin/staff", "/admin/backup"]);
 const OWNER_ONLY = new Set(["/admin/vehicle-settlement", "/admin/settlement", "/admin/settings", "/admin/staff", "/admin/backup"]);
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, role } = await requireAdmin();
-  const visible = role === "admin" ? links : links.filter((l) => !OWNER_ONLY.has(l.href));
+  const visible =
+    role === "admin" ? links
+    // 관리자 회원: 설정·직원·백업만 숨김 (기사·차량별 월정산·정산·세무는 보기만)
+    : role === "manager" ? links.filter((l) => !MANAGER_HIDDEN.has(l.href))
+    : links.filter((l) => !OWNER_ONLY.has(l.href));
   return (
     <>
       <Nav links={visible} email={user.email ?? ""} title="(주)우정렌트카 공항 샌딩 픽업" />

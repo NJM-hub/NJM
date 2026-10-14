@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { canViewSettlement, getSession } from "@/lib/auth";
 import { fmtTime, isMonth } from "@/lib/format";
 import { loadVehicleMonth } from "@/lib/settlement/vehicleMonthlyLoad";
 import { EXPENSE_LABELS, inOutLabel, OWN_CALL } from "@/lib/settlement/vehicleMonthly";
@@ -11,7 +11,7 @@ import { toCsv } from "@/lib/tax";
  */
 export async function GET(request: NextRequest) {
   const s = await getSession();
-  if (!s || s.role !== "admin") return new NextResponse("권한이 없습니다.", { status: 403 });
+  if (!s || !canViewSettlement(s.role)) return new NextResponse("권한이 없습니다.", { status: 403 });
   const month = request.nextUrl.searchParams.get("month");
   const only = request.nextUrl.searchParams.get("v");
   if (!isMonth(month)) return new NextResponse("month=YYYY-MM 이 필요합니다.", { status: 400 });

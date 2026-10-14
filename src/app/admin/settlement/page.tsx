@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireOwner } from "@/lib/auth";
+import { requireViewer } from "@/lib/auth";
+import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { isMonth, todayKst, won } from "@/lib/format";
 import { loadSettings } from "@/lib/settings";
 import { ledgerMonths, loadMonthLedger, type MonthLedger } from "@/lib/settlement/monthlyLedger";
@@ -40,7 +41,7 @@ function LedgerCell({ r, form, name, value, itemized, taxNote }: { r: MonthLedge
 export default async function SettlementPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : prevMonth(todayKst());
-  const { supabase } = await requireOwner();
+  const { supabase, readOnly } = await requireViewer();
   const settings = await loadSettings(supabase);
   const months = await ledgerMonths(supabase);
   const rows: MonthLedger[] = await Promise.all(months.map((m) => loadMonthLedger(supabase, m)));
@@ -52,6 +53,8 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
     <div className="space-y-6">
       <h1 className="page-title">정산 · 세무신고</h1>
 
+      <ReadOnlyNotice on={readOnly} />
+      <ReadOnly on={readOnly}>
       <div className="card overflow-x-auto !p-0">
         <div className="px-4 pt-4">
           <div className="font-semibold">샌딩 · 픽업 전체 정산표</div>
@@ -124,6 +127,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
           )}
         </table>
       </div>
+      </ReadOnly>
 
       <form className="card flex flex-wrap items-end gap-3">
         <div>
