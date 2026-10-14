@@ -18,8 +18,13 @@ function MoneyInput({ form, name, value }: { form: string; name: string; value: 
   return <input form={form} name={name} defaultValue={value ? String(value) : ""} placeholder="0" inputMode="numeric" className="input w-28 text-right" />;
 }
 
+/** 원천 지출은 3.3%를 뗀 실지급액이므로, 뗀 세액 = 실지급액 ÷ 0.967 × 0.033 */
+const withheldTax = (net: number) => Math.round((net / 0.967) * 0.033);
+const TaxNote = ({ net }: { net: number }) =>
+  net ? <div className="mt-1 whitespace-nowrap text-xs text-gray-500">3.3% {won(withheldTax(net))}</div> : null;
+
 /** 상세 내역이 있으면 합계(상세로 이동), 없으면 직접 입력 칸 */
-function LedgerCell({ r, form, name, value, itemized }: { r: MonthLedger; form: string; name: string; value: number; itemized: boolean }) {
+function LedgerCell({ r, form, name, value, itemized, taxNote }: { r: MonthLedger; form: string; name: string; value: number; itemized: boolean; taxNote?: boolean }) {
   return (
     <td className="text-right">
       {itemized ? (
@@ -27,6 +32,7 @@ function LedgerCell({ r, form, name, value, itemized }: { r: MonthLedger; form: 
       ) : (
         <MoneyInput form={form} name={name} value={value} />
       )}
+      {taxNote && <TaxNote net={value} />}
     </td>
   );
 }
@@ -83,7 +89,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                   <td className="text-right">{won(r.cost)}</td>
                   <td className="text-right">{won(r.driverPay)}</td>
                   <LedgerCell r={r} form={f} name="vehicle_installment" value={r.installment} itemized={r.itemized.installment} />
-                  <LedgerCell r={r} form={f} name="cash_expense" value={r.cashExpense} itemized={r.itemized.withholding} />
+                  <LedgerCell r={r} form={f} name="cash_expense" value={r.cashExpense} itemized={r.itemized.withholding} taxNote />
                   <LedgerCell r={r} form={f} name="cash_spend" value={r.cashSpend} itemized={r.itemized.cash} />
                   <LedgerCell r={r} form={f} name="office_expense" value={r.officeExpense} itemized={r.itemized.office} />
                   <td className="whitespace-nowrap text-right font-semibold">{signed(r.remain)}</td>
@@ -108,7 +114,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.cost))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.driverPay))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.installment))}</td>
-                <td className="px-3 py-2 text-right">{won(sum((r) => r.cashExpense))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.cashExpense))}<TaxNote net={sum((r) => r.cashExpense)} /></td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.cashSpend))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.officeExpense))}</td>
                 <td className="px-3 py-2 text-right">{signed(sum((r) => r.remain))}</td>
