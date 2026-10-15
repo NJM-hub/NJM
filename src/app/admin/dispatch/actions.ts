@@ -236,6 +236,60 @@ export async function runDispatch(formData: FormData) {
   redirect(`/admin/dispatch?date=${date}&run=${run.id}`);
 }
 
+/**
+ * 모든 예약 배차 해제: 그 날짜 예약을 전부 미배정(수동 해제)으로 둔 새 초안을 만든다. 손으로 한 건씩 배차할 때 쓴다.
+ * 기사 자체 콜(외부에서 받은 콜)은 그 차량에 그대로 둔다. 확정본은 새 초안을 확정할 때까지 유지된다.
+ */
+export async function unassignAll(formData: FormData) {
+  const { supabase, user } = await assertAdmin();
+  const date = String(formData.get("date"));
+  if (!isDate(date)) throw new Error("날짜가 올바르지 않습니다.");
+  const settings = await loadSettings(supabase);
+  const [{ data: bookings, error: bErr }, { data: vehicles }, { data: drivers }] = await Promise.all([
+    supabase.from("bookings").select("id,pickup_at,fare,vehicle_class,pax,fixed_vehicle_id,source,memo,pickup_address,dropoff_address,pickup_place,dropoff_place").eq("service_date", date),
+    supabase.from("vehicles").select("id").eq("active", true),
+    supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),
+  ]);
+  if (bErr) throw new Error(bErr.message);
+  if (!bookings?.length) throw new Error("해당 날짜에 예약이 없습니다. 먼저 일정표를 업로드하세요.");
+  const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
+  const rules = fareRulesOf(settings);
+  const opts = dispatchOptionsOf(settings);
+
+  await supabase.from("dispatch_runs").delete().eq("service_date", date).eq("status", "draft");
+  const { data: run, error: rErr } = await supabase
+    .from("dispatch_runs")
+    .insert({ service_date: date, options: { ...opts, vehicleIds: (vehicles ?? []).map((v) => v.id), manual: true }, summary: { totalBookings: bookings.length }, created_by: user.id })
+    .select("id")
+    .single();
+  if (rErr || !run) throw new Error(rErr?.message ?? "배차 저장 실패");
+
+  const own = (b: (typeof bookings)[number]) => b.source === OWN_CALL_SOURCE && !!b.fixed_vehicle_id;
+  const ownSeq = new Map<string, number>();
+  const rows = [...bookings]
+    .sort((a, b) => (a.pickup_at ?? "").localeCompare(b.pickup_at ?? ""))
+    .map((b) => {
+      const vid = own(b) ? b.fixed_vehicle_id! : null;
+      if (vid) ownSeq.set(vid, (ownSeq.get(vid) ?? 0) + 1);
+      return {
+        run_id: run.id,
+        booking_id: b.id,
+        vehicle_id: vid,
+        driver_id: vid ? driverOf.get(vid) ?? null : null,
+        seq: vid ? ownSeq.get(vid)! : null,
+        ready_at: vid && b.pickup_at ? b.pickup_at : null,
+        unassigned_reason: vid ? null : "MANUAL",
+        fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules),
+      };
+    });
+  const { error: aErr } = await supabase.from("dispatch_assignments").insert(rows);
+  if (aErr) throw new Error(aErr.message);
+  await refreshSummary(supabase, run.id);
+
+  revalidatePath("/admin/dispatch");
+  redirect(`/admin/dispatch?date=${date}&run=${run.id}#unassigned`);
+}
+
 type Db = Awaited<ReturnType<typeof assertAdmin>>["supabase"];
 
 /** 전날 마지막 콜이 끝난 뒤 다음 날 첫 콜까지 최소 휴식 (시간) */
@@ -401,10 +455,10 @@ export async function moveAssignment(formData: FormData) {
   const moves = new Map([[id, target]]);
   if (!force && target && target !== EXTERNAL) {
     const check = await applyMoves(supabase, a.run_id, moves, true);
-    if (check.conflicts.includes(target)) redirect(`/admin/dispatch?date=${check.serviceDate}&run=${a.run_id}&conflict=${id}&to=${target}`);
+    if (check.conflicts.includes(target)) redirect(`/admin/dispatch?date=${check.serviceDate}&run=${a.run_id}&conflict=${id}&to=${target}${formData.get("anchor") === "unassigned" ? "&anchor=unassigned" : ""}`);
   }
   const { serviceDate } = await applyMoves(supabase, a.run_id, moves);
-  redirect(`/admin/dispatch?date=${serviceDate}&run=${a.run_id}`);
+  redirect(`/admin/dispatch?date=${serviceDate}&run=${a.run_id}${formData.get("anchor") === "unassigned" ? `&moved=${id}#unassigned` : ""}`);
 }
 
 /** 체크한 여러 건을 한 차량으로 한 번에 옮기기 (배차 해제·외부 포함 아무 상태에서나) */

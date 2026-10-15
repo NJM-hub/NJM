@@ -7,7 +7,7 @@ import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { KkdayFileUpload } from "./KkdayFileUpload";
-import { addOwnCall, confirmRun, deleteOwnCall, moveAssignment, moveSelected, runDispatch, setExternalFare, unconfirmRun } from "./actions";
+import { addOwnCall, confirmRun, deleteOwnCall, moveAssignment, moveSelected, runDispatch, setExternalFare, unassignAll, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
 import { DeleteDateButton } from "../schedule/DeleteControls";
@@ -56,7 +56,7 @@ type Assignment = {
 export default async function DispatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string; msg?: string }>;
+  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string; msg?: string; anchor?: string }>;
 }) {
   const sp = await searchParams;
   const date = isDate(sp.date) ? sp.date : todayKst();
@@ -215,7 +215,9 @@ export default async function DispatchPage({
               퇴근 정체(17~19시) 여유
             </label>
           </div>
-          <SubmitButton pendingText="배차 계산 중...">{run ? "다시 자동 배차" : "자동 배차 실행"}</SubmitButton>
+          <SubmitButton pendingText="처리 중...">{run ? "다시 자동 배차" : "자동 배차 실행"}</SubmitButton>
+          <SubmitButton className="btn-secondary ml-2" pendingText="처리 중..." formAction={unassignAll}>모든 예약 배차 해제</SubmitButton>
+          <span className="ml-2 text-xs text-gray-500">모든 예약을 배차 해제 칸으로 옮겨 한 건씩 직접 배차합니다 (외부에서 받은 콜은 그 차량에 그대로).</span>
           {run?.status === "confirmed" && <span className="ml-3 text-xs text-gray-500">다시 배차하면 새 초안이 만들어지고, 확정본은 새 초안을 확정할 때까지 유지됩니다.</span>}
         </form>
       </div>
@@ -230,8 +232,9 @@ export default async function DispatchPage({
             <input type="hidden" name="assignmentId" value={conflict.id} />
             <input type="hidden" name="vehicleId" value={sp.to} />
             <input type="hidden" name="force" value="1" />
+            {sp.anchor === "unassigned" && <input type="hidden" name="anchor" value="unassigned" />}
             <SubmitButton className="btn-danger">강제 적용</SubmitButton>
-            <Link href={`/admin/dispatch?date=${date}&run=${run?.id}`} className="btn-secondary">취소</Link>
+            <Link href={`/admin/dispatch?date=${date}&run=${run?.id}${sp.anchor === "unassigned" ? "#unassigned" : ""}`} className="btn-secondary">취소</Link>
           </form>
         </div>
       )}
@@ -287,8 +290,8 @@ export default async function DispatchPage({
           </div>
 
           {unassigned.length > 0 && (
-            <div className="card border-red-200">
-              <h2 className="mb-2 font-semibold text-red-700">배차 불가 요약 ({unassigned.length}건)</h2>
+            <div id="unassigned" className="card scroll-mt-4 border-red-200">
+              <h2 className="mb-2 font-semibold text-red-700">배차 해제·배차 불가 ({unassigned.length}건)</h2>
               <ul className="mb-3 space-y-1 text-sm">
                 {[...reasonGroups].map(([reason, list]) => (
                   <li key={reason}><b>{reason}</b>: {list.length}건</li>
@@ -509,6 +512,8 @@ function AssignmentTable({
                   <td>
                     <form action={moveAssignment} className="flex gap-1">
                       <input type="hidden" name="assignmentId" value={a.id} />
+                      {/* 배차 해제 칸에서 한 건씩 배차할 때는 옮긴 뒤에도 그 칸으로 돌아온다 */}
+                      {showReason && <input type="hidden" name="anchor" value="unassigned" />}
                       <select name="vehicleId" defaultValue={a.unassigned_reason === "EXTERNAL" ? "__external" : a.vehicle_id ?? ""} className="input !w-44 !py-1 text-xs">
                         <option value="">배차 해제</option>
                         <option value="__external">외부콜 (55,000원)</option>
