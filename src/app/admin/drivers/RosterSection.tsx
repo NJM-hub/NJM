@@ -50,30 +50,32 @@ function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
   );
 }
 
-/** 소속 기사 명단 + 월별 지급표 바로가기 (관리자, 관리자 회원은 보기만) */
-export async function RosterSection({ db, vehicles, readOnly = false }: { db: SupabaseClient; vehicles: Vehicle[]; readOnly?: boolean }) {
+/** 소속 기사 명단 + 월별 지급표 바로가기 (관리자만 수정, 관리자 회원·직원은 보기만. 지급표는 직원 제외) */
+export async function RosterSection({ db, vehicles, readOnly = false, showPay = true }: { db: SupabaseClient; vehicles: Vehicle[]; readOnly?: boolean; showPay?: boolean }) {
   const [{ data }, months] = await Promise.all([
     db.from("driver_roster").select("id,name,vehicle_id,phone,rrn_masked,bank_name,bank_account_masked,account_holder,active,memo").order("active", { ascending: false }).order("name"),
-    ledgerMonths(db),
+    showPay ? ledgerMonths(db) : Promise.resolve([] as string[]),
   ]);
   const roster = (data ?? []) as Roster[];
   return (
     <>
-      <form action="/admin/drivers/pay" className="card flex flex-wrap items-end gap-3">
+      {showPay && <form action="/admin/drivers/pay" className="card flex flex-wrap items-end gap-3">
         <div>
           <label className="label" htmlFor="pay-month">기사 지급표 월</label>
           <input id="pay-month" type="month" name="month" defaultValue={months[0] ?? todayKst().slice(0, 7)} required className="input" />
         </div>
         <button className="btn-secondary">조회</button>
         <p className="text-xs text-gray-500">그 달 정산 기사별 차량·이름·주민번호·계좌번호·지급액을 봅니다 (아래 명단과 이름으로 맞춥니다).</p>
-      </form>
+      </form>}
 
       <ReadOnly on={readOnly}>
       <div className="card overflow-x-auto !p-0">
         <div className="px-4 pt-4">
           <div className="font-semibold">소속 기사 명단 ({roster.filter((r) => r.active).length}명)</div>
           <p className="mt-1 text-xs text-gray-500">
-            주민번호·계좌번호는 암호화해서 저장되고 목록에는 일부만 보입니다. 바꿀 때만 새로 입력하세요 (비워 두면 기존 값 유지).
+            {readOnly
+              ? "보기 전용입니다 (명단 수정은 관리자만). 주민번호·계좌번호는 일부만 보입니다."
+              : "주민번호·계좌번호는 암호화해서 저장되고 목록에는 일부만 보입니다. 바꿀 때만 새로 입력하세요 (비워 두면 기존 값 유지)."}
           </p>
         </div>
         <table className="table mt-2">
