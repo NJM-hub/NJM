@@ -17,6 +17,7 @@ export async function saveVehicle(formData: FormData) {
     base_lat: numOrNull(formData.get("base_lat")),
     base_lng: numOrNull(formData.get("base_lng")),
     active: formData.get("active") === "on",
+    jiip: formData.get("jiip") === "on",
     memo: String(formData.get("memo") || "").trim() || null,
     driver_name: String(formData.get("driver_name") || "").trim() || null,
   };

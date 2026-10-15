@@ -6,7 +6,7 @@ import { deleteVehicle, saveVehicle } from "./actions";
 
 type Vehicle = {
   id: string; plate_number: string; model: string | null; seats: number; grade: string | null; base_address: string | null;
-  base_lat: number | null; base_lng: number | null; active: boolean; memo: string | null; driver_name: string | null;
+  base_lat: number | null; base_lng: number | null; active: boolean; memo: string | null; driver_name: string | null; jiip: boolean;
 };
 
 function VehicleFields({ v }: { v?: Vehicle }) {
@@ -26,6 +26,7 @@ function VehicleFields({ v }: { v?: Vehicle }) {
       <input name="driver_name" defaultValue={ko(v?.driver_name) ?? ""} placeholder="기사 이름 (계정 없을 때)" className="input" />
       <input name="memo" defaultValue={v?.memo ?? ""} placeholder="메모" className="input" />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={v?.active ?? true} /> 운행</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="jiip" defaultChecked={v?.jiip ?? false} /> 지입</label>
     </>
   );
 }
@@ -41,7 +42,7 @@ export default async function VehiclesPage() {
   return (
     <div className="space-y-6">
       <h1 className="page-title">차량 관리</h1>
-      <form action={saveVehicle} className="card grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-11">
+      <form action={saveVehicle} className="card grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-12">
         <VehicleFields />
         <SubmitButton>추가</SubmitButton>
       </form>
@@ -52,12 +53,15 @@ export default async function VehiclesPage() {
       <div className="space-y-2">
         {vehicles?.map((v) => (
           <div key={v.id} className="card !p-3">
-            <form action={saveVehicle} className="grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-11">
+            <form action={saveVehicle} className="grid items-center gap-2 sm:grid-cols-4 lg:grid-cols-12">
               <VehicleFields v={v as Vehicle} />
               <SubmitButton className="btn-secondary">저장</SubmitButton>
             </form>
             <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-              <span>기사: {driverOf.get(v.id) ?? (v.driver_name ? `${ko(v.driver_name)} (계정 미연결)` : "미지정")}</span>
+              <span>
+                {v.jiip && <span className="badge mr-2 bg-violet-100 text-violet-800">지입</span>}
+                기사: {driverOf.get(v.id) ?? (v.driver_name ? `${ko(v.driver_name)} (계정 미연결)` : "미지정")}
+              </span>
               <form action={deleteVehicle}>
                 <input type="hidden" name="id" value={v.id} />
                 <button className="text-red-600 hover:underline">삭제</button>

@@ -65,7 +65,7 @@ export default async function DispatchPage({
   const [{ count: bookingCount }, { count: noCoordCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).or("pickup_lat.is.null,dropoff_lat.is.null"),
-    supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name").eq("active", true).order("plate_number"),
+    supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name,jiip").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,name,phone,vehicle_id").eq("status", "approved"),
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
   ]);
@@ -182,6 +182,7 @@ export default async function DispatchPage({
               <label key={v.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm">
                 <input type="checkbox" name="vehicle" value={v.id} defaultChecked={usedVehicleIds.includes(v.id)} />
                 {v.plate_number} <span className="text-gray-400">{v.grade ?? "이코노미"} {v.seats}인승</span>
+                {v.jiip && <span className="badge bg-violet-100 text-violet-800">지입기사</span>}
                 {!driverOfVehicle.get(v.id) && (v.driver_name
                   ? <span className="text-xs text-gray-500">{v.driver_name}</span>
                   : <span className="text-xs text-amber-600">기사없음</span>)}
