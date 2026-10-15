@@ -62,16 +62,19 @@ export default async function DispatchPage({
   const date = isDate(sp.date) ? sp.date : todayKst();
   const { supabase } = await requireAdmin();
 
-  const [{ count: bookingCount }, { count: noCoordCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }] = await Promise.all([
+  const [{ count: bookingCount }, { count: noCoordCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }, { data: roster }] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).or("pickup_lat.is.null,dropoff_lat.is.null"),
     supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name,jiip").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,name,phone,vehicle_id").eq("status", "approved"),
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
+    supabase.from("driver_roster").select("name,vehicle_id").eq("active", true).not("vehicle_id", "is", null).order("name"),
   ]);
 
-  // 중국어 기사 이름 등은 한국어로 표시
-  const vehicles = vehiclesRaw?.map((v) => ({ ...v, driver_name: ko(v.driver_name) }));
+  // 기사 관리의 소속 기사 명단(근무 중)을 우선 표시하고, 없으면 차량에 적어둔 기사 이름(중국어는 한국어로)
+  const rosterOf = new Map<string, string[]>();
+  for (const r of roster ?? []) rosterOf.set(r.vehicle_id, [...(rosterOf.get(r.vehicle_id) ?? []), r.name]);
+  const vehicles = vehiclesRaw?.map((v) => ({ ...v, driver_name: rosterOf.get(v.id)?.join(", ") ?? ko(v.driver_name) }));
   const drivers = driversRaw?.map((d) => ({ ...d, name: ko(d.name) }));
   const run = runs?.find((r) => r.id === sp.run) ?? runs?.find((r) => r.status === "confirmed") ?? runs?.[0];
   const { data: assignmentsRaw } = run
