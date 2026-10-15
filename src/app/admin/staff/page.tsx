@@ -19,7 +19,7 @@ export default async function StaffPage() {
       <p className="text-sm text-gray-500">
         직원 회원가입(로그인 화면 아래 &quot;직원 회원가입&quot;)으로 가입한 배차·차량 관리 직원입니다. 승인하면 로그인해서 일정표 업로드·배차·차량·기사·외부 콜을 쓸 수 있고,
         차량별 월정산·정산·세무·설정·직원 메뉴와 기사 주민번호·계좌 열람은 관리자만 쓸 수 있습니다.
-        관리자 회원(&quot;관리자 회원가입&quot;)은 직원 메뉴에 더해 기사·차량별 월정산·정산·세무를 볼 수 있고(수정 불가), 설정·직원·백업은 볼 수 없습니다.
+        관리자 회원(&quot;관리자 회원가입&quot;)은 직원 메뉴에 더해 기사 메뉴 전부(명단·지급표·주민번호 열람)를 쓸 수 있고, 차량별 월정산·정산·세무는 보기만(수정 불가), 설정·직원·백업은 볼 수 없습니다.
       </p>
       {pending.length > 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">승인 대기 {pending.length}명</p>}
       <div className="card overflow-x-auto !p-0">

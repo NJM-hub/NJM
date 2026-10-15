@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { DriverForm } from "@/components/DriverForm";
-import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { requireAdmin } from "@/lib/auth";
 import { fmtDateTime } from "@/lib/format";
 import { adminUpdateDriver } from "../actions";
@@ -23,10 +22,7 @@ export default async function DriverDetail({ params }: { params: Promise<{ id: s
         <div>가입: {fmtDateTime(d.created_at)} · 개인정보 동의: {fmtDateTime(d.privacy_consent_at)} · 제3자 제공 동의: {d.third_party_consent_at ? fmtDateTime(d.third_party_consent_at) : "미동의"}</div>
         {(role === "admin" || role === "manager") && <RevealPii id={d.id} />}
       </div>
-      <ReadOnlyNotice on={role === "manager"} />
-      <ReadOnly on={role === "manager"}>
-        <DriverForm action={adminUpdateDriver.bind(null, d.id)} initial={d} isNew={false} />
-      </ReadOnly>
+      <DriverForm action={adminUpdateDriver.bind(null, d.id)} initial={d} isNew={false} />
     </div>
   );
 }

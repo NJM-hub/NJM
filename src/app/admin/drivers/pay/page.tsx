@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireViewer } from "@/lib/auth";
-import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 import { decrypt } from "@/lib/crypto";
 import { canonicalDriver, parseDriverAliases } from "@/lib/driverAlias";
 import { isMonth, won } from "@/lib/format";
@@ -20,7 +19,7 @@ type Roster = { id: string; name: string; vehicle_id: string | null; rrn_enc: st
 export default async function DriverPayPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month } = await searchParams;
   if (!isMonth(month)) notFound();
-  const { supabase, readOnly } = await requireViewer();
+  const { supabase } = await requireViewer();
   const [report, settings, { data: rosterRows }, { data: notes }] = await Promise.all([
     loadVehicleMonth(supabase, month),
     loadSettings(supabase),
@@ -63,11 +62,9 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
         </div>
         <button className="btn-secondary">조회</button>
       </form>
-      <ReadOnlyNotice on={readOnly} />
       <p className="text-sm text-gray-500">
         지급액은 차량별 월정산의 실제 지급액(원천세 뺀 금액)입니다. 주민번호·계좌는 기사 관리의 소속 기사 명단에서 이름으로 찾아옵니다.
       </p>
-      <ReadOnly on={readOnly}>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
           <thead>
@@ -109,7 +106,6 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
           )}
         </table>
       </div>
-      </ReadOnly>
     </div>
   );
 }

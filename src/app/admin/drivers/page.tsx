@@ -3,7 +3,6 @@ import { requireAdmin } from "@/lib/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { updateDriverStatus } from "./actions";
 import { RosterSection } from "./RosterSection";
-import { ReadOnly, ReadOnlyNotice } from "@/components/ReadOnly";
 
 const STATUS = { pending: ["승인 대기", "bg-amber-100 text-amber-800"], approved: ["승인", "bg-green-100 text-green-800"], inactive: ["비활성", "bg-gray-100 text-gray-600"] } as const;
 
@@ -18,12 +17,10 @@ export default async function DriversPage() {
   return (
     <div className="space-y-6">
       <h1 className="page-title">기사 관리</h1>
-      <ReadOnlyNotice on={role === "manager"} />
-      <RosterSection db={supabase} vehicles={vehicles ?? []} readOnly={role !== "admin"} showPay={role !== "staff"} />
+      <RosterSection db={supabase} vehicles={vehicles ?? []} readOnly={role === "staff"} showPay={role !== "staff"} />
       <p className="text-sm text-gray-500">
         기사는 <b>/signup</b> 에서 직접 가입하고 신상정보를 입력합니다. 가입 링크를 기사님들께 공유하세요. 승인하고 차량을 연결해야 배차에 기사가 표시됩니다.
       </p>
-      <ReadOnly on={role === "manager"}>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
           <thead>
@@ -65,7 +62,6 @@ export default async function DriversPage() {
           </tbody>
         </table>
       </div>
-      </ReadOnly>
     </div>
   );
 }

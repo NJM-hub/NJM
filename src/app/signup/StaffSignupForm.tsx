@@ -40,7 +40,7 @@ export function StaffSignupForm({ kind }: { kind: "staff" | "manager" }) {
         <h1 className="text-xl font-bold">{kind === "manager" ? "관리자 회원가입" : "직원 회원가입"}</h1>
         <p className="text-sm text-gray-500">
           {kind === "manager"
-            ? "관리자 모드 회원용입니다 (기사·월정산·정산은 보기만). 가입 후 관리자가 승인하면 로그인할 수 있습니다."
+            ? "관리자 모드 회원용입니다 (기사 메뉴 전부 사용, 월정산·정산은 보기만). 가입 후 관리자가 승인하면 로그인할 수 있습니다."
             : "배차·차량 관리 직원용입니다. 가입 후 관리자가 승인하면 로그인할 수 있습니다."}
         </p>
         <div>

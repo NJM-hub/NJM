@@ -1,12 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { assertEditor, canViewSettlement, getSession } from "@/lib/auth";
+import { assertAdmin, assertDriverManager } from "@/lib/auth";
 import { decrypt } from "@/lib/crypto";
 import { driverRowFromForm, type DriverFormState } from "@/lib/drivers/save";
 import { formatRrn } from "@/lib/pii";
 
 export async function updateDriverStatus(formData: FormData) {
-  const { supabase } = await assertEditor();
+  const { supabase } = await assertAdmin();
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
   if (!["pending", "approved", "inactive"].includes(status)) throw new Error("잘못된 상태");
@@ -23,7 +23,7 @@ export async function updateDriverStatus(formData: FormData) {
 }
 
 export async function adminUpdateDriver(id: string, _prev: DriverFormState, formData: FormData): Promise<DriverFormState> {
-  const { supabase } = await assertEditor();
+  const { supabase } = await assertAdmin();
   const parsed = driverRowFromForm(formData, false);
   if ("error" in parsed) return { ok: false, message: parsed.error };
   const { error } = await supabase.from("drivers").update(parsed.row).eq("id", id);
@@ -35,9 +35,7 @@ export async function adminUpdateDriver(id: string, _prev: DriverFormState, form
 /** 민감정보 원문 조회 (관리자) */
 export async function revealDriverPii(id: string): Promise<{ rrn: string | null; account: string | null }> {
   // 주민번호·계좌 원문 열람은 관리자·관리자 회원만 (직원 불가)
-  const s = await getSession();
-  if (!s || !canViewSettlement(s.role)) throw new Error("관리자 권한이 필요합니다.");
-  const { supabase } = s;
+  const { supabase } = await assertDriverManager();
   const { data } = await supabase.from("drivers").select("rrn_enc,bank_account_enc").eq("id", id).single();
   const rrn = decrypt(data?.rrn_enc);
   return { rrn: rrn ? formatRrn(rrn) : null, account: decrypt(data?.bank_account_enc) };

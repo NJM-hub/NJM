@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { assertOwner } from "@/lib/auth";
+import { assertDriverManager } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
 import { isMonth } from "@/lib/format";
 import { isValidRrn, maskAccount, maskRrn, normalizeAccount, normalizeRrn } from "@/lib/pii";
@@ -9,7 +9,7 @@ const text = (v: FormDataEntryValue | null) => String(v ?? "").trim() || null;
 
 /** 소속 기사 저장 (id 가 있으면 수정). 주민번호·계좌는 비워 두면 기존 값을 그대로 둔다 */
 export async function saveRosterDriver(formData: FormData) {
-  const { supabase } = await assertOwner();
+  const { supabase } = await assertDriverManager();
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
   if (!name) throw new Error("이름을 입력하세요.");
@@ -43,7 +43,7 @@ export async function saveRosterDriver(formData: FormData) {
 }
 
 export async function deleteRosterDriver(formData: FormData) {
-  const { supabase } = await assertOwner();
+  const { supabase } = await assertDriverManager();
   const { error } = await supabase.from("driver_roster").delete().eq("id", String(formData.get("id")));
   if (error) throw new Error(error.message);
   revalidatePath("/admin/drivers");
@@ -51,7 +51,7 @@ export async function deleteRosterDriver(formData: FormData) {
 
 /** 월별 지급표 비고 저장 */
 export async function saveDriverMonthNote(formData: FormData) {
-  const { supabase } = await assertOwner();
+  const { supabase } = await assertDriverManager();
   const month = String(formData.get("month"));
   if (!isMonth(month)) throw new Error("월이 올바르지 않습니다.");
   const unitKey = String(formData.get("unitKey"));

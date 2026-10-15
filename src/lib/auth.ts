@@ -55,10 +55,10 @@ export async function requireViewer() {
   return { ...s, readOnly: s.role !== "admin" };
 }
 
-/** 서버 액션용: 관리자 회원은 보기만 하는 화면(기사)의 수정 막기 */
-export async function assertEditor() {
+/** 서버 액션용 (기사 명단·지급표 비고·기사 주민번호 열람): 관리자 + 관리자 회원 */
+export async function assertDriverManager() {
   const s = await getSession();
-  if (!s || !(s.role === "admin" || s.role === "staff")) throw new Error("수정 권한이 없습니다.");
+  if (!s || !canViewSettlement(s.role)) throw new Error("관리자 권한이 필요합니다.");
   return s;
 }
 
