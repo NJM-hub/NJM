@@ -20,6 +20,15 @@ export function fareFor(b: FareInput, r: FareRules): number {
   return (gimpo ? r.gimpo : r.base) + (picket ? r.picketExtra : 0) + childSeats(b.memo) * (r.childSeatExtra ?? 0);
 }
 
+/** 지입 차량(기사 소유 차량) 콜 금액: 건당 고정 금액. 이 날짜(이용일)부터 적용하고 그 전 정산은 그대로 둔다 */
+export const JIIP_FARE = 55000;
+export const JIIP_FARE_FROM = "2026-10-01";
+
+/** 차량에 배정된 콜의 기본 금액: 지입 차량이면 고정 금액, 아니면 콜 금액 규칙 */
+export function vehicleFare(b: FareInput, r: FareRules, jiip: boolean | null | undefined, serviceDate: string): number {
+  return jiip && serviceDate >= JIIP_FARE_FROM ? JIIP_FARE : fareFor(b, r);
+}
+
 /** 어린이 좌석 개수: "어린이 좌석 2", "儿童座椅*1" (손님이 직접 가져오는 自備 좌석은 제외) */
 export function childSeats(memo: string | null | undefined): number {
   const m = (memo ?? "").match(/(?:어린이 좌석|儿童座椅|兒童座椅|child seat)\s*[*x×:]?\s*(\d+)/i);

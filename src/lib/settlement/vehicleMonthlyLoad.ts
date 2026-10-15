@@ -6,7 +6,7 @@ import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
 import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
-import { fareFor } from "./fare";
+import { vehicleFare } from "./fare";
 import {
   OWN_CALL, assignSettleOperators, computePayout, ownCallAmount, settleKey, summarizeVehicleMonth, tripKind,
   type Expenses, type Payout, type VehicleMonth, type VehicleMonthRow,
@@ -19,7 +19,7 @@ type Row = {
   unassigned_reason: string | null;
   fare: number;
   settle_amount: number | null;
-  vehicles: { plate_number: string; driver_name: string | null } | null;
+  vehicles: { plate_number: string; driver_name: string | null; jiip?: boolean | null } | null;
   drivers: { name: string } | null;
   dispatch_runs: { service_date: string };
   bookings: {
@@ -70,7 +70,7 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     fetchAll((a, b) => db
       .from("dispatch_assignments")
       .select(
-        "id,booking_id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name),drivers(name),dispatch_runs!inner(service_date,status)," +
+        "id,booking_id,vehicle_id,unassigned_reason,fare,settle_amount,vehicles(plate_number,driver_name,jiip),drivers(name),dispatch_runs!inner(service_date,status)," +
           "bookings(booking_no,flight_no,trip_type,source,pickup_at,vehicle_class,pax,memo,fare,pickup_address,dropoff_address,pickup_place,dropoff_place,raw)",
       )
       .eq("dispatch_runs.status", "confirmed")
@@ -90,8 +90,11 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     .filter((r) => r.vehicle_id)
     .map((r) => {
       const own = r.bookings?.source === OWN_CALL;
-      // 기본 금액: 외부오더는 시트 금액(없으면 −차감액), 그 외는 콜 금액 규칙(기본·김포·피켓·어린이 좌석). 손으로 고친 값이 있으면 그 값
-      const base = own ? ownCallAmount(r.bookings?.fare, ownCallFee) : r.bookings ? fareFor(r.bookings, rules) : r.fare ?? 0;
+      // 기본 금액: 외부오더는 시트 금액(없으면 −차감액), 지입 차량은 건당 고정 금액, 그 외는 콜 금액 규칙(기본·김포·피켓·어린이 좌석).
+      // 손으로 고친 값이 있으면 그 값
+      const base = own
+        ? ownCallAmount(r.bookings?.fare, ownCallFee)
+        : r.bookings ? vehicleFare(r.bookings, rules, r.vehicles?.jiip, r.dispatch_runs.service_date) : r.fare ?? 0;
       return {
         id: r.id,
         serviceDate: r.dispatch_runs.service_date,

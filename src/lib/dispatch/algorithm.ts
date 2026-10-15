@@ -451,6 +451,50 @@ export function dispatch(
 }
 
 /**
+ * 예비 차량(지입 차량)은 마지막에 쓴다: 일반 차량으로 먼저 배차하고, 끝내 남은 예약만 예비 차량으로 배차한다.
+ * 예비 차량에 고정된 예약(그 기사의 자체 콜)은 예비 차량 배차에서 같이 처리하고,
+ * 일반 차량에 고정된 예약은 예비 차량으로 넘기지 않는다.
+ */
+export function dispatchTiered(
+  bookings: DispatchBooking[],
+  primary: DispatchVehicle[],
+  reserve: DispatchVehicle[],
+  partial: Partial<DispatchOptions> = {},
+): DispatchResult {
+  if (!reserve.length) return dispatch(bookings, primary, partial);
+  if (!primary.length) return dispatch(bookings, reserve, partial);
+  const reserveIds = new Set(reserve.map((v) => v.id));
+  const primaryIds = new Set(primary.map((v) => v.id));
+  const toReserve = (b: DispatchBooking) => !!b.fixedVehicleId && reserveIds.has(b.fixedVehicleId);
+  const first = dispatch(bookings.filter((b) => !toReserve(b)), primary, partial);
+  const byId = new Map(bookings.map((b) => [b.id, b]));
+  const stay = first.unassigned.filter((u) => {
+    const f = byId.get(u.bookingId)?.fixedVehicleId;
+    return !!f && primaryIds.has(f);
+  });
+  const left = new Set(first.unassigned.filter((u) => !stay.includes(u)).map((u) => u.bookingId));
+  const second = dispatch(bookings.filter((b) => left.has(b.id) || toReserve(b)), reserve, partial);
+
+  const routes = [...first.routes, ...second.routes];
+  const unassigned = [...stay, ...second.unassigned];
+  const byReason: Partial<Record<UnassignedReason, number>> = {};
+  for (const u of unassigned) byReason[u.reason] = (byReason[u.reason] ?? 0) + 1;
+  return {
+    routes,
+    unassigned,
+    summary: {
+      totalBookings: bookings.length,
+      assigned: routes.reduce((n, r) => n + r.stops.length, 0),
+      unassigned: unassigned.length,
+      vehiclesUsed: routes.filter((r) => r.stops.length > 0).length,
+      totalDeadheadKm: first.summary.totalDeadheadKm + second.summary.totalDeadheadKm,
+      byReason,
+      extraVehiclesNeeded: second.summary.extraVehiclesNeeded,
+    },
+  };
+}
+
+/**
  * 남은 건을 소화하려면 몇 대가 더 필요한지 추정한다.
  * 추가 차량은 남은 건을 모두 태울 수 있는 크기·등급(상위 등급은 하위 예약도 가능)으로 가정한다.
  */

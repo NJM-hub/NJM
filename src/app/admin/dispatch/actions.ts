@@ -2,13 +2,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertAdmin } from "@/lib/auth";
-import { dispatch, simulateRoute, type DispatchBooking, type DispatchVehicle, type DispatchOptions, DEFAULT_SHIFT, DEFAULT_RUSH } from "@/lib/dispatch/algorithm";
+import { dispatchTiered, simulateRoute, type DispatchBooking, type DispatchVehicle, type DispatchOptions, DEFAULT_SHIFT, DEFAULT_RUSH } from "@/lib/dispatch/algorithm";
 import { gradeRequired, parseVehicleClass } from "@/lib/dispatch/vehicleClass";
 import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, fareRulesOf, loadSettings } from "@/lib/settings";
-import { fareFor } from "@/lib/settlement/fare";
+import { fareFor, vehicleFare } from "@/lib/settlement/fare";
 import { OWN_CALL_SOURCE, type SheetBooking } from "@/lib/kkday/sheet";
 import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
 import { saveBookings } from "../upload/actions";
@@ -39,6 +39,7 @@ type BookingRow = {
 
 type VehicleRow = {
   id: string;
+  jiip?: boolean | null;
   seats: number;
   grade: string | null;
   base_address: string | null;
@@ -148,7 +149,7 @@ export async function runDispatch(formData: FormData) {
       .from("bookings")
       .select("id,pickup_at,duration_min,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pax,fare,vehicle_class,wait_min,pickup_place,dropoff_place,pickup_geo,dropoff_geo,fixed_vehicle_id,source,memo")
       .eq("service_date", date),
-    supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").eq("active", true).order("plate_number"),
+    supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng,jiip").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,vehicle_id").eq("status", "approved").not("vehicle_id", "is", null),
   ]);
   if (bErr || vErr) throw new Error(bErr?.message ?? vErr?.message);
@@ -177,10 +178,22 @@ export async function runDispatch(formData: FormData) {
     // 전날 콜 수가 평균보다 많으면 건당 +, 적거나 쉬었으면 − (분 단위 비용)
     return { ...d, earliestStart, costPerCall: ((p?.calls ?? 0) - avgPrev) * 8 };
   };
-  const result = dispatch(bookings.map(toBooking), usable.map(toVehicle), opts);
+  // 지입 차량은 마지막에: 일반 차량으로 먼저 배차하고 끝내 남는 예약만 지입 차량으로
+  const result = dispatchTiered(
+    bookings.map(toBooking),
+    usable.filter((v) => !v.jiip).map(toVehicle),
+    usable.filter((v) => v.jiip).map(toVehicle),
+    opts,
+  );
+  const jiipIds = new Set(usable.filter((v) => v.jiip).map((v) => v.id));
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
   const rules = fareRulesOf(settings);
-  const fareOf = new Map(bookings.map((b) => [b.id, b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)]));
+  const bookingOf = new Map(bookings.map((b) => [b.id, b]));
+  // 차량에 배정된 콜 금액 (지입 차량은 건당 고정 금액). 자체 콜은 적힌 금액
+  const fareOn = (bookingId: string, vehicleId: string | null) => {
+    const b = bookingOf.get(bookingId)!;
+    return b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : vehicleFare(b, rules, !!vehicleId && jiipIds.has(vehicleId), date);
+  };
   // 시간이 없는 자체 콜(전세 등)은 동선 계산 없이 그 차량에 붙인다
   const usableIds = new Set(usable.map((v) => v.id));
   const fixedUntimed = new Map(
@@ -213,7 +226,7 @@ export async function runDispatch(formData: FormData) {
         ready_at: new Date(s.readyAt).toISOString(),
         deadhead_km: s.deadheadKm,
         deadhead_min: s.deadheadMin,
-        fare: fareOf.get(s.bookingId) ?? 0,
+        fare: fareOn(s.bookingId, r.vehicleId),
       })),
     ),
     ...result.unassigned.map((u) => {
@@ -224,7 +237,7 @@ export async function runDispatch(formData: FormData) {
         vehicle_id: vid,
         driver_id: vid ? driverOf.get(vid) ?? null : null,
         unassigned_reason: vid ? null : u.reason,
-        fare: fareOf.get(u.bookingId) ?? 0,
+        fare: fareOn(u.bookingId, vid),
       };
     }),
   ];
@@ -357,7 +370,7 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
   }
 
   const [{ data: vehicles }, { data: drivers }] = await Promise.all([
-    affected.length ? db.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", affected) : Promise.resolve({ data: [] as VehicleRow[] }),
+    affected.length ? db.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng,jiip").in("id", affected) : Promise.resolve({ data: [] as VehicleRow[] }),
     affected.length ? db.from("drivers").select("id,vehicle_id").eq("status", "approved").in("vehicle_id", affected) : Promise.resolve({ data: [] as { id: string; vehicle_id: string }[] }),
   ]);
   const driverOf = new Map((drivers ?? []).map((d) => [d.vehicle_id as string, d.id as string]));
@@ -400,7 +413,7 @@ async function applyMoves(db: Db, runId: string, moves: Map<string, string | nul
       target === EXTERNAL
         ? row.unassigned_reason === "EXTERNAL" ? row.fare : EXTERNAL_DEFAULT_FARE
         : vehicleId
-          ? b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, rules)
+          ? b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : vehicleFare(b, rules, (vehicles ?? []).find((v) => v.id === vehicleId)?.jiip, run.service_date)
           : row.fare;
     const { error } = await db
       .from("dispatch_assignments")
@@ -666,7 +679,7 @@ export async function importSheetDispatch(
     };
     const usedIds = [...new Set(bookings.map(vehicleIdOf).filter((v): v is string => !!v))];
     const { data: used } = usedIds.length
-      ? await supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng").in("id", usedIds)
+      ? await supabase.from("vehicles").select("id,seats,grade,base_address,base_lat,base_lng,jiip").in("id", usedIds)
       : { data: [] as VehicleRow[] };
     await fillCoordinates(supabase, bookings, used ?? []);
 
@@ -687,7 +700,7 @@ export async function importSheetDispatch(
         rowsOut.push({
           booking_id: b.id, vehicle_id: v.id, driver_id: driverOf.get(v.id) ?? null, seq: s?.seq ?? (idx >= 0 ? idx + 1 : null),
           ready_at: s ? new Date(s.readyAt).toISOString() : null, deadhead_km: s?.deadheadKm ?? null, deadhead_min: s?.deadheadMin ?? null,
-          unassigned_reason: null, fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : fareFor(b, fareRulesOf(settings)),
+          unassigned_reason: null, fare: b.source === OWN_CALL_SOURCE ? b.fare ?? 0 : vehicleFare(b, fareRulesOf(settings), v.jiip, date),
         });
       }
     }

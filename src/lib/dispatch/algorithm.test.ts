@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dispatch, type DispatchBooking, type DispatchVehicle } from "./algorithm";
+import { dispatch, dispatchTiered, type DispatchBooking, type DispatchVehicle } from "./algorithm";
 
 const H = 3_600_000;
 const day = Date.UTC(2026, 8, 24, 0, 0); // 09:00 KST
@@ -85,5 +85,34 @@ describe("dispatch", () => {
     const big = booking("big", 8, { pax: 8 });
     const res = dispatch([...small, big], [car("v_big", 11), car("v_small", 4)], { maxCallsPerVehicle: 4 });
     expect(res.summary.unassigned).toBe(0);
+  });
+});
+
+describe("dispatchTiered (지입 차량은 마지막에)", () => {
+  const of = (res: ReturnType<typeof dispatch>, id: string) => res.routes.find((r) => r.stops.some((s) => s.bookingId === id))?.vehicleId;
+
+  it("일반 차량으로 다 되면 지입 차량은 쓰지 않는다", () => {
+    const res = dispatchTiered([booking("a", 1), booking("b", 4)], [car("v1")], [car("j1")]);
+    expect(of(res, "a")).toBe("v1");
+    expect(of(res, "b")).toBe("v1");
+    expect(res.routes.find((r) => r.vehicleId === "j1")?.stops.length ?? 0).toBe(0);
+  });
+
+  it("일반 차량으로 끝내 남는 예약만 지입 차량에 준다", () => {
+    const res = dispatchTiered([booking("a", 1), booking("b", 1), booking("c", 1)], [car("v1"), car("v2")], [car("j1")]);
+    expect([of(res, "a"), of(res, "b"), of(res, "c")].filter((v) => v === "j1")).toHaveLength(1);
+    expect(res.summary.assigned).toBe(3);
+    expect(res.unassigned).toHaveLength(0);
+  });
+
+  it("지입 차량의 자체 콜은 그 차량에, 일반 차량의 자체 콜은 지입으로 넘기지 않는다", () => {
+    const res = dispatchTiered(
+      [booking("jown", 1, { fixedVehicleId: "j1" }), booking("vown", 2, { fixedVehicleId: "v1" }), booking("a", 5)],
+      [car("v1")],
+      [car("j1")],
+    );
+    expect(of(res, "jown")).toBe("j1");
+    expect(of(res, "vown")).toBe("v1");
+    expect(of(res, "a")).toBe("v1");
   });
 });
