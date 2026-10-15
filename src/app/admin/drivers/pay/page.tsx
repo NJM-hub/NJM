@@ -4,7 +4,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { requireViewer } from "@/lib/auth";
 import { decrypt } from "@/lib/crypto";
 import { canonicalDriver, parseDriverAliases } from "@/lib/driverAlias";
-import { isMonth, won } from "@/lib/format";
+import { fmtDateTime, isMonth, won } from "@/lib/format";
 import { formatRrn } from "@/lib/pii";
 import { loadSettings } from "@/lib/settings";
 import { loadVehicleMonth } from "@/lib/settlement/vehicleMonthlyLoad";
@@ -24,7 +24,7 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
     loadVehicleMonth(supabase, month),
     loadSettings(supabase),
     supabase.from("driver_roster").select("id,name,vehicle_id,rrn_enc,bank_name,bank_account_enc,account_holder"),
-    supabase.from("driver_month_notes").select("unit_key,note").eq("month", month),
+    supabase.from("driver_month_notes").select("unit_key,note,paid,paid_at").eq("month", month),
   ]);
   const aliases = parseDriverAliases(settings.driver_aliases);
   const key = (n: string | null | undefined) => norm(canonicalDriver(n ?? "", aliases) ?? n);
@@ -34,7 +34,7 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
     const list = roster.filter((r) => key(r.name) === key(name));
     return list.find((r) => r.vehicle_id === vehicleId) ?? list[0] ?? null;
   };
-  const noteOf = new Map((notes ?? []).map((n) => [n.unit_key as string, (n.note as string | null) ?? ""]));
+  const noteOf = new Map((notes ?? []).map((n) => [n.unit_key as string, n as { note: string | null; paid: boolean; paid_at: string | null }]));
 
   const rows = report.vehicles.map((v) => {
     const name = v.operator || v.driverName || "";
@@ -45,9 +45,14 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
       rrn: rrn ? formatRrn(rrn) : null,
       account: r ? [r.bank_name, decrypt(r.bank_account_enc), r.account_holder && r.account_holder !== r.name ? `(${r.account_holder})` : null].filter(Boolean).join(" ") || null : null,
       inRoster: !!r,
+      note: noteOf.get(v.key)?.note ?? "",
+      paid: noteOf.get(v.key)?.paid ?? false,
+      paidAt: noteOf.get(v.key)?.paid_at ?? null,
     };
   });
   const total = rows.reduce((s, r) => s + r.pay, 0);
+  const paidTotal = rows.filter((r) => r.paid).reduce((s, r) => s + r.pay, 0);
+  const paidCount = rows.filter((r) => r.paid).length;
 
   return (
     <div className="space-y-6">
@@ -68,13 +73,13 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
       <div className="card overflow-x-auto !p-0">
         <table className="table">
           <thead>
-            <tr><th>차량</th><th>기사</th><th>주민번호</th><th>계좌번호</th><th className="text-right">지급액</th><th>비고</th></tr>
+            <tr><th>차량</th><th>기사</th><th>주민번호</th><th>계좌번호</th><th className="text-right">지급액</th><th>지급 / 비고</th></tr>
           </thead>
           <tbody>
             {rows.map((r) => {
               const f = `note-${r.key}`;
               return (
-                <tr key={r.key}>
+                <tr key={r.key} className={r.paid ? "bg-green-50" : ""}>
                   <td className="whitespace-nowrap">{r.plate}</td>
                   <td className="whitespace-nowrap">
                     {r.name || "-"}
@@ -87,9 +92,14 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
                     <form id={f} action={saveDriverMonthNote} className="flex gap-1">
                       <input type="hidden" name="month" value={month} />
                       <input type="hidden" name="unitKey" value={r.key} />
-                      <input name="note" defaultValue={noteOf.get(r.key) ?? ""} className="input !w-48 !py-1" />
+                      <select name="paid" defaultValue={r.paid ? "1" : "0"} className={`input !w-28 !py-1 ${r.paid ? "text-green-700" : "text-red-600"}`}>
+                        <option value="0">미지급</option>
+                        <option value="1">지급완료</option>
+                      </select>
+                      <input name="note" defaultValue={r.note} placeholder="비고" className="input !w-48 !py-1" />
                       <SubmitButton className="btn-secondary !px-2 !py-1 text-xs" pendingText="...">저장</SubmitButton>
                     </form>
+                    {r.paid && r.paidAt && <div className="mt-0.5 text-xs text-green-700">지급완료 {fmtDateTime(r.paidAt)}</div>}
                   </td>
                 </tr>
               );
@@ -100,7 +110,11 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
             <tfoot>
               <tr className="font-semibold">
                 <td className="px-3 py-2">합계 ({rows.length}명)</td><td /><td /><td />
-                <td className="px-3 py-2 text-right">{won(total)}</td><td />
+                <td className="px-3 py-2 text-right">{won(total)}</td>
+                <td className="px-3 py-2 text-sm font-normal">
+                  <span className="text-green-700">지급완료 {paidCount}명 {won(paidTotal)}</span>
+                  <span className="ml-3 text-red-600">미지급 {rows.length - paidCount}명 {won(total - paidTotal)}</span>
+                </td>
               </tr>
             </tfoot>
           )}

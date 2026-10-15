@@ -49,15 +49,21 @@ export async function deleteRosterDriver(formData: FormData) {
   revalidatePath("/admin/drivers");
 }
 
-/** 월별 지급표 비고 저장 */
+/** 월별 지급표 비고·지급 상태(미지급/지급완료) 저장 */
 export async function saveDriverMonthNote(formData: FormData) {
   const { supabase } = await assertDriverManager();
   const month = String(formData.get("month"));
   if (!isMonth(month)) throw new Error("월이 올바르지 않습니다.");
   const unitKey = String(formData.get("unitKey"));
-  const { error } = await supabase
-    .from("driver_month_notes")
-    .upsert({ month, unit_key: unitKey, note: text(formData.get("note")), updated_at: new Date().toISOString() });
+  const paid = formData.get("paid") === "1";
+  const { data: prev } = await supabase.from("driver_month_notes").select("paid,paid_at").eq("month", month).eq("unit_key", unitKey).maybeSingle();
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("driver_month_notes").upsert({
+    month, unit_key: unitKey, note: text(formData.get("note")), paid,
+    // 지급완료로 바꾼 시각 (계속 지급완료면 처음 시각 유지)
+    paid_at: paid ? (prev?.paid ? prev.paid_at : now) : null,
+    updated_at: now,
+  });
   if (error) throw new Error(error.message);
   revalidatePath("/admin/drivers/pay");
 }
