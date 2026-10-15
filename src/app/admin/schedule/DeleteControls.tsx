@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { DELETE_ALL_WORD } from "./constants";
-import { deleteAllSchedules, deleteDate, deleteUpload, type DeleteResult } from "./actions";
+import { deleteAllSchedules, deleteDate, deleteDateBookings, deleteUpload, type DeleteResult } from "./actions";
 
 function Msg({ state }: { state: DeleteResult }) {
   if (!state) return null;
@@ -20,6 +20,24 @@ export function DeleteDateButton({ date, count }: { date: string; count?: number
       </label>
       <button className="btn-danger !px-2 !py-1 text-xs" disabled={pending}>
         {pending ? "삭제 중..." : `삭제${count != null ? ` (${count}건)` : ""}`}
+      </button>
+      <Msg state={state} />
+    </form>
+  );
+}
+
+/** 배차 화면: 이 날짜 KKday 예약 전체 삭제 (외부에서 받은 콜은 남김) */
+export function DeleteDateBookingsButton({ date, count }: { date: string; count: number }) {
+  const [state, action, pending] = useActionState(deleteDateBookings, null);
+  if (state?.ok) return <Msg state={state} />;
+  return (
+    <form action={action} className="inline-flex flex-wrap items-center gap-2">
+      <input type="hidden" name="date" value={date} />
+      <label className="flex items-center gap-1 text-xs text-gray-500">
+        <input type="checkbox" required /> 확인
+      </label>
+      <button className="btn-danger !px-2 !py-1 text-xs" disabled={pending || count === 0}>
+        {pending ? "삭제 중..." : `전체 예약 삭제 (${count}건)`}
       </button>
       <Msg state={state} />
     </form>

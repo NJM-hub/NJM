@@ -10,7 +10,7 @@ import { KkdayFileUpload } from "./KkdayFileUpload";
 import { addOwnCall, confirmRun, deleteOwnCall, moveAssignment, moveSelected, runDispatch, setExternalFare, unassignAll, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
-import { DeleteDateButton } from "../schedule/DeleteControls";
+import { DeleteDateBookingsButton } from "../schedule/DeleteControls";
 
 type Booking = {
   id: string;
@@ -62,9 +62,10 @@ export default async function DispatchPage({
   const date = isDate(sp.date) ? sp.date : todayKst();
   const { supabase } = await requireAdmin();
 
-  const [{ count: bookingCount }, { count: noCoordCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }, { data: roster }] = await Promise.all([
+  const [{ count: bookingCount }, { count: noCoordCount }, { count: kkdayCount }, { data: vehiclesRaw }, { data: driversRaw }, { data: runs }, { data: roster }] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).or("pickup_lat.is.null,dropoff_lat.is.null"),
+    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("service_date", date).or(`source.is.null,source.neq.${OWN_CALL_SOURCE}`),
     supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name,jiip").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,name,phone,vehicle_id").eq("status", "approved"),
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
@@ -169,11 +170,10 @@ export default async function DispatchPage({
             {!!noCoordCount && <span className="ml-2 text-amber-700">(위치 미확인 {noCoordCount}건 — 자동 배차 시 주소로 위치를 찾습니다)</span>}
           </div>
         </form>
-        {!!bookingCount && (
-          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-            이 날짜 일정 전체 삭제: <DeleteDateButton date={date} count={bookingCount} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+          이 날짜 KKday 예약: <DeleteDateBookingsButton key={date} date={date} count={kkdayCount ?? 0} />
+          <span className="text-xs text-gray-500">외부에서 받은 콜은 남습니다. 확정된 배차가 있으면 확정 해제 후 삭제할 수 있습니다.</span>
+        </div>
 
         <KkdayFileUpload date={date} />
 
