@@ -68,12 +68,12 @@ export default async function DispatchPage({
     supabase.from("vehicles").select("id,plate_number,model,seats,grade,active,driver_name,jiip").eq("active", true).order("plate_number"),
     supabase.from("drivers").select("id,name,phone,vehicle_id").eq("status", "approved"),
     supabase.from("dispatch_runs").select("id,status,summary,created_at,options").eq("service_date", date).order("created_at", { ascending: false }),
-    supabase.from("driver_roster").select("name,vehicle_id").eq("active", true).not("vehicle_id", "is", null).order("name"),
+    supabase.from("driver_roster").select("name,name_zh,vehicle_id").eq("active", true).not("vehicle_id", "is", null).order("name"),
   ]);
 
   // 기사 관리의 소속 기사 명단(근무 중)을 우선 표시하고, 없으면 차량에 적어둔 기사 이름(중국어는 한국어로)
   const rosterOf = new Map<string, string[]>();
-  for (const r of roster ?? []) rosterOf.set(r.vehicle_id, [...(rosterOf.get(r.vehicle_id) ?? []), r.name]);
+  for (const r of roster ?? []) rosterOf.set(r.vehicle_id, [...(rosterOf.get(r.vehicle_id) ?? []), r.name_zh ? `${r.name} (${r.name_zh})` : r.name]);
   const vehicles = vehiclesRaw?.map((v) => ({ ...v, driver_name: rosterOf.get(v.id)?.join(", ") ?? ko(v.driver_name) }));
   const drivers = driversRaw?.map((d) => ({ ...d, name: ko(d.name) }));
   const run = runs?.find((r) => r.id === sp.run) ?? runs?.find((r) => r.status === "confirmed") ?? runs?.[0];

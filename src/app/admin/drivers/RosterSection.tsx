@@ -8,7 +8,7 @@ import { deleteRosterDriver, saveRosterDriver } from "./rosterActions";
 type Vehicle = { id: string; plate_number: string };
 type Roster = {
   id: string; name: string; vehicle_id: string | null; phone: string | null; rrn_masked: string | null; bank_name: string | null;
-  bank_account_masked: string | null; account_holder: string | null; active: boolean; memo: string | null;
+  bank_account_masked: string | null; account_holder: string | null; active: boolean; memo: string | null; name_zh: string | null;
 };
 
 function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
@@ -16,6 +16,7 @@ function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
   return (
     <tr className={r ? (r.active ? "" : "opacity-50") : "bg-gray-50"}>
       <td><input form={f} name="name" defaultValue={r?.name ?? ""} required placeholder="이름" className="input !w-28" /></td>
+      <td><input form={f} name="name_zh" defaultValue={r?.name_zh ?? ""} placeholder="中文名" className="input !w-24" /></td>
       <td>
         <select form={f} name="vehicle_id" defaultValue={r?.vehicle_id ?? ""} className="input !w-32">
           <option value="">차량 없음</option>
@@ -53,7 +54,7 @@ function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
 /** 소속 기사 명단 + 월별 지급표 바로가기 (관리자만 수정, 관리자 회원·직원은 보기만. 지급표는 직원 제외) */
 export async function RosterSection({ db, vehicles, readOnly = false, showPay = true }: { db: SupabaseClient; vehicles: Vehicle[]; readOnly?: boolean; showPay?: boolean }) {
   const [{ data }, months] = await Promise.all([
-    db.from("driver_roster").select("id,name,vehicle_id,phone,rrn_masked,bank_name,bank_account_masked,account_holder,active,memo").order("active", { ascending: false }).order("name"),
+    db.from("driver_roster").select("id,name,name_zh,vehicle_id,phone,rrn_masked,bank_name,bank_account_masked,account_holder,active,memo").order("active", { ascending: false }).order("name"),
     showPay ? ledgerMonths(db) : Promise.resolve([] as string[]),
   ]);
   const roster = (data ?? []) as Roster[];
@@ -80,7 +81,7 @@ export async function RosterSection({ db, vehicles, readOnly = false, showPay = 
         </div>
         <table className="table mt-2">
           <thead>
-            <tr><th>이름</th><th>차량</th><th>연락처</th><th>주민번호</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th /></tr>
+            <tr><th>이름</th><th>중국어 이름</th><th>차량</th><th>연락처</th><th>주민번호</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th /></tr>
           </thead>
           <tbody>
             {roster.map((r) => <RosterRow key={r.id} r={r} vehicles={vehicles} />)}

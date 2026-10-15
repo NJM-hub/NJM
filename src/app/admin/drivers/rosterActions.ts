@@ -17,6 +17,7 @@ export async function saveRosterDriver(formData: FormData) {
     name,
     vehicle_id: text(formData.get("vehicle_id")),
     phone: text(formData.get("phone")),
+    name_zh: text(formData.get("name_zh")),
     bank_name: text(formData.get("bank_name")),
     account_holder: text(formData.get("account_holder")),
     memo: text(formData.get("memo")),
