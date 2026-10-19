@@ -100,6 +100,33 @@ export async function pinPayments(contractId: string, c: Queryable) {
  * 매월 월세 청구를 자동 생성한다 (이미 있는 달은 건너뜀).
  * 새 청구가 생긴 계약은 선납금이 있을 수 있으므로 배분을 다시 계산한다.
  */
+/**
+ * 갱신 계약 자동 연결: 같은 임차인·같은 호실에서 이전 계약 종료 무렵(앞뒤 두 달 이내)에 시작한 계약을
+ * 이전 계약의 갱신으로 이어 준다. (갱신 버튼 대신 새 계약으로 따로 등록한 경우)
+ * 이전 계약은 '갱신', 새 계약을 '갱신' 상태로 저장했고 아직 기간 중이면 '정상'으로 바꾼다.
+ */
+async function linkRenewals(today: string, c: Queryable) {
+  const links = await q<{ new_id: string; old_id: string }>(
+    `with cand as (
+       select n.id as new_id, o.id as old_id, row_number() over (partition by n.id order by o.start_date desc) as rn
+         from contracts n
+         join contracts o on o.unit_id = n.unit_id and o.tenant_id = n.tenant_id and o.id <> n.id and o.start_date < n.start_date
+        where n.previous_contract_id is null
+          and abs(n.start_date - coalesce(o.terminated_on, o.end_date)) <= 62
+          and not exists (select 1 from contracts x where x.previous_contract_id = o.id)
+     )
+     update contracts n
+        set previous_contract_id = cand.old_id, is_renewal = true,
+            status = case when n.status = 'renewed' and n.end_date >= $1 then 'active' else n.status end, updated_at = now()
+       from cand where cand.new_id = n.id and cand.rn = 1
+     returning n.id as new_id, cand.old_id`,
+    [today],
+    c,
+  );
+  if (!links.length) return;
+  await q("update contracts set status = 'renewed', updated_at = now() where id = any($1) and status in ('active','expired')", [links.map((l) => l.old_id)], c);
+}
+
 export async function syncBilling(today = todayKST(), contractIds?: string[]): Promise<number> {
   return tx(async (c) => {
     await c.query("select pg_advisory_xact_lock(727277)");
@@ -122,6 +149,7 @@ export async function syncBilling(today = todayKST(), contractIds?: string[]): P
     const have = new Set([...existing, ...skips].map((e) => `${e.contract_id}|${e.billing_month}`));
     let created = 0;
     const touched = new Set<string>();
+    await linkRenewals(today, c);
     // 같은 임차인이 같은 호실을 갱신했으면, 새 계약이 청구를 시작한 달부터는 이전 계약에서 청구하지 않는다
     const all = contractIds ? await q<Contract>("select * from contracts", [], c) : contracts;
     const cutoffs = new Map<string, string>();

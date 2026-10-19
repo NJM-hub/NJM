@@ -79,11 +79,12 @@ export async function saveContractAction(_p: FormState, fd: FormData): Promise<F
   if (ocrJson && reviewed !== "on") f.errors.ocr_reviewed = "AI 추출 내용을 확인했다고 체크해 주세요.";
   if (!f.ok) return f.fail();
 
-  // 같은 호실 기간 겹침 확인 (종료·해지·갱신된 계약 제외)
+  // 같은 호실 기간 겹침 확인 (종료·해지·갱신된 계약, 같은 임차인의 이전 계약(갱신·선불로 겹치는 달) 제외)
   const overlap = await q1<{ contract_no: string }>(
     `select contract_no from contracts where unit_id = $1 and id <> coalesce($2::uuid, '00000000-0000-0000-0000-000000000000')
-       and status in ('planned','active') and start_date <= $4 and coalesce(terminated_on, end_date) >= $3 limit 1`,
-    [unitId, id, start, end],
+       and status in ('planned','active') and start_date <= $4 and coalesce(terminated_on, end_date) >= $3
+       and not coalesce(tenant_id = $5::uuid and start_date < $3, false) limit 1`,
+    [unitId, id, start, end, tenantId],
   );
   if (overlap) return { fieldErrors: { start_date: `같은 호실에 기간이 겹치는 계약(${overlap.contract_no})이 있습니다.` }, error: "계약 기간을 확인하세요." };
 
@@ -121,6 +122,12 @@ export async function saveContractAction(_p: FormState, fd: FormData): Promise<F
           [...vals, id],
           c,
         );
+        // 수정 화면에서 고른 '이전 계약(갱신 전)' 연결
+        if (fd.has("previous_contract_id")) {
+          const prev = prevId && prevId !== id ? prevId : null;
+          await q("update contracts set previous_contract_id = $2, is_renewal = (is_renewal or $2::uuid is not null) where id = $1", [id, prev], c);
+          if (prev) await q("update contracts set status = 'renewed', updated_at = now() where id = $1 and status in ('active','expired')", [prev], c);
+        }
         // 아직 입금이 없는 이번 달 이후 청구는 새 금액으로 다시 만든다
         await q(
           "delete from rent_charges where contract_id = $1 and billing_month >= $2 and paid_amount = 0 and not exists (select 1 from payments p where p.charge_id = rent_charges.id)",
