@@ -8,12 +8,13 @@ import { fmtDateTime, isMonth, won } from "@/lib/format";
 import { formatRrn } from "@/lib/pii";
 import { loadSettings } from "@/lib/settings";
 import { loadVehicleMonth } from "@/lib/settlement/vehicleMonthlyLoad";
+import { ko } from "@/lib/ko";
 import { saveDriverMonthNote } from "../rosterActions";
 
 const monthLabel = (m: string) => `${m.slice(2, 4)}년 ${Number(m.slice(5))}월`;
 const norm = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, "");
 
-type Roster = { id: string; name: string; vehicle_id: string | null; rrn_enc: string | null; bank_name: string | null; bank_account_enc: string | null; account_holder: string | null };
+type Roster = { id: string; name: string; name_zh: string | null; vehicle_id: string | null; rrn_enc: string | null; bank_name: string | null; bank_account_enc: string | null; account_holder: string | null };
 
 /** 월별 기사 지급표: 차량별 월정산의 기사(정산 단위)마다 명단의 주민번호·계좌와 실제 지급액 */
 export default async function DriverPayPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
@@ -23,7 +24,7 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
   const [report, settings, { data: rosterRows }, { data: notes }] = await Promise.all([
     loadVehicleMonth(supabase, month),
     loadSettings(supabase),
-    supabase.from("driver_roster").select("id,name,vehicle_id,rrn_enc,bank_name,bank_account_enc,account_holder"),
+    supabase.from("driver_roster").select("id,name,name_zh,vehicle_id,rrn_enc,bank_name,bank_account_enc,account_holder"),
     supabase.from("driver_month_notes").select("unit_key,note,paid,paid_at").eq("month", month),
   ]);
   const aliases = parseDriverAliases(settings.driver_aliases);
@@ -31,7 +32,8 @@ export default async function DriverPayPage({ searchParams }: { searchParams: Pr
   const roster = (rosterRows ?? []) as Roster[];
   // 같은 이름이 여럿이면 같은 차량을 먼저
   const find = (name: string, vehicleId: string) => {
-    const list = roster.filter((r) => key(r.name) === key(name));
+    // 한국어 이름, 또는 중국어 이름(그대로·한국어로 바꾼 것)이 정산 이름과 같으면 같은 기사
+    const list = roster.filter((r) => [r.name, r.name_zh, ko(r.name_zh)].some((n) => n && key(n) === key(name)));
     return list.find((r) => r.vehicle_id === vehicleId) ?? list[0] ?? null;
   };
   const noteOf = new Map((notes ?? []).map((n) => [n.unit_key as string, n as { note: string | null; paid: boolean; paid_at: string | null }]));
