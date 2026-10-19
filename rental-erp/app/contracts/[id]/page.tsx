@@ -50,6 +50,8 @@ export default async function ContractPage({ params, searchParams }: { params: P
   const payments = ds.payments.filter((x) => x.contract_id === id);
   const deposit = ds.deposits.find((d) => d.contract_id === id);
   const st = effectiveStatus(c, today, ds.contracts);
+  const prevContract = c.previous_contract_id ? ds.contracts.find((x) => x.id === c.previous_contract_id) : undefined;
+  const nextContracts = ds.contracts.filter((x) => x.previous_contract_id === c.id);
   const left = daysBetween(today, c.end_date);
   const lvl = st === "expiring" ? expiryLevel(left) : null;
   const unpaid = charges.filter((x) => x.due_date < today).reduce((a, x) => a + x.amount - x.paid_amount, 0);
@@ -83,6 +85,16 @@ export default async function ContractPage({ params, searchParams }: { params: P
             <span>{c.contract_no}</span>
             <StatusBadge s={st} />
             {c.is_renewal && <Badge tone="blue">갱신 계약</Badge>}
+            {prevContract && (
+              <Link href={`/contracts/${prevContract.id}`} className="link text-xs">
+                ← 이전 계약 {prevContract.contract_no} ({fmtDate(prevContract.start_date)} ~ {fmtDate(prevContract.end_date)})
+              </Link>
+            )}
+            {nextContracts.map((n) => (
+              <Link key={n.id} href={`/contracts/${n.id}`} className="link text-xs">
+                갱신 계약 {n.contract_no} ({fmtDate(n.start_date)} ~ {fmtDate(n.end_date)}) →
+              </Link>
+            ))}
             {lvl && <span className={lvl === "red" ? "font-semibold text-red-600" : lvl === "orange" ? "text-orange-600" : "text-amber-600"}>{fmtDate(c.end_date)} 만료 (D-{left})</span>}
           </span>
         }

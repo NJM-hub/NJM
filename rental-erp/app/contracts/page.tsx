@@ -5,7 +5,7 @@ import { requirePage } from "@/lib/auth";
 import { EFFECTIVE_STATUS, type EffectiveStatus } from "@/lib/constants";
 import { getSnapshot } from "@/lib/data";
 import { daysBetween, fmtDate, monthLabel } from "@/lib/dates";
-import { effectiveStatus, expiryLevel } from "@/lib/engine";
+import { effectiveEnd, effectiveStatus, expiryLevel } from "@/lib/engine";
 import { num, won, wonShort } from "@/lib/format";
 import { compareUnits, unitLabel } from "@/lib/views";
 
@@ -25,12 +25,12 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   const unpaidMonths = new Map(s.arrears.map((a) => [a.contract.id, a.charges.map((c) => monthLabel(c.charge.billing_month))]));
   const rows = ds.contracts
     .filter((c) => scopeUnits.has(c.unit_id))
-    .map((c) => ({ c, st: effectiveStatus(c, s.today, ds.contracts) }));
+    .map((c) => ({ c, st: effectiveStatus(c, s.today, ds.contracts), live: c.start_date <= s.today && effectiveEnd(c) >= s.today }));
   // 빌딩 순서: 부동산명 → 동 → 호실(지하 B101 먼저, 그다음 101호, 102호 …) → 같은 호실은 최근 계약 먼저
   const unitById = new Map(ds.units.map((u) => [u.id, u]));
-  const count = (f: string) => rows.filter((r) => match(f, r.st)).length;
+  const count = (f: string) => rows.filter((r) => match(f, r.st, r.live)).length;
   const list = rows
-    .filter((r) => match(filter, r.st))
+    .filter((r) => match(filter, r.st, r.live))
     .sort((a, b) => compareUnits(ds, unitById.get(a.c.unit_id), unitById.get(b.c.unit_id)) || b.c.start_date.localeCompare(a.c.start_date));
   // 지금 보이는 목록(필터 적용)의 합계
   const total = {
@@ -142,8 +142,9 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   );
 }
 
-function match(f: string, st: EffectiveStatus) {
+/** live: 오늘이 계약 기간 안 (갱신 상태여도 기간 중이면 진행 중에 함께 보인다) */
+function match(f: string, st: EffectiveStatus, live: boolean) {
   if (f === "all") return true;
-  if (f === "current") return st === "active" || st === "expiring" || st === "planned";
+  if (f === "current") return st === "active" || st === "expiring" || st === "planned" || (st === "renewed" && live);
   return st === f;
 }
