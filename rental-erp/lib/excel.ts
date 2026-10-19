@@ -152,6 +152,7 @@ export const COLS = {
     { title: "금액", type: "money", width: 14 },
     { title: "거래처", width: 14 },
     { title: "메모", width: 24 },
+    { title: "소유주", width: 14 }, // 공통 비용일 때 어느 소유주 비용인지 (이름 또는 '개인'·'법인')
   ],
   monthly: [
     { title: "월", width: 9 },
@@ -268,7 +269,15 @@ export function buildSheets(kind: ExportKind, ds: Dataset, s: Snapshot): SheetDe
           cols: COLS.expenses,
           rows: ds.expenses
             .filter((e) => !e.property_id || scopeProps.has(e.property_id))
-            .map((e) => [e.expense_date, e.property_id ? prop.get(e.property_id)?.name : "(공통)", label(EXPENSE_CATEGORIES, e.category), e.amount, e.vendor, e.memo]),
+            .map((e) => [
+              e.expense_date,
+              e.property_id ? prop.get(e.property_id)?.name : "(공통)",
+              label(EXPENSE_CATEGORIES, e.category),
+              e.amount,
+              e.vendor,
+              e.memo,
+              !e.property_id && e.owner_id ? ds.owners.find((o) => o.id === e.owner_id)?.name : null,
+            ]),
         };
       case "monthly":
         return {
