@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { deleteDocumentAction } from "@/app/actions/documents";
 import {
   addChargeAction,
+  deleteChargeAction,
   holdChargeAction,
   deleteContractAction,
   deletePaymentAction,
@@ -41,6 +42,10 @@ export default async function ContractPage({ params, searchParams }: { params: P
   const t = ds.tenants.find((x) => x.id === c.tenant_id);
   const unit = ds.units.find((u) => u.id === c.unit_id);
   const charges = ds.charges.filter((x) => x.contract_id === id).sort((a, b) => b.billing_month.localeCompare(a.billing_month));
+  const skipped = await q<{ billing_month: string; memo: string | null }>(
+    "select billing_month::text, memo from rent_charge_skips where contract_id = $1 order by billing_month",
+    [id],
+  );
   const chargeMap = new Map(charges.map((x) => [x.id, x]));
   const payments = ds.payments.filter((x) => x.contract_id === id);
   const deposit = ds.deposits.find((d) => d.contract_id === id);
@@ -184,6 +189,13 @@ export default async function ContractPage({ params, searchParams }: { params: P
                       </td>
                       {can.editLeasing && (
                         <td className="whitespace-nowrap">
+                          <ActionButton
+                            action={deleteChargeAction.bind(null, x.id)}
+                            className="btn-ghost text-xs !text-slate-500"
+                            confirm={`${monthLabel(x.billing_month)} 청구(${num(x.amount)}원)를 삭제할까요?\n자동 청구가 이 달을 다시 만들지 않습니다. (예: 선불이라 갱신 계약에 이미 포함된 달)${x.paid_amount ? "\n이 달에 들어간 입금은 다른 미납 달(없으면 선납)로 옮겨집니다." : ""}`}
+                          >
+                            청구 삭제
+                          </ActionButton>
                           {x.hold_unpaid ? (
                             <ActionButton action={holdChargeAction.bind(null, x.id, false)} className="btn-ghost text-xs" confirm={`${monthLabel(x.billing_month)} 미납 고정을 풀까요? 입금이 오래된 달부터 다시 채워집니다.`}>
                               고정 해제
@@ -217,6 +229,11 @@ export default async function ContractPage({ params, searchParams }: { params: P
                 </tr>
               </tfoot>
             </Table>
+            {skipped.length > 0 && (
+              <p className="mt-3 text-xs text-slate-500">
+                삭제한 청구월 (자동 청구 안 함): {skipped.map((k) => monthLabel(k.billing_month)).join(", ")} — 다시 청구하려면 아래 &apos;빠진 달 청구 추가&apos;로 그 달을 추가하세요.
+              </p>
+            )}
             {can.editLeasing && (
               <details className="mt-4">
                 <summary className="btn-secondary cursor-pointer">+ 빠진 달 청구 추가 (지난 미납 등록)</summary>
