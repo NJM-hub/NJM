@@ -319,6 +319,33 @@ export async function holdChargeAction(chargeId: string, hold: boolean): Promise
 }
 
 /**
+ * 이 달 청구 삭제 (예: 선불이라 마지막 달이 갱신 계약에 이미 포함된 경우).
+ * 자동 청구가 다시 만들지 않도록 기록해 둔다. 이 달에 들어간 입금은 다른 미납 달(없으면 선납)로 옮겨진다.
+ */
+export async function deleteChargeAction(chargeId: string): Promise<FormState> {
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const ch = await q1<{ contract_id: string; billing_month: string; amount: number; paid_amount: number }>(
+    "select contract_id, billing_month::text, amount, paid_amount from rent_charges where id = $1",
+    [chargeId],
+  );
+  if (!ch) return { error: "청구를 찾을 수 없습니다." };
+  await tx(async (c) => {
+    await q(
+      "insert into rent_charge_skips (contract_id, billing_month, memo) values ($1, $2, $3) on conflict (contract_id, billing_month) do nothing",
+      [ch.contract_id, ch.billing_month, `청구 삭제 (${ch.amount.toLocaleString()}원)`],
+      c,
+    );
+    await q("delete from rent_charges where id = $1", [chargeId], c);
+    await reallocateContract(ch.contract_id, c);
+  });
+  await audit(a.user.id, "delete", "charge", chargeId, { month: ch.billing_month, amount: ch.amount, paid: ch.paid_amount });
+  revalidatePath("/", "layout");
+  const m = `${ch.billing_month.slice(0, 4)}년 ${Number(ch.billing_month.slice(5, 7))}월`;
+  return { ok: `${m} 청구(${ch.amount.toLocaleString()}원)를 삭제했습니다.${ch.paid_amount ? " 이 달에 들어간 입금은 다른 달(또는 선납)로 옮겼습니다." : ""}` };
+}
+
+/**
  * 빠진 달 청구 추가 (예: 자동 청구 시작 월 이전의 미납, 실수로 면제한 달).
  * 이미 그 달 청구가 있으면 금액만 바꾼다. 기존 입금은 지금 채운 달에 그대로 둔다.
  */
@@ -345,6 +372,8 @@ export async function addChargeAction(_p: FormState, fd: FormData): Promise<Form
   const vat = amount! - rent - maint;
   let action = "";
   await tx(async (c) => {
+    // 삭제했던 달을 다시 청구하면 삭제 기록도 지운다
+    await q("delete from rent_charge_skips where contract_id = $1 and billing_month = $2", [contractId, month], c);
     await pinPayments(contractId!, c);
     const existing = await q1<{ id: string; amount: number }>("select id, amount from rent_charges where contract_id = $1 and billing_month = $2", [contractId, month], c);
     if (existing) {

@@ -113,7 +113,13 @@ export async function syncBilling(today = todayKST(), contractIds?: string[]): P
       contractIds ? [contractIds] : [],
       c,
     );
-    const have = new Set(existing.map((e) => `${e.contract_id}|${e.billing_month}`));
+    // 이미 있는 청구 + 삭제한 달(rent_charge_skips)은 다시 만들지 않는다
+    const skips = await q<{ contract_id: string; billing_month: string }>(
+      "select contract_id, billing_month from rent_charge_skips" + (contractIds ? " where contract_id = any($1)" : ""),
+      contractIds ? [contractIds] : [],
+      c,
+    );
+    const have = new Set([...existing, ...skips].map((e) => `${e.contract_id}|${e.billing_month}`));
     let created = 0;
     const touched = new Set<string>();
     for (const ct of contracts) {

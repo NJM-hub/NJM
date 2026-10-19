@@ -19,6 +19,7 @@ export const BACKUP_TABLES = [
   "contracts",
   "deposits",
   "rent_charges",
+  "rent_charge_skips",
   "payments",
   "payment_allocations",
   "loans",
@@ -27,6 +28,7 @@ export const BACKUP_TABLES = [
   "settings",
 ] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
+const OPTIONAL_TABLES: BackupTable[] = ["rent_charge_skips"];
 
 export const BACKUP_LABELS: Record<BackupTable, string> = {
   owners: "소유주",
@@ -36,6 +38,7 @@ export const BACKUP_LABELS: Record<BackupTable, string> = {
   contracts: "계약",
   deposits: "보증금",
   rent_charges: "월세 청구",
+  rent_charge_skips: "삭제한 청구월",
   payments: "입금",
   payment_allocations: "입금 배분",
   loans: "대출",
@@ -80,6 +83,8 @@ export function parseBackup(raw: Buffer): BackupFile {
   }
   if (file?.app !== BACKUP_APP || typeof file.tables !== "object" || !file.tables) throw new Error("이 프로그램의 백업 파일이 아닙니다.");
   if (file.version > BACKUP_VERSION) throw new Error("더 새로운 버전에서 만든 백업입니다. 프로그램을 업데이트한 뒤 복원하세요.");
+  // 나중에 추가된 테이블은 예전 백업에 없을 수 있다
+  for (const t of OPTIONAL_TABLES) if (!Array.isArray(file.tables[t])) file.tables[t] = [];
   for (const t of BACKUP_TABLES) {
     if (!Array.isArray(file.tables[t])) throw new Error(`백업 파일에 '${BACKUP_LABELS[t]}' 자료가 없습니다.`);
   }
