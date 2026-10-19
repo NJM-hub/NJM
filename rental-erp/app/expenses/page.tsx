@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { deleteExpenseAction, saveExpenseAction } from "@/app/actions/assets";
+import { deleteExpenseAction, deleteExpensesAction, saveExpenseAction } from "@/app/actions/assets";
 import ActionButton from "@/components/ActionButton";
 import { ColumnChart } from "@/components/charts";
 import SmartForm, { type Field } from "@/components/Form";
@@ -148,7 +148,21 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         <p className="mt-2 text-xs text-slate-500">월별 칸은 만원 단위, 합계는 원 단위</p>
       </Card>
 
-      <Card title="비용 내역">
+      <Card
+        title="비용 내역"
+        actions={
+          can.admin &&
+          list.length > 0 && (
+            <ActionButton
+              action={deleteExpensesAction.bind(null, list.map((e) => e.id))}
+              className="btn-ghost text-xs !text-red-600"
+              prompt={`지금 목록에 보이는 ${list.length}건 (합계 ${won(total)})을 모두 삭제합니다. 되돌릴 수 없습니다.\n확인을 위해 '삭제' 라고 입력하세요.`}
+            >
+              목록 {list.length}건 모두 삭제
+            </ActionButton>
+          )
+        }
+      >
         {list.length === 0 ? (
           <Empty>비용이 없습니다.</Empty>
         ) : (
