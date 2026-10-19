@@ -25,7 +25,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   const unpaidMonths = new Map(s.arrears.map((a) => [a.contract.id, a.charges.map((c) => monthLabel(c.charge.billing_month))]));
   const rows = ds.contracts
     .filter((c) => scopeUnits.has(c.unit_id))
-    .map((c) => ({ c, st: effectiveStatus(c, s.today) }));
+    .map((c) => ({ c, st: effectiveStatus(c, s.today, ds.contracts) }));
   // 빌딩 순서: 부동산명 → 동 → 호실(지하 B101 먼저, 그다음 101호, 102호 …) → 같은 호실은 최근 계약 먼저
   const unitById = new Map(ds.units.map((u) => [u.id, u]));
   const count = (f: string) => rows.filter((r) => match(f, r.st)).length;

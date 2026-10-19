@@ -10,6 +10,7 @@ import {
   expiryLevel,
   monthlyInterest,
   planCharges,
+  renewalCutoff,
   simulate,
 } from "@/lib/engine";
 import type { Charge, Contract, Dataset, Loan, Property, Unit } from "@/lib/types";
@@ -204,6 +205,27 @@ describe("계약 상태 / 만료 알림", () => {
     expect(effectiveStatus(contract({ end_date: "2026-11-15" }), "2026-10-02")).toBe("expiring");
     expect(effectiveStatus(contract({ end_date: "2026-09-30" }), "2026-10-02")).toBe("expired");
     expect(effectiveStatus(contract({ start_date: "2026-12-01" }), "2026-10-02")).toBe("planned");
+  });
+});
+
+describe("갱신 계약", () => {
+  const prev = contract({ id: "old", start_date: "2024-10-15", end_date: "2026-10-14", status: "expired" });
+  const next = contract({ id: "new", start_date: "2026-10-15", end_date: "2028-10-14", status: "renewed", is_renewal: true });
+
+  it("새 계약을 '갱신' 상태로 저장해도 기간 중이면 진행 중(정상)으로 본다", () => {
+    expect(effectiveStatus(next, "2026-10-19", [prev, next])).toBe("active");
+    // 다음 계약이 이어지는 이전 계약은 '갱신'
+    const renewedOld = { ...prev, status: "renewed" as const, end_date: "2026-11-30" };
+    expect(effectiveStatus(renewedOld, "2026-10-19", [renewedOld, next])).toBe("renewed");
+  });
+
+  it("갱신 계약이 청구를 시작한 달부터는 이전 계약에서 청구하지 않는다 (선불 이중 청구 방지)", () => {
+    expect(renewalCutoff(prev, [prev, next])).toBe("2026-10-01");
+    const months = planCharges(prev, "2026-10-19", renewalCutoff(prev, [prev, next])).map((c) => c.billing_month);
+    expect(months.at(-1)).toBe("2026-09-01");
+    // 다른 임차인의 다음 계약이면 이전 계약은 그대로 청구
+    const other = { ...next, tenant_id: "t2", previous_contract_id: null };
+    expect(renewalCutoff(prev, [prev, other])).toBeNull();
   });
 });
 

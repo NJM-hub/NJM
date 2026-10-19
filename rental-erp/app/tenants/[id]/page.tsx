@@ -26,7 +26,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   const payments = ds.payments.filter((p) => ids.has(p.contract_id));
   const arrears = s.arrears.filter((a) => ids.has(a.contract.id));
   const unpaid = arrears.reduce((x, a) => x + a.total, 0);
-  const current = cs.filter((c) => ["active", "expiring", "planned"].includes(effectiveStatus(c, s.today)));
+  const current = cs.filter((c) => ["active", "expiring", "planned"].includes(effectiveStatus(c, s.today, ds.contracts)));
   const where = (contractId: string) => unitLabel(ds, cs.find((c) => c.id === contractId)?.unit_id ?? "");
 
   return (
@@ -87,7 +87,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 </td>
                 <td>{unitLabel(ds, c.unit_id)}</td>
                 <td>
-                  <StatusBadge s={effectiveStatus(c, s.today)} />
+                  <StatusBadge s={effectiveStatus(c, s.today, ds.contracts)} />
                 </td>
                 <td className="text-xs">{fmtDate(c.start_date)} ~ {fmtDate(c.end_date)}</td>
                 <td className="num text-xs">{daysBetween(s.today, c.end_date) >= 0 ? `${daysBetween(s.today, c.end_date)}일` : "-"}</td>

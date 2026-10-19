@@ -106,7 +106,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   <td>{tenant.get(c.tenant_id)?.name}</td>
                   <td>{unitLabel(ds, c.unit_id)}</td>
                   <td>
-                    <StatusBadge s={effectiveStatus(c, s.today)} />
+                    <StatusBadge s={effectiveStatus(c, s.today, ds.contracts)} />
                   </td>
                   <td className="text-xs">{fmtDate(c.start_date)} ~ {fmtDate(c.end_date)}</td>
                   <td className="num text-xs">{daysBetween(s.today, c.end_date) >= 0 ? `${daysBetween(s.today, c.end_date)}일` : "-"}</td>
