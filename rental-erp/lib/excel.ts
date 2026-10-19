@@ -219,7 +219,7 @@ export function buildSheets(kind: ExportKind, ds: Dataset, s: Snapshot): SheetDe
             return [
               c.contract_no, p?.name, u?.dong, u?.unit_no, t?.name, t?.phone, c.landlord_name, c.contract_date, c.start_date, c.end_date,
               c.deposit, c.monthly_rent, c.maintenance_fee, c.vat_amount, c.pay_day, c.billing_from,
-              EFFECTIVE_STATUS[effectiveStatus(c, s.today)], c.special_terms,
+              EFFECTIVE_STATUS[effectiveStatus(c, s.today, ds.contracts)], c.special_terms,
             ];
           }),
         };

@@ -49,7 +49,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
   const chargeMap = new Map(charges.map((x) => [x.id, x]));
   const payments = ds.payments.filter((x) => x.contract_id === id);
   const deposit = ds.deposits.find((d) => d.contract_id === id);
-  const st = effectiveStatus(c, today);
+  const st = effectiveStatus(c, today, ds.contracts);
   const left = daysBetween(today, c.end_date);
   const lvl = st === "expiring" ? expiryLevel(left) : null;
   const unpaid = charges.filter((x) => x.due_date < today).reduce((a, x) => a + x.amount - x.paid_amount, 0);

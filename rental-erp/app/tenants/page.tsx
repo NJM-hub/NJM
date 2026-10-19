@@ -20,7 +20,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   const rows = ds.tenants
     .map((t) => {
       const cs = ds.contracts.filter((c) => c.tenant_id === t.id).sort((a, b) => b.start_date.localeCompare(a.start_date));
-      const current = cs.find((c) => ["active", "expiring", "planned"].includes(effectiveStatus(c, s.today)));
+      const current = cs.find((c) => ["active", "expiring", "planned"].includes(effectiveStatus(c, s.today, ds.contracts)));
       const unpaid = s.arrears.filter((a) => a.contract.tenant_id === t.id).reduce((x, a) => x + a.total, 0);
       const unit = unitById.get((current ?? cs[0])?.unit_id ?? "");
       return { t, cs, current, unpaid, unit };

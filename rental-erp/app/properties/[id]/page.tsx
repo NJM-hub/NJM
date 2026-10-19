@@ -149,7 +149,7 @@ export default async function PropertyPage({ params, searchParams }: { params: P
                       {!u.is_active ? (
                         <Badge>사용 안 함</Badge>
                       ) : c ? (
-                        <StatusBadge s={effectiveStatus(c, today)} />
+                        <StatusBadge s={effectiveStatus(c, today, ds.contracts)} />
                       ) : (
                         <Badge tone="orange">공실 {v?.vacancyDays}일</Badge>
                       )}
@@ -229,7 +229,7 @@ export default async function PropertyPage({ params, searchParams }: { params: P
                     <td>{unitNo.get(c.unit_id)}</td>
                     <td>{tenant.get(c.tenant_id)?.name}</td>
                     <td>
-                      <StatusBadge s={effectiveStatus(c, today)} />
+                      <StatusBadge s={effectiveStatus(c, today, ds.contracts)} />
                     </td>
                     <td className="text-xs">
                       {fmtDate(c.start_date)} ~ {fmtDate(c.end_date)}

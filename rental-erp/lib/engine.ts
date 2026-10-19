@@ -38,9 +38,21 @@ export function effectiveEnd(c: Pick<Contract, "status" | "end_date" | "terminat
   return c.status === "terminated" && c.terminated_on ? c.terminated_on : c.end_date;
 }
 
-/** 오늘 기준 계약 상태 (만료 예정 포함) */
-export function effectiveStatus(c: Contract, today: ISODate, expiringDays = 90): EffectiveStatus {
-  if (c.status === "terminated" || c.status === "renewed") return c.status;
+type Linkable = Pick<Contract, "id" | "unit_id" | "tenant_id" | "start_date" | "status" | "previous_contract_id">;
+
+/** 같은 호실에 이어지는 다음 계약 (갱신 등) */
+function successorsOf<T extends Linkable>(c: Linkable, all: readonly T[]): T[] {
+  return all.filter((x) => x.id !== c.id && (x.previous_contract_id === c.id || (x.unit_id === c.unit_id && x.start_date > c.start_date)));
+}
+
+/**
+ * 오늘 기준 계약 상태 (만료 예정 포함).
+ * all(전체 계약)을 주면, 상태가 '갱신'이어도 이어지는 다음 계약이 없고 기간이 남아 있으면
+ * (새 계약을 '갱신' 상태로 저장한 경우) 기간으로 판단해 정상·만료 예정으로 본다.
+ */
+export function effectiveStatus(c: Contract, today: ISODate, all?: readonly Contract[], expiringDays = 90): EffectiveStatus {
+  if (c.status === "terminated") return c.status;
+  if (c.status === "renewed" && (!all || c.end_date < today || successorsOf(c, all).some((x) => x.status !== "terminated"))) return "renewed";
   if (c.status === "expired") return "expired";
   if (c.start_date > today) return "planned";
   if (c.end_date < today) return "expired";
@@ -75,17 +87,36 @@ export type PlannedCharge = {
   amount: number;
 };
 
+/** 청구 시작 월 (청구 시작 월이 계약 시작보다 늦으면 그 달) */
+export function billingStartMonth(c: Pick<Contract, "billing_from" | "start_date">): ISODate {
+  return monthStart(c.billing_from && c.billing_from > c.start_date ? c.billing_from : c.start_date);
+}
+
+/**
+ * 같은 임차인이 같은 호실을 다시 계약(갱신)했을 때, 다음 계약이 청구를 시작하는 달.
+ * 그 달부터는 이전 계약에서 청구하지 않는다 (예: 선불이라 마지막 달이 갱신 계약에 포함된 경우 이중 청구 방지).
+ */
+export function renewalCutoff(c: Contract, all: readonly Contract[]): ISODate | null {
+  let cut: ISODate | null = null;
+  for (const x of successorsOf(c, all)) {
+    if (x.tenant_id !== c.tenant_id && x.previous_contract_id !== c.id) continue;
+    const m = billingStartMonth(x);
+    if (!cut || m < cut) cut = m;
+  }
+  return cut;
+}
+
 /**
  * 오늘까지 만들어져 있어야 할 청구 목록.
  * 청구 시작 월(없으면 계약 시작 월)부터 이번 달(또는 계약 종료 월)까지 매월 1건.
  * 이번 달 청구는 1일에 미리 생성되고, 납부일이 지나도 입금이 없으면 미납이 된다.
  */
-export function planCharges(c: Contract, today: ISODate): PlannedCharge[] {
+export function planCharges(c: Contract, today: ISODate, stopBefore?: ISODate | null): PlannedCharge[] {
   if (c.status === "planned" && c.start_date > today) return [];
-  const from = monthStart(c.billing_from && c.billing_from > c.start_date ? c.billing_from : c.start_date);
+  const from = billingStartMonth(c);
   const last = monthStart(effectiveEnd(c) < today ? effectiveEnd(c) : today);
   const out: PlannedCharge[] = [];
-  for (let m = from; m <= last; m = addMonths(m, 1)) {
+  for (let m = from; m <= last && (!stopBefore || m < stopBefore); m = addMonths(m, 1)) {
     const amount = c.monthly_rent + c.maintenance_fee + c.vat_amount;
     if (amount <= 0) continue;
     out.push({
@@ -589,7 +620,8 @@ export function buildSnapshot(
   const maxAlert = Math.max(90, ...settings.expiryAlertDays);
   const expiring: ExpiringItem[] = [];
   for (const c of contracts) {
-    if (c.status !== "active" || c.start_date > today) continue;
+    const st = effectiveStatus(c, today, contracts);
+    if ((st !== "active" && st !== "expiring") || c.start_date > today) continue;
     const daysLeft = daysBetween(today, c.end_date);
     if (daysLeft < 0 || daysLeft > maxAlert) continue;
     // 이미 다음 계약(갱신)이 잡혀 있으면 제외
@@ -610,7 +642,7 @@ export function buildSnapshot(
   // 보증금 반환 예정 ----------------------------------------------------------
   const depositsDue: Snapshot["depositsDue"] = [];
   for (const c of contracts) {
-    if (c.status === "planned" || c.status === "renewed") continue;
+    if (c.status === "planned" || effectiveStatus(c, today, contracts) === "renewed") continue;
     const d = depositByContract.get(c.id) ?? null;
     const amount = d ? d.received_amount || d.amount : c.deposit;
     const outstanding = amount - (d?.returned_amount ?? 0) - (d?.offset_amount ?? 0);

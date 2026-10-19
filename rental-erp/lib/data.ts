@@ -4,7 +4,7 @@ import { cache } from "react";
 import { mergeCalc, type CalcSettings } from "@/lib/calcSettings";
 import { q, tx, type Queryable } from "@/lib/db";
 import { todayKST } from "@/lib/dates";
-import { allocate, buildSnapshot, planCharges, type Snapshot } from "@/lib/engine";
+import { allocate, buildSnapshot, planCharges, renewalCutoff, type Snapshot } from "@/lib/engine";
 import type {
   Allocation,
   Charge,
@@ -122,8 +122,24 @@ export async function syncBilling(today = todayKST(), contractIds?: string[]): P
     const have = new Set([...existing, ...skips].map((e) => `${e.contract_id}|${e.billing_month}`));
     let created = 0;
     const touched = new Set<string>();
+    // 같은 임차인이 같은 호실을 갱신했으면, 새 계약이 청구를 시작한 달부터는 이전 계약에서 청구하지 않는다
+    const all = contractIds ? await q<Contract>("select * from contracts", [], c) : contracts;
+    const cutoffs = new Map<string, string>();
+    for (const ct of all) {
+      const cut = renewalCutoff(ct, all);
+      if (cut) cutoffs.set(ct.id, cut);
+    }
+    // 이미 만들어진 겹치는 달 청구 중 입금이 없는 것은 정리 (입금이 있는 달은 그대로 두고 화면에서 '청구 삭제')
+    for (const [id, cut] of cutoffs) {
+      const removed = await q<{ id: string }>(
+        "delete from rent_charges where contract_id = $1 and billing_month >= $2 and paid_amount = 0 returning id",
+        [id, cut],
+        c,
+      );
+      if (removed.length) touched.add(id);
+    }
     for (const ct of contracts) {
-      for (const pc of planCharges(ct, today)) {
+      for (const pc of planCharges(ct, today, cutoffs.get(ct.id))) {
         if (have.has(`${pc.contract_id}|${pc.billing_month}`)) continue;
         await q(
           `insert into rent_charges (contract_id, billing_month, due_date, rent_amount, maintenance_amount, vat_amount, amount)
