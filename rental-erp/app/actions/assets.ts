@@ -199,6 +199,23 @@ export async function saveExpenseAction(_p: FormState, fd: FormData): Promise<Fo
   return { ok: id ? "저장했습니다." : "비용을 등록했습니다." };
 }
 
+/** 걸러 놓은 비용 목록을 한 번에 삭제 (관리자, '삭제' 입력). 대출 거래와 연결된 비용은 건너뛴다 */
+export async function deleteExpensesAction(ids: string[], confirmText?: string): Promise<FormState> {
+  const a = await authorize("admin");
+  if ("denied" in a) return a.denied;
+  if ((confirmText ?? "").trim() !== "삭제") return { error: "취소했습니다. ('삭제' 라고 입력해야 지워집니다)" };
+  if (!Array.isArray(ids) || !ids.length) return { error: "삭제할 비용이 없습니다." };
+  const r = await q<{ id: string }>(
+    `delete from expenses e where e.id = any($1::uuid[])
+       and not exists (select 1 from loan_transactions t where t.expense_id = e.id) returning e.id`,
+    [ids],
+  );
+  await audit(a.user.id, "delete_many", "expense", null, { count: r.length });
+  revalidatePath("/", "layout");
+  const skipped = ids.length - r.length;
+  return { ok: `${r.length}건을 삭제했습니다.${skipped ? ` (대출 화면의 이자 납부와 연결된 ${skipped}건은 남겨 두었습니다)` : ""}` };
+}
+
 export async function deleteExpenseAction(id: string): Promise<FormState> {
   const a = await authorize("admin");
   if ("denied" in a) return a.denied;
