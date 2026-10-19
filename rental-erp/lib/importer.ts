@@ -49,6 +49,17 @@ async function findProperty(c: pg.PoolClient, name: string | null, loose = false
   return like.length === 1 ? like[0] : null;
 }
 
+/** 소유주 찾기: 이름이 같으면 그것 (띄어쓰기 무시), 아니면 '개인'·'법인' 으로 적었고 그 구분의 소유주가 한 명뿐일 때 그것 */
+async function findOwner(c: pg.PoolClient, name: string) {
+  const key = name.replace(/\s+/g, "");
+  const byName = await q<{ id: string }>("select id from owners where regexp_replace(name, '\\s+', '', 'g') = $1 order by created_at limit 1", [key], c);
+  if (byName.length) return byName[0];
+  const type = reverseLabel(OWNER_TYPES, key);
+  if (!type) return null;
+  const byType = await q<{ id: string }>("select id from owners where owner_type = $1 and is_active limit 2", [type], c);
+  return byType.length === 1 ? byType[0] : null;
+}
+
 async function findUnit(c: pg.PoolClient, propertyId: string, unitNo: string | null, dong: string | null) {
   if (!unitNo) return null;
   return q1<{ id: string }>(
@@ -286,8 +297,15 @@ export async function importRows(kind: ImportKind, rows: Row[], c: pg.PoolClient
             skip(i, `부동산 '${pname}' 없음`);
             break;
           }
-          await q("insert into expenses (property_id, expense_date, category, amount, vendor, memo) values ($1,$2,$3,$4,$5,$6)", [
-            p?.id ?? null, date, category, amount, cellText(r["거래처"]), cellText(r["메모"]),
+          // 공통 비용이면 소유주 지정 가능 (소유주별 보기에 잡힌다)
+          const oname = p ? null : cellText(r["소유주"]);
+          const o = oname ? await findOwner(c, oname) : null;
+          if (oname && !o) {
+            skip(i, `소유주 '${oname}'을(를) 하나로 찾을 수 없음 (설정의 소유주 이름을 그대로 적으세요)`);
+            break;
+          }
+          await q("insert into expenses (property_id, owner_id, expense_date, category, amount, vendor, memo) values ($1,$2,$3,$4,$5,$6,$7)", [
+            p?.id ?? null, o?.id ?? null, date, category, amount, cellText(r["거래처"]), cellText(r["메모"]),
           ], c);
           res.created++;
           break;
