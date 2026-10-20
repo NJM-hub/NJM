@@ -4,6 +4,7 @@ import { deleteDocumentAction } from "@/app/actions/documents";
 import {
   addChargeAction,
   deleteChargeAction,
+  editChargeAction,
   holdChargeAction,
   deleteContractAction,
   deletePaymentAction,
@@ -201,12 +202,32 @@ export default async function ContractPage({ params, searchParams }: { params: P
                       </td>
                       {can.editLeasing && (
                         <td className="whitespace-nowrap">
+                          <details className="inline-block align-top">
+                            <summary className="btn-ghost cursor-pointer text-xs">수정</summary>
+                            <div className="mt-2 w-[min(90vw,420px)] rounded-xl bg-slate-50 p-3 whitespace-normal">
+                              <SmartForm
+                                action={editChargeAction}
+                                cols={2}
+                                submitLabel="저장"
+                                initial={{ charge_id: x.id, amount: String(x.amount), due_date: x.due_date }}
+                                sections={[
+                                  {
+                                    fields: [
+                                      { name: "charge_id", type: "hidden" },
+                                      { name: "amount", label: `${monthLabel(x.billing_month)} 청구액`, type: "money", required: true, hint: "면제는 0" },
+                                      { name: "due_date", label: "납부일", type: "date", required: true },
+                                    ],
+                                  },
+                                ]}
+                              />
+                            </div>
+                          </details>
                           <ActionButton
                             action={deleteChargeAction.bind(null, x.id)}
-                            className="btn-ghost text-xs !text-slate-500"
+                            className="btn-ghost text-xs !text-red-600"
                             confirm={`${monthLabel(x.billing_month)} 청구(${num(x.amount)}원)를 삭제할까요?\n자동 청구가 이 달을 다시 만들지 않습니다. (예: 선불이라 갱신 계약에 이미 포함된 달)${x.paid_amount ? "\n이 달에 들어간 입금은 다른 미납 달(없으면 선납)로 옮겨집니다." : ""}`}
                           >
-                            청구 삭제
+                            삭제
                           </ActionButton>
                           {x.hold_unpaid ? (
                             <ActionButton action={holdChargeAction.bind(null, x.id, false)} className="btn-ghost text-xs" confirm={`${monthLabel(x.billing_month)} 미납 고정을 풀까요? 입금이 오래된 달부터 다시 채워집니다.`}>
@@ -216,7 +237,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
                             x.amount > 0 && (
                               <ActionButton
                                 action={holdChargeAction.bind(null, x.id, true)}
-                                className="btn-ghost text-xs !text-red-600"
+                                className="btn-ghost text-xs !text-orange-600"
                                 confirm={`${monthLabel(x.billing_month)}을(를) 미납으로 고정할까요?\n이 달에 들어간 입금은 그 다음 달들로 옮겨집니다. (여러 달 치를 한 번에 입금했는데 이 달만 실제로 미납인 경우)`}
                               >
                                 미납으로 표시
