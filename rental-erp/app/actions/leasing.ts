@@ -325,6 +325,46 @@ export async function holdChargeAction(chargeId: string, hold: boolean): Promise
   };
 }
 
+/** 이 달 청구 수정 (청구액·납부일). 0원으로 바꾸면 그 달은 면제. 입금은 다시 배분된다 */
+export async function editChargeAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const a = await authorize("staff");
+  if ("denied" in a) return a.denied;
+  const f = new FormReader(fd);
+  const chargeId = f.uuid("charge_id", { required: "잘못된 요청" });
+  const amount = f.money("amount", { required: "청구액을 입력하세요. (면제는 0)", min: 0 });
+  const due = f.date("due_date", { required: "납부일을 입력하세요." });
+  if (!f.ok) return f.fail();
+  const ch = await q1<{ contract_id: string; billing_month: string; amount: number; due_date: string }>(
+    "select contract_id, billing_month::text, amount, due_date::text from rent_charges where id = $1",
+    [chargeId],
+  );
+  if (!ch) return { error: "청구를 찾을 수 없습니다." };
+  const ct = await q1<Contract>("select * from contracts where id = $1", [ch.contract_id]);
+  if (!ct) return { error: "계약을 찾을 수 없습니다." };
+  // 월세 → 관리비 → 부가세 순서로 나눠 담는다
+  const rent = Math.min(amount!, ct.monthly_rent);
+  const maint = Math.min(amount! - rent, ct.maintenance_fee);
+  const vat = amount! - rent - maint;
+  const note = [
+    amount !== ch.amount ? `금액 ${ch.amount.toLocaleString()} → ${amount!.toLocaleString()}` : null,
+    due !== ch.due_date ? `납부일 ${ch.due_date} → ${due}` : null,
+  ].filter(Boolean).join(", ");
+  if (!note) return { ok: "바뀐 내용이 없습니다." };
+  await tx(async (c) => {
+    await q(
+      `update rent_charges set amount = $2, rent_amount = $3, maintenance_amount = $4, vat_amount = $5, due_date = $6,
+         memo = concat_ws(' / ', memo, $7::text) where id = $1`,
+      [chargeId, amount, rent, maint, vat, due, `수정: ${note}`],
+      c,
+    );
+    await reallocateContract(ch.contract_id, c);
+  });
+  await audit(a.user.id, "update", "charge", chargeId, { month: ch.billing_month, from: { amount: ch.amount, due: ch.due_date }, to: { amount, due } });
+  revalidatePath("/", "layout");
+  const m = `${ch.billing_month.slice(0, 4)}년 ${Number(ch.billing_month.slice(5, 7))}월`;
+  return { ok: `${m} 청구를 수정했습니다. (${note})` };
+}
+
 /**
  * 이 달 청구 삭제 (예: 선불이라 마지막 달이 갱신 계약에 이미 포함된 경우).
  * 자동 청구가 다시 만들지 않도록 기록해 둔다. 이 달에 들어간 입금은 다른 미납 달(없으면 선납)로 옮겨진다.
