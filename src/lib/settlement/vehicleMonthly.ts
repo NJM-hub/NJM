@@ -37,6 +37,8 @@ export type VehicleMonthRow = {
   bookingId?: string | null;
   /** KKday 정산내역서의 이 예약 금액 (부가세 포함, 내역서에 없으면 null) */
   kkdayAmount?: number | null;
+  /** 굿리뷰 추가 금액 (amount 에 이미 포함) */
+  reviewBonus?: number;
 };
 
 /** KKday 차액 = 정산 금액(부가세 포함)에서 부가세 뺀 금액 − 기사에게 준 금액. 내역서에 없거나 외부오더면 null */

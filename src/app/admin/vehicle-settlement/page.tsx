@@ -449,15 +449,17 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                       {locked ? <span className="block max-w-64 truncate">{r.memo}</span> : <Editable id={r.id} f="memo" value={r.memo} className="!w-64" placeholder="예: 피켓 1, 어린이 좌석 1" />}
                     </td>
                     <td className="text-right">
-                      <input type="hidden" name={`orig_${r.id}`} value={r.amount} />
+                      {/* 굿리뷰 금액은 따로 더하므로 입력칸에는 빼고 보여준다 */}
+                      <input type="hidden" name={`orig_${r.id}`} value={r.amount - (r.reviewBonus ?? 0)} />
                       <input
                         name={`amount_${r.id}`}
                         type="number"
                         step="1000"
-                        defaultValue={r.amount}
+                        defaultValue={r.amount - (r.reviewBonus ?? 0)}
                         disabled={locked}
                         className={`input !w-28 !py-1 text-right ${r.edited ? "border-blue-400 bg-blue-50" : ""} ${r.amount < 0 ? "text-red-600" : ""}`}
                       />
+                      {!!r.reviewBonus && <div className="mt-0.5 whitespace-nowrap text-xs font-medium text-green-700">굿리뷰 +{r.reviewBonus.toLocaleString("ko-KR")}</div>}
                     </td>
                     {(() => {
                       const k = kkdayDiffOf(r);

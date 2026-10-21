@@ -9,7 +9,7 @@ import {
 // samples/dispatch-sheet-sample.csv: 구글 시트 배차표와 같은 컬럼, 가짜 데이터
 const rows = Papa.parse<string[]>(readFileSync("samples/dispatch-sheet-sample.csv", "utf8")).data;
 const h = findDispatchSheetHeader(rows);
-const { bookings, ownCalls, notes, skipped } = parseDispatchSheet(rows, h);
+const { bookings, ownCalls, notes, reviews, skipped } = parseDispatchSheet(rows, h);
 const byNo = (no: string) => bookings.find((b) => b.bookingNo === no)!;
 
 describe("구글 시트 배차표", () => {
@@ -138,6 +138,11 @@ describe("기사 자체 콜 (표 아래 기사별 칸)", () => {
     ]);
     expect(notes).toEqual([{ date: "2026-09-28", driver: "Henry 9759", text: "休息" }]);
     expect(ownCalls.every((c) => c.source === "driver_own" && c.serviceDate === "2026-09-28")).toBe(true);
+  });
+
+  it("입금 줄 아래 예약번호는 그 기사의 굿리뷰", () => {
+    expect(reviews.length).toBeGreaterThan(0);
+    for (const r of reviews) expect(r).toMatchObject({ date: "2026-09-28", bookingNo: expect.stringMatching(/^\d{2}KK\d+$/) });
   });
 
   it("샌딩: 장소 → 공항, 입금 확인", () => {

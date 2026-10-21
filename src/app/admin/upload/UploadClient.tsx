@@ -143,7 +143,7 @@ export function UploadClient() {
     setBatch(items);
     startTransition(async () => {
       for (const [i, t] of dispatchTabs.entries()) {
-        const result = await importSheetDispatch(`${base} [${t.name}]`, [...t.parsed.bookings, ...t.parsed.ownCalls], t.parsed.cancelled.map((x) => x.bookingNo));
+        const result = await importSheetDispatch(`${base} [${t.name}]`, [...t.parsed.bookings, ...t.parsed.ownCalls], t.parsed.cancelled.map((x) => x.bookingNo), { reviews: t.parsed.reviews });
         items[i] = { ...items[i], result };
         setBatch([...items]);
       }
@@ -161,7 +161,7 @@ export function UploadClient() {
 
   function onSave() {
     startTransition(async () => {
-      if (dispatchSheet) setSheetResult(await importSheetDispatch(filename, [...dispatchSheet.bookings, ...dispatchSheet.ownCalls], dispatchSheet.cancelled.map((x) => x.bookingNo)));
+      if (dispatchSheet) setSheetResult(await importSheetDispatch(filename, [...dispatchSheet.bookings, ...dispatchSheet.ownCalls], dispatchSheet.cancelled.map((x) => x.bookingNo), { reviews: dispatchSheet.reviews }));
       else setResult(await saveBookings(filename, parsed));
     });
   }
@@ -216,7 +216,7 @@ export function UploadClient() {
                     <span className="inline-block w-20">{b.sheet}</span>
                     {b.date && <Link href={`/admin/dispatch?date=${b.date}`} className="mr-2 text-blue-700 underline">{b.date}</Link>}
                     {!b.result ? <span className="text-gray-400">대기</span>
-                      : b.result.ok ? <span className="text-green-700">예약 {b.result.count}건 · 배차 {b.result.assigned} · 외부 {b.result.external} · 자체 콜 {b.result.ownCalls}{b.result.unmatchedVehicles.length ? ` · 목록에 없는 차량 ${b.result.unmatchedVehicles.map((x) => ko(x)).join(", ")}(미배정)` : ""}</span>
+                      : b.result.ok ? <span className="text-green-700">예약 {b.result.count}건 · 배차 {b.result.assigned} · 외부 {b.result.external} · 자체 콜 {b.result.ownCalls}{b.result.review.total ? ` · 굿리뷰 ${b.result.review.applied.length}` : ""}{b.result.unmatchedVehicles.length ? ` · 목록에 없는 차량 ${b.result.unmatchedVehicles.map((x) => ko(x)).join(", ")}(미배정)` : ""}</span>
                       : <span className="text-red-600">{b.result.error}</span>}
                   </li>
                 ))}
@@ -330,6 +330,13 @@ export function UploadClient() {
               <div className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
                 예약 {sheetResult.count}건 저장, 차량 배차 {sheetResult.assigned}건(자체 콜 {sheetResult.ownCalls}건 포함) · 외부 {sheetResult.external}건
                 {sheetResult.unassigned > 0 && ` · 미배정 ${sheetResult.unassigned}건`} 으로 확정했습니다.
+                {sheetResult.review.total > 0 && ` 굿리뷰 ${sheetResult.review.applied.length}건 +3,000원 적용.`}
+                {(sheetResult.review.notFound.length > 0 || sheetResult.review.otherVehicle.length > 0) && (
+                  <div className="mt-1 text-amber-700">
+                    {sheetResult.review.notFound.length > 0 && `예약을 못 찾은 굿리뷰: ${sheetResult.review.notFound.join(", ")} `}
+                    {sheetResult.review.otherVehicle.length > 0 && `다른 차량이 운행한 굿리뷰: ${sheetResult.review.otherVehicle.join(", ")}`}
+                  </div>
+                )}
                 {sheetResult.unmatchedVehicles.length > 0 && (
                   <div className="mt-1 text-amber-700">
                     차량 목록에 없는 시트 차량 {sheetResult.unmatchedVehicles.map((x) => ko(x)).join(", ")} 의 건은 미배정으로 두었습니다 —{" "}

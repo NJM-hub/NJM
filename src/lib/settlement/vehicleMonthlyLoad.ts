@@ -116,6 +116,19 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         bookingId: r.booking_id,
       };
     });
+  // 굿리뷰 받은 예약은 +금액 (시트에 적힌 기사의 차량이 운행한 건만)
+  const reviewNos = [...new Set(vehicleRows.map((r) => r.bookingNo).filter((n): n is string => !!n))];
+  const reviews = new Map<string, { vehicle_id: string | null; amount: number }>();
+  for (let i = 0; i < reviewNos.length; i += 300) {
+    const { data: rv } = await db.from("good_reviews").select("booking_no,vehicle_id,amount").in("booking_no", reviewNos.slice(i, i + 300));
+    for (const x of rv ?? []) reviews.set(x.booking_no as string, x as { vehicle_id: string | null; amount: number });
+  }
+  for (const r of vehicleRows) {
+    const rv = r.bookingNo ? reviews.get(r.bookingNo) : undefined;
+    if (!rv || r.source === OWN_CALL || (rv.vehicle_id && rv.vehicle_id !== r.vehicleId)) continue;
+    r.reviewBonus = rv.amount;
+    r.amount += rv.amount;
+  }
   // 같은 사람 다른 이름은 한 이름으로 (설정 → 같은 기사 이름 합치기)
   const aliases = parseDriverAliases(settings.driver_aliases);
   for (const r of vehicleRows) {

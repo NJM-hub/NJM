@@ -164,11 +164,15 @@ function text(c: Cell): string | null {
 /** 기사 칸 아래의 메모 중 콜이 아닌 것 (휴무, 차량점검 등) */
 export type DriverNote = { date: string; driver: string; text: string };
 
+/** 굿리뷰: 기사 칸 아래(입금 줄 밑)에 적힌 예약번호 = 그 기사가 그 예약으로 굿리뷰를 받음 */
+export type GoodReview = { date: string; driver: string; bookingNo: string };
+
 export type SheetParseResult = {
   bookings: SheetBooking[];
   /** 기사 자체 콜 */
   ownCalls: SheetBooking[];
   notes: DriverNote[];
+  reviews: GoodReview[];
   /** 예약처럼 보이지만 시간을 읽지 못해 빠진 행 (화면에서 확인용) */
   unparsed: { rowIndex: number; text: string }[];
   /** 기사 칸에 취소 표시가 있는 예약 (전산에 있으면 지운다) */
@@ -309,8 +313,8 @@ export function parseDispatchSheet(rows: Cell[][], headerRow: number): SheetPars
     }
   }
 
-  const own = date && gridHeader >= 0 ? parseOwnCalls(rows, gridHeader, date) : { calls: [], notes: [] };
-  return { bookings, ownCalls: own.calls, notes: own.notes, unparsed, cancelled, skipped };
+  const own = date && gridHeader >= 0 ? parseOwnCalls(rows, gridHeader, date) : { calls: [], notes: [], reviews: [] };
+  return { bookings, ownCalls: own.calls, notes: own.notes, reviews: own.reviews, unparsed, cancelled, skipped };
 }
 
 // ─────────────────────────────────────────────
@@ -409,10 +413,11 @@ export function parseOwnCallText(text: string): {
 }
 
 /** 표 아래 기사별 칸을 읽어 기사 자체 콜과 메모로 나눈다 */
-export function parseOwnCalls(rows: Cell[][], header: number, date: string): { calls: SheetBooking[]; notes: DriverNote[] } {
-  if (header < 0) return { calls: [], notes: [] };
+export function parseOwnCalls(rows: Cell[][], header: number, date: string): { calls: SheetBooking[]; notes: DriverNote[]; reviews: GoodReview[] } {
+  if (header < 0) return { calls: [], notes: [], reviews: [] };
   const calls: SheetBooking[] = [];
   const notes: DriverNote[] = [];
+  const reviews: GoodReview[] = [];
   const hdr = rows[header] ?? [];
   for (let j = 1; j < hdr.length; j++) {
     const label = String(hdr[j] ?? "").trim();
@@ -427,7 +432,13 @@ export function parseOwnCalls(rows: Cell[][], header: number, date: string): { c
     let n = 0;
     for (const { r, text: raw } of cells) {
       const t = raw.replace(/\s+/g, " ").trim();
-      if (/입금/.test(t) || BOOKING_REF.test(t)) continue; // 입금 확인, 후기 받은 예약번호 등
+      // 예약번호만 적힌 칸(여러 개면 줄바꿈·쉼표로 구분) = 굿리뷰
+      const refs = raw.split(/[\s,，/]+/).filter(Boolean);
+      if (refs.length && refs.every((x) => BOOKING_REF.test(x))) {
+        for (const x of refs) reviews.push({ date, driver: label, bookingNo: x.toUpperCase() });
+        continue;
+      }
+      if (/입금/.test(t)) continue; // 입금 확인
       const info = parseOwnCallText(t);
       if (!info.time && info.charterFare == null) {
         notes.push({ date, driver: label, text: t });
@@ -477,5 +488,5 @@ export function parseOwnCalls(rows: Cell[][], header: number, date: string): { c
       });
     }
   }
-  return { calls, notes };
+  return { calls, notes, reviews };
 }

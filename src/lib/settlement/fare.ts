@@ -29,6 +29,9 @@ export function vehicleFare(b: FareInput, r: FareRules, jiip: boolean | null | u
   return jiip && serviceDate >= JIIP_FARE_FROM ? JIIP_FARE : fareFor(b, r);
 }
 
+/** 굿리뷰 받은 예약 1건당 기사에게 더 주는 금액 */
+export const GOOD_REVIEW_BONUS = 3000;
+
 /** 어린이 좌석 개수: "어린이 좌석 2", "儿童座椅*1" (손님이 직접 가져오는 自備 좌석은 제외) */
 export function childSeats(memo: string | null | undefined): number {
   const m = (memo ?? "").match(/(?:어린이 좌석|儿童座椅|兒童座椅|child seat)\s*[*x×:]?\s*(\d+)/i);

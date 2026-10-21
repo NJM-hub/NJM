@@ -8,8 +8,8 @@ import { isDate } from "@/lib/format";
 import { areaLocation } from "@/lib/areas";
 import { geocodeAddresses } from "@/lib/geocode";
 import { dispatchOptionsOf, fareRulesOf, loadSettings } from "@/lib/settings";
-import { fareFor, vehicleFare } from "@/lib/settlement/fare";
-import { OWN_CALL_SOURCE, type SheetBooking } from "@/lib/kkday/sheet";
+import { fareFor, GOOD_REVIEW_BONUS, vehicleFare } from "@/lib/settlement/fare";
+import { OWN_CALL_SOURCE, parseDriverCell, type GoodReview, type SheetBooking } from "@/lib/kkday/sheet";
 import { planSheetVehicles, sheetVehicleKey } from "@/lib/dispatch/sheetPlan";
 import { saveBookings } from "../upload/actions";
 import { confirmRunWith } from "@/lib/dispatch/confirm";
@@ -608,6 +608,8 @@ export type SheetImportResult =
       unmatchedVehicles: string[];
       /** 날짜별로 만든 배차 id */
       runIds: Record<string, string>;
+      /** 굿리뷰: 적용된 예약번호 / 예약(확정 배차)을 못 찾은 번호 / 다른 차량이 운행한 번호 */
+      review: { total: number; applied: string[]; notFound: string[]; otherVehicle: string[] };
     }
   | { ok: false; error: string };
 
@@ -621,8 +623,9 @@ export async function importSheetDispatch(
   filename: string,
   rows: SheetBooking[],
   cancelledNos: string[] = [],
-  /** false 면 확정하지 않고 초안으로 만든다 (확인 후 배차 확정을 직접 누름). 기존 확정본은 그대로 둔다 */
-  { confirm = true }: { confirm?: boolean } = {},
+  /** confirm: false 면 확정하지 않고 초안으로 만든다 (확인 후 배차 확정을 직접 누름). 기존 확정본은 그대로 둔다
+   *  reviews: 시트 기사 칸 아래의 굿리뷰 예약번호 */
+  { confirm = true, reviews = [] }: { confirm?: boolean; reviews?: GoodReview[] } = {},
 ): Promise<SheetImportResult> {
   const saved = await saveBookings(filename, rows);
   if (!saved.ok) return saved;
@@ -762,7 +765,50 @@ export async function importSheetDispatch(
     runIds[date] = run.id;
   }
 
+  const review = await saveGoodReviews(supabase, reviews, saved.dates, vehicles ?? []);
+
   revalidatePath("/admin/dispatch");
   revalidatePath("/admin/vehicles");
-  return { ok: true, count: saved.count, dates: saved.dates, ...totals, unmatchedVehicles, runIds };
+  revalidatePath("/admin/vehicle-settlement");
+  return { ok: true, count: saved.count, dates: saved.dates, ...totals, unmatchedVehicles, runIds, review };
+}
+
+/**
+ * 굿리뷰 저장: 시트 날짜별로 시트에 적힌 것만 남긴다 (지운 번호는 빠진다).
+ * 기사 칸의 차량번호 뒤 4자리로 차량을 찾고, 그 예약을 실제로 그 차량이 운행했는지 확인한다.
+ */
+async function saveGoodReviews(db: Db, reviews: GoodReview[], dates: string[], vehicles: { id: string; plate_number: string; driver_name: string | null }[]) {
+  const list = reviews.filter((r) => dates.includes(r.date));
+  const vehicleOf = (label: string) => {
+    const d = parseDriverCell(label);
+    const suffix = d?.kind === "vehicle" ? d.plateSuffix : null;
+    if (!suffix) return null;
+    const hits = vehicles.filter((v) => v.plate_number.replace(/\D/g, "").endsWith(suffix));
+    return (hits.find((v) => d?.kind === "vehicle" && v.driver_name === d.driverName) ?? hits[0])?.id ?? null;
+  };
+  for (const date of dates) {
+    const keep = list.filter((r) => r.date === date).map((r) => r.bookingNo);
+    let q = db.from("good_reviews").delete().eq("sheet_date", date);
+    if (keep.length) q = q.not("booking_no", "in", `(${keep.map((n) => `"${n}"`).join(",")})`);
+    await q;
+  }
+  const out = { total: list.length, applied: [] as string[], notFound: [] as string[], otherVehicle: [] as string[] };
+  if (!list.length) return out;
+  const rows = list.map((r) => ({ booking_no: r.bookingNo, driver_label: r.driver, vehicle_id: vehicleOf(r.driver), sheet_date: r.date, amount: GOOD_REVIEW_BONUS }));
+  const { error } = await db.from("good_reviews").upsert(rows);
+  if (error) throw new Error(error.message);
+  // 확인: 그 예약의 확정 배차 차량
+  const { data: found } = await db
+    .from("bookings")
+    .select("booking_no,dispatch_assignments(vehicle_id,dispatch_runs!inner(status))")
+    .in("booking_no", rows.map((r) => r.booking_no))
+    .eq("dispatch_assignments.dispatch_runs.status", "confirmed");
+  for (const r of rows) {
+    const b = (found ?? []).find((x) => x.booking_no === r.booking_no);
+    const vids = ((b?.dispatch_assignments ?? []) as { vehicle_id: string | null }[]).map((a) => a.vehicle_id);
+    if (!b || !vids.length) out.notFound.push(r.booking_no);
+    else if (r.vehicle_id && !vids.includes(r.vehicle_id)) out.otherVehicle.push(r.booking_no);
+    else out.applied.push(r.booking_no);
+  }
+  return out;
 }

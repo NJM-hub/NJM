@@ -54,7 +54,10 @@ export function SheetApply({ date }: { date: string }) {
       }
       if (!best) return setMsg({ ok: false, text: `시트에서 ${date} 이용일 탭을 찾지 못했습니다.` });
       const rows = [...best.parsed.bookings, ...best.parsed.ownCalls].filter((b) => b.serviceDate === date);
-      const r = await importSheetDispatch(`${res.name} [${best.name}]`, rows, best.parsed.cancelled.map((x) => x.bookingNo), { confirm: false });
+      const r = await importSheetDispatch(`${res.name} [${best.name}]`, rows, best.parsed.cancelled.map((x) => x.bookingNo), {
+        confirm: false,
+        reviews: best.parsed.reviews.filter((x) => x.date === date),
+      });
       if (!r.ok) return setMsg({ ok: false, text: r.error });
       setMsg({
         ok: true,
@@ -62,6 +65,9 @@ export function SheetApply({ date }: { date: string }) {
           `[${best.name}] 탭으로 초안을 만들었습니다: 예약 ${r.count}건, 차량 배차 ${r.assigned}건(자체 콜 ${r.ownCalls}건 포함) · 외부 ${r.external}건` +
           (r.unassigned ? ` · 미배정 ${r.unassigned}건` : "") +
           (r.unmatchedVehicles.length ? ` (차량 목록에 없는 시트 차량: ${r.unmatchedVehicles.join(", ")})` : "") +
+          (r.review.total ? `. 굿리뷰 ${r.review.applied.length}건 +3,000원 적용` : "") +
+          (r.review.notFound.length ? ` (예약을 못 찾은 굿리뷰: ${r.review.notFound.join(", ")})` : "") +
+          (r.review.otherVehicle.length ? ` (다른 차량이 운행한 굿리뷰: ${r.review.otherVehicle.join(", ")})` : "") +
           ". 확인 후 아래에서 배차 확정을 눌러주세요.",
       });
       const runId = r.runIds[date];
