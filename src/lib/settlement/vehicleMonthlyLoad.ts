@@ -6,6 +6,7 @@ import { monthRange } from "@/lib/format";
 import { ko } from "@/lib/ko";
 import { fareRulesOf, loadSettings, withholdingOf } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
+import { parseDriverCell } from "@/lib/kkday/sheet";
 import { vehicleFare } from "./fare";
 import {
   OWN_CALL, assignSettleOperators, computePayout, ownCallAmount, settleKey, summarizeVehicleMonth, tripKind,
@@ -44,7 +45,7 @@ export type VehicleMonthReport = {
   month: string;
   companyName: string | null;
   ownCallFee: number;
-  vehicles: (VehicleMonth & { expenses: Expenses | null; payout: Payout } & SettlementStatus)[];
+  vehicles: (VehicleMonth & { expenses: Expenses | null; payout: Payout; prevReviews: { bookingNo: string; serviceDate: string; amount: number }[] } & SettlementStatus)[];
   /** 외부(타업체)로 넘긴 콜, 날짜별 */
   external: ExternalDay[];
   /** 배차가 초안만 있고 확정되지 않은 날짜 (정산에서 빠짐) */
@@ -116,18 +117,31 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
         bookingId: r.booking_id,
       };
     });
-  // 굿리뷰 받은 예약은 +금액 (시트에 적힌 기사의 차량이 운행한 건만)
+  // 굿리뷰 받은 예약은 +금액 (시트에 적힌 기사의 차량이 운행한 건만).
+  // 같은 달 시트의 굿리뷰만 그 예약 줄에 더하고, 다음 달 시트에서 받은 굿리뷰는 그 달 "지난달 굿리뷰" 비용으로 넣는다
   const reviewNos = [...new Set(vehicleRows.map((r) => r.bookingNo).filter((n): n is string => !!n))];
-  const reviews = new Map<string, { vehicle_id: string | null; amount: number }>();
+  const reviews = new Map<string, { vehicle_id: string | null; amount: number; sheet_date: string }>();
   for (let i = 0; i < reviewNos.length; i += 300) {
-    const { data: rv } = await db.from("good_reviews").select("booking_no,vehicle_id,amount").in("booking_no", reviewNos.slice(i, i + 300));
-    for (const x of rv ?? []) reviews.set(x.booking_no as string, x as { vehicle_id: string | null; amount: number });
+    const { data: rv } = await db.from("good_reviews").select("booking_no,vehicle_id,amount,sheet_date").in("booking_no", reviewNos.slice(i, i + 300));
+    for (const x of rv ?? []) reviews.set(x.booking_no as string, x as { vehicle_id: string | null; amount: number; sheet_date: string });
   }
   for (const r of vehicleRows) {
     const rv = r.bookingNo ? reviews.get(r.bookingNo) : undefined;
     if (!rv || r.source === OWN_CALL || (rv.vehicle_id && rv.vehicle_id !== r.vehicleId)) continue;
+    if (String(rv.sheet_date).slice(0, 7) !== r.serviceDate.slice(0, 7)) continue;
     r.reviewBonus = rv.amount;
     r.amount += rv.amount;
+  }
+  // 이번 달 시트에서 받은 지난달 이전 운행 예약의 굿리뷰
+  const { data: monthReviews } = await db.from("good_reviews").select("booking_no,driver_label,vehicle_id,amount").gte("sheet_date", from).lte("sheet_date", to);
+  const prevReviewList: { booking_no: string; driver_label: string; vehicle_id: string | null; amount: number; serviceDate: string }[] = [];
+  if (monthReviews?.length) {
+    const { data: rb } = await db.from("bookings").select("booking_no,service_date").in("booking_no", monthReviews.map((x) => x.booking_no as string));
+    const dateOf = new Map((rb ?? []).map((b) => [b.booking_no as string, b.service_date as string]));
+    for (const x of monthReviews) {
+      const d = dateOf.get(x.booking_no as string);
+      if (d && d < from) prevReviewList.push({ ...(x as { booking_no: string; driver_label: string; vehicle_id: string | null; amount: number }), serviceDate: d });
+    }
   }
   // 같은 사람 다른 이름은 한 이름으로 (설정 → 같은 기사 이름 합치기)
   const aliases = parseDriverAliases(settings.driver_aliases);
@@ -207,17 +221,35 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     month,
     companyName: settings.company_name,
     ownCallFee,
-    vehicles: summarizeVehicleMonth(vehicleRows).map((v) => {
+    vehicles: (() => {
+      const units = summarizeVehicleMonth(vehicleRows);
+      // 지난달 굿리뷰를 정산 단위로: 시트 기사 칸의 차량 중 그 기사 이름 단위, 없으면 차량 담당 기사 단위
+      const prevOf = new Map<string, { bookingNo: string; serviceDate: string; amount: number }[]>();
+      for (const x of prevReviewList) {
+        const label = parseDriverCell(x.driver_label);
+        const name = canonicalDriver(ko(label?.kind === "vehicle" ? label.driverName : x.driver_label), aliases);
+        const cands = units.filter((u) => u.vehicleId === x.vehicle_id);
+        const u = cands.find((c) => name && c.driverName === name) ?? cands.find((c) => c.key === c.vehicleId) ?? cands[0];
+        if (!u) continue;
+        prevOf.set(u.key, [...(prevOf.get(u.key) ?? []), { bookingNo: x.booking_no, serviceDate: x.serviceDate, amount: x.amount }]);
+      }
+      return units.map((v) => {
       const e = expenseOf.get(v.key) ?? null;
-      const ex: Expenses | null = e ? { fuel: e.fuel, fines: e.fines, tolls: e.tolls, engine_oil: e.engine_oil, other: e.other, memo: e.memo } : null;
+      const prevReviews = prevOf.get(v.key) ?? [];
+      const prev = -prevReviews.reduce((s, x) => s + x.amount, 0);
+      const ex: Expenses | null = e
+        ? { fuel: e.fuel, fines: e.fines, tolls: e.tolls, engine_oil: e.engine_oil, prev_review: prev, other: e.other, memo: e.memo }
+        : prev ? { fuel: 0, fines: 0, tolls: 0, engine_oil: 0, prev_review: prev, other: 0, memo: null } : null;
       return {
         ...v,
+        prevReviews,
         expenses: ex,
         payout: computePayout(v.total.amount, ex, tax),
         status: e?.status === "confirmed" ? "confirmed" : "draft",
         confirmedAt: e?.confirmed_at ?? null,
       };
-    }),
+      });
+    })(),
     external: [...ext.values()].sort((a, b) => a.date.localeCompare(b.date)),
     draftOnlyDates,
   };

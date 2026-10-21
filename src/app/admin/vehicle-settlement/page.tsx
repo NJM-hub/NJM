@@ -330,12 +330,21 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
           <h3 className="font-semibold">{mon}월 비용 {!ex && <span className="text-sm font-normal text-amber-600">(미입력)</span>}</h3>
           {ids}
           <fieldset disabled={locked} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {(Object.keys(EXPENSE_LABELS) as (keyof typeof EXPENSE_LABELS)[]).map((k) => (
-              <div key={k}>
-                <label className="label" htmlFor={k}>{EXPENSE_LABELS[k]}</label>
-                <input id={k} name={k} type="number" defaultValue={ex?.[k] || ""} placeholder="0" className="input text-right" />
-              </div>
-            ))}
+            {(Object.keys(EXPENSE_LABELS) as (keyof typeof EXPENSE_LABELS)[]).map((k) =>
+              k === "prev_review" ? (
+                <div key={k}>
+                  <label className="label">{EXPENSE_LABELS[k]} <span className="text-xs font-normal text-gray-400">(자동)</span></label>
+                  <div className={`input bg-gray-50 text-right ${ex?.prev_review ? "text-green-700" : "text-gray-400"}`} title="지난달 이전 운행 예약이 이번 달 시트에서 받은 굿리뷰 (건당 −3,000원)">
+                    {ex?.prev_review ? `${ex.prev_review.toLocaleString("ko-KR")}${v.prevReviews?.length ? ` (${v.prevReviews.length}건)` : ""}` : "0"}
+                  </div>
+                </div>
+              ) : (
+                <div key={k}>
+                  <label className="label" htmlFor={k}>{EXPENSE_LABELS[k]}</label>
+                  <input id={k} name={k} type="number" defaultValue={ex?.[k] || ""} placeholder="0" className="input text-right" />
+                </div>
+              ),
+            )}
             <div className="col-span-2 sm:col-span-3">
               <label className="label" htmlFor="memo">메모</label>
               <input id="memo" name="memo" defaultValue={ex?.memo ?? ""} placeholder="예: 8/9 과태료 3만2천" className="input" />

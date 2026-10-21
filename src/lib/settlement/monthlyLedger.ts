@@ -88,7 +88,8 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   const kkdayAdjust = led?.kkday_adjust ?? 0;
   const kkdayAmount = kkdayStatement + kkdayAdjust;
   const kkdayNet = withoutVat(kkdayAmount);
-  const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses, 0);
+  // 지난달 굿리뷰는 회사 비용이 아니라 기사에게 더 주는 돈이므로 비용에서 뺀다 (기사 지급에 들어감)
+  const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses - (v.expenses?.prev_review ?? 0), 0);
   const driverPayAuto = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
   const costAuto = vehicleExpenses;
   const costOverridden = led?.cost_override != null;

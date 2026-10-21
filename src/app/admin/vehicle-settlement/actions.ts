@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { assertOwner } from "@/lib/auth";
 import { isMonth, monthRange } from "@/lib/format";
 import { dropEmptyRuns } from "@/lib/scheduleCleanup";
-import { EXPENSE_LABELS, inOutLabel, settleKey } from "@/lib/settlement/vehicleMonthly";
+import { INPUT_EXPENSE_KEYS, inOutLabel, settleKey } from "@/lib/settlement/vehicleMonthly";
 import { loadVehicleMonth, MANUAL_PREFIX } from "@/lib/settlement/vehicleMonthlyLoad";
 
 type Db = Awaited<ReturnType<typeof assertOwner>>["supabase"];
@@ -37,7 +37,7 @@ export async function saveExpenses(formData: FormData) {
   const { month, vehicleId, operator } = target(formData);
   await assertUnlocked(supabase, month, vehicleId, operator);
   const row: Record<string, unknown> = { vehicle_id: vehicleId, month, operator, updated_at: new Date().toISOString() };
-  for (const k of Object.keys(EXPENSE_LABELS)) row[k] = won(formData.get(k));
+  for (const k of INPUT_EXPENSE_KEYS) row[k] = won(formData.get(k));
   row.memo = String(formData.get("memo") ?? "").trim() || null;
   const { error } = await supabase.from("vehicle_month_expenses").upsert(row, { onConflict: "vehicle_id,month,operator" });
   if (error) throw new Error(error.message);
@@ -213,7 +213,7 @@ export async function setSettlementStatus(formData: FormData) {
     updated_at: new Date().toISOString(),
   };
   // 비용을 입력하지 않은 채 확정하면 0원으로 기록
-  if (!v.expenses) for (const k of Object.keys(EXPENSE_LABELS)) row[k] = 0;
+  if (!v.expenses) for (const k of INPUT_EXPENSE_KEYS) row[k] = 0;
   const { error } = await supabase.from("vehicle_month_expenses").upsert(row, { onConflict: "vehicle_id,month,operator" });
   if (error) throw new Error(error.message);
   revalidatePath("/admin/vehicle-settlement");

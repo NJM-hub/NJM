@@ -30,7 +30,7 @@ it("차량별 날짜별 픽업/샌딩 건수와 금액, 외부오더는 차감",
 });
 
 it("8월 차수영 정산표와 같은 계산: 금액 합계 − 비용 = 차액, 3.3% 떼고 지급", () => {
-  const p = computePayout(6_373_000, { fuel: 2_232_693, fines: 96_000, tolls: 960_500, engine_oil: 0, other: 0 }, DEFAULT_WITHHOLDING);
+  const p = computePayout(6_373_000, { fuel: 2_232_693, fines: 96_000, tolls: 960_500, engine_oil: 0, prev_review: 0, other: 0 }, DEFAULT_WITHHOLDING);
   expect(p).toEqual({
     amount: 6_373_000, expenses: 3_289_193, diff: 3_083_807,
     incomeTax: 92_510, localTax: 9_250, tax: 101_760, pay: 2_982_047,

@@ -84,15 +84,20 @@ export type VehicleMonth = {
   rows: VehicleMonthRow[];
 };
 
-export type Expenses = { fuel: number; fines: number; tolls: number; engine_oil: number; other: number; memo?: string | null };
+/** prev_review: 지난달 굿리뷰 (지난달 이전 운행 예약이 이번 달 시트에서 굿리뷰를 받은 금액, 음수 = 기사에게 더 줌). 자동 계산 */
+export type Expenses = { fuel: number; fines: number; tolls: number; engine_oil: number; prev_review: number; other: number; memo?: string | null };
 
 export const EXPENSE_LABELS: Record<Exclude<keyof Expenses, "memo">, string> = {
   fuel: "주유",
   fines: "과태료",
   tolls: "통행료",
   engine_oil: "엔진오일",
+  prev_review: "지난달 굿리뷰",
   other: "기타",
 };
+
+/** 손으로 입력하는 비용 (DB 컬럼). 지난달 굿리뷰는 굿리뷰에서 자동 계산 */
+export const INPUT_EXPENSE_KEYS = ["fuel", "fines", "tolls", "engine_oil", "other"] as const;
 
 export type TripKind = "pickup" | "sending" | "other";
 
@@ -196,7 +201,7 @@ export type Payout = { amount: number; expenses: number; diff: number; tax: numb
 
 /** 금액 합계 − 비용 = 차액, 차액에서 원천세(소득세+지방소득세)를 떼고 지급 */
 export function computePayout(amount: number, ex: Expenses | null, opts: WithholdingOptions): Payout {
-  const expenses = ex ? ex.fuel + ex.fines + ex.tolls + ex.engine_oil + ex.other : 0;
+  const expenses = ex ? ex.fuel + ex.fines + ex.tolls + ex.engine_oil + (ex.prev_review ?? 0) + ex.other : 0;
   const diff = amount - expenses;
   const w = computeWithholding(Math.max(0, diff), opts);
   return { amount, expenses, diff, tax: w.totalTax, incomeTax: w.incomeTax, localTax: w.localTax, pay: diff - w.totalTax };
