@@ -22,7 +22,7 @@ export const site = {
 
   contact: {
     // 전화번호. 예: "010-1234-5678" (비워 두면 전화 버튼이 예약 문의 양식으로 연결됩니다)
-    phone: "",
+    phone: "1566-2099",
     // 카카오톡 채널 채팅 링크. 예: "https://pf.kakao.com/_xxxxxx/chat"
     kakaoUrl: "",
     email: "",
