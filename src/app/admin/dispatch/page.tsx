@@ -7,6 +7,7 @@ import { ko } from "@/lib/ko";
 import { fmtTime, isDate, todayKst, tripLabel, won } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
 import { KkdayFileUpload } from "./KkdayFileUpload";
+import { SheetApply } from "./SheetApply";
 import { addOwnCall, confirmRun, deleteOwnCall, moveAssignment, moveSelected, runDispatch, setExternalFare, unassignAll, unconfirmRun } from "./actions";
 import { CopyBox } from "./CopyBox";
 import { deleteBooking } from "../schedule/actions";
@@ -174,6 +175,8 @@ export default async function DispatchPage({
           이 날짜 KKday 예약: <DeleteDateBookingsButton key={date} date={date} count={kkdayCount ?? 0} />
           <span className="text-xs text-gray-500">외부에서 받은 콜은 남습니다. 확정된 배차가 있으면 확정 해제 후 삭제할 수 있습니다.</span>
         </div>
+
+        <SheetApply key={date} date={date} />
 
         <KkdayFileUpload date={date} />
 

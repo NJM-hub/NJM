@@ -606,6 +606,8 @@ export type SheetImportResult =
       ok: true; count: number; dates: string[]; assigned: number; external: number; unassigned: number; ownCalls: number;
       /** 차량 목록에 없어 미배정으로 둔 시트 차량(번호 뒤 4자리 또는 기사명) */
       unmatchedVehicles: string[];
+      /** 날짜별로 만든 배차 id */
+      runIds: Record<string, string>;
     }
   | { ok: false; error: string };
 
@@ -619,6 +621,8 @@ export async function importSheetDispatch(
   filename: string,
   rows: SheetBooking[],
   cancelledNos: string[] = [],
+  /** false 면 확정하지 않고 초안으로 만든다 (확인 후 배차 확정을 직접 누름). 기존 확정본은 그대로 둔다 */
+  { confirm = true }: { confirm?: boolean } = {},
 ): Promise<SheetImportResult> {
   const saved = await saveBookings(filename, rows);
   if (!saved.ok) return saved;
@@ -663,6 +667,7 @@ export async function importSheetDispatch(
 
   // 2. 날짜별 배차 만들기
   const totals = { assigned: 0, external: 0, unassigned: 0, ownCalls: 0 };
+  const runIds: Record<string, string> = {};
   for (const date of saved.dates) {
     const sheetRows = valid.filter((r) => r.serviceDate === date);
     const sheetByNo = new Map(sheetRows.filter((r) => r.bookingNo).map((r) => [r.bookingNo!, r]));
@@ -735,15 +740,16 @@ export async function importSheetDispatch(
     totals.unassigned += summary.unassigned;
     totals.ownCalls += ownCalls;
 
-    // 시트가 최종 배차이므로 확정본으로 만든다 (기존 확정본은 초안으로 남기고, 이전 초안은 정리)
+    // 확정: 시트가 최종 배차이므로 확정본으로 만든다 (기존 확정본은 초안으로 남기고, 이전 초안은 정리)
+    // 초안: 이전 초안만 정리하고 확정본은 새 초안을 확정할 때까지 유지
     await supabase.from("dispatch_runs").delete().eq("service_date", date).eq("status", "draft");
-    await supabase.from("dispatch_runs").update({ status: "draft", confirmed_at: null }).eq("service_date", date).eq("status", "confirmed");
+    if (confirm) await supabase.from("dispatch_runs").update({ status: "draft", confirmed_at: null }).eq("service_date", date).eq("status", "confirmed");
     const { data: run, error: rErr } = await supabase
       .from("dispatch_runs")
       .insert({
         service_date: date,
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
+        status: confirm ? "confirmed" : "draft",
+        confirmed_at: confirm ? new Date().toISOString() : null,
         options: { ...opts, vehicleIds: usedIds, source: "sheet", filename },
         summary,
         created_by: user.id,
@@ -753,9 +759,10 @@ export async function importSheetDispatch(
     if (rErr || !run) return { ok: false, error: rErr?.message ?? "배차 저장 실패" };
     const { error: aErr } = await supabase.from("dispatch_assignments").insert(rowsOut.map((r) => ({ ...r, run_id: run.id })));
     if (aErr) return { ok: false, error: aErr.message };
+    runIds[date] = run.id;
   }
 
   revalidatePath("/admin/dispatch");
   revalidatePath("/admin/vehicles");
-  return { ok: true, count: saved.count, dates: saved.dates, ...totals, unmatchedVehicles };
+  return { ok: true, count: saved.count, dates: saved.dates, ...totals, unmatchedVehicles, runIds };
 }
