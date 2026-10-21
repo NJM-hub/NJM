@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* 메인 색상: 블랙 · 화이트 · 골드 */
+@theme {
+  --color-gold-50: #fbf7ec;
+  --color-gold-100: #f4ead0;
+  --color-gold-200: #e9d5a1;
+  --color-gold-300: #dcbd6e;
+  --color-gold-400: #cfa84a;
+  --color-gold-500: #b8902f;
+  --color-gold-600: #957224;
+  --color-gold-700: #6f551d;
+  --color-ink-900: #0d0d0f;
+  --color-ink-800: #17171a;
+  --color-ink-700: #232328;
+  --font-sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* 고정 헤더에 섹션 제목이 가리지 않도록 */
+  scroll-padding-top: 4.5rem;
+}
+
+body {
+  background: #ffffff;
+  color: #111114;
+  /* 한글이 단어 중간에서 줄바꿈되지 않도록 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
+  .section { @apply py-16 sm:py-24; }
+  .eyebrow { @apply text-xs font-semibold tracking-[0.2em] text-gold-500 uppercase; }
+  .section-title { @apply mt-2 text-2xl font-bold tracking-tight sm:text-4xl; }
+  .btn-gold { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gold-400 px-6 text-base font-bold text-ink-900 transition hover:bg-gold-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-300 disabled:cursor-not-allowed disabled:opacity-60; }
+  .btn-outline-light { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/40 px-6 text-base font-semibold text-white transition hover:border-gold-300 hover:text-gold-200; }
+  .btn-dark { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink-900 px-6 text-base font-bold text-white transition hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-60; }
+  .btn-outline-dark { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-ink-900/20 px-6 text-base font-semibold text-ink-900 transition hover:border-ink-900; }
+  .btn-kakao { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#FEE500] px-6 text-base font-bold text-[#191919] transition hover:brightness-95; }
+  .field-label { @apply mb-1.5 block text-sm font-semibold text-ink-800; }
+  .field { @apply w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-base text-ink-900 placeholder:text-neutral-400 focus:border-gold-500 focus:ring-2 focus:ring-gold-100 focus:outline-none; }
+  .field-error { @apply border-red-500 focus:border-red-500 focus:ring-red-100; }
+  .error-text { @apply mt-1.5 text-sm text-red-600; }
+}

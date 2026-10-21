@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["icn1"],
+  "ignoreCommand": "bash scripts/vercel-ignore.sh"
+}
