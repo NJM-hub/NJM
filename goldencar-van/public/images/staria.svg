@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-label="승합차 일러스트">
+  <!-- 임시 일러스트: 실제 차량 사진으로 교체하세요 (content/vehicles.ts 의 image 경로) -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3a42"/>
+      <stop offset="0.55" stop-color="#1d1d22"/>
+      <stop offset="1" stop-color="#0f0f12"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b6170"/>
+      <stop offset="1" stop-color="#15171c"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="600" cy="625" rx="540" ry="38" fill="url(#shadow)"/>
+  <path d="M150 585 L118 540 Q108 470 150 440 L330 255 Q352 222 405 218 L1010 212 Q1068 212 1082 262 L1098 480 Q1104 565 1062 585 Z" fill="url(#body)" stroke="#cfa84a" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M372 250 Q388 236 420 235 L1012 230 Q1040 231 1046 262 L1056 385 L318 395 Z" fill="url(#glass)"/>
+  <path d="M560 233 L556 392 M800 231 L798 389" stroke="#0f0f12" stroke-width="10"/>
+  <path d="M300 410 L1070 398" stroke="#cfa84a" stroke-width="3" stroke-opacity="0.8"/>
+  <path d="M128 452 L250 444" stroke="#f4ead0" stroke-width="6" stroke-linecap="round"/>
+  <path d="M640 405 L640 560" stroke="#000" stroke-opacity="0.35" stroke-width="3"/>
+  <circle cx="320" cy="585" r="92" fill="#0d0d0f"/>
+  <circle cx="920" cy="585" r="92" fill="#0d0d0f"/>
+  <g>
+    <circle cx="320" cy="585" r="72" fill="#1b1b1f" stroke="#2c2c33" stroke-width="10"/>
+    <circle cx="320" cy="585" r="42" fill="none" stroke="#cfa84a" stroke-width="5"/>
+    <circle cx="320" cy="585" r="10" fill="#cfa84a"/>
+    <circle cx="920" cy="585" r="72" fill="#1b1b1f" stroke="#2c2c33" stroke-width="10"/>
+    <circle cx="920" cy="585" r="42" fill="none" stroke="#cfa84a" stroke-width="5"/>
+    <circle cx="920" cy="585" r="10" fill="#cfa84a"/>
+  </g>
+</svg>
