@@ -57,7 +57,7 @@ type Assignment = {
 export default async function DispatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string; msg?: string; anchor?: string }>;
+  searchParams: Promise<{ date?: string; run?: string; conflict?: string; to?: string; msg?: string; anchor?: string; sort?: string }>;
 }) {
   const sp = await searchParams;
   const date = isDate(sp.date) ? sp.date : todayKst();
@@ -101,11 +101,23 @@ export default async function DispatchPage({
     return d ? `${d.name} · ${d.phone}` : driverNameOfVehicle.get(vid) ?? null;
   };
   const usedVehicleIds: string[] = run?.options?.vehicleIds ?? (vehicles ?? []).map((v) => v.id);
-  const routes = usedVehicleIds.map((vid) => ({
+  const unsortedRoutes = usedVehicleIds.map((vid) => ({
     vehicleId: vid,
     // 기사 자체 콜은 외부 콜 메뉴에서 따로 정리하므로 차량 동선·콜 수에서 뺀다
     items: assignments.filter((a) => a.vehicle_id === vid && a.bookings.source !== OWN_CALL_SOURCE).sort(byPickup),
   }));
+  // 차량별 배차 순서: 차량 번호 / 첫 콜이 이른 순 / 첫 콜이 늦은 순 (배차 없는 차량은 맨 뒤)
+  const sort = sp.sort === "early" || sp.sort === "late" ? sp.sort : "plate";
+  const plateOf = new Map((vehicles ?? []).map((v) => [v.id, v.plate_number as string]));
+  const firstAt = (r: (typeof unsortedRoutes)[number]) => r.items[0]?.bookings.pickup_at ?? null;
+  const routes = [...unsortedRoutes].sort((a, b) => {
+    if (sort !== "plate") {
+      const [x, y] = [firstAt(a), firstAt(b)];
+      if (!x || !y) return x ? -1 : y ? 1 : 0;
+      if (x !== y) return sort === "early" ? x.localeCompare(y) : y.localeCompare(x);
+    }
+    return (plateOf.get(a.vehicleId) ?? "~").localeCompare(plateOf.get(b.vehicleId) ?? "~", "ko", { numeric: true });
+  });
   const ownCalls = assignments.filter((a) => a.bookings.source === OWN_CALL_SOURCE).sort(byPickup);
   const external = assignments.filter((a) => !a.vehicle_id && a.unassigned_reason === "EXTERNAL").sort(byPickup);
   const unassigned = assignments.filter((a) => !a.vehicle_id && a.unassigned_reason !== "EXTERNAL").sort(byPickup);
@@ -276,7 +288,20 @@ export default async function DispatchPage({
             <Stat label="배차 불가" value={unassigned.length} danger={unassigned.length > 0} />
             <Stat label="사용 차량" value={summary.vehiclesUsed ?? 0} />
             <Stat label="공차 이동(추정)" value={`${summary.totalDeadheadKm ?? 0}km`} />
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="flex overflow-hidden rounded-lg border border-gray-300 text-sm" role="group" aria-label="배차 순서">
+                {([["plate", "차량 번호순"], ["early", "이른 시간순"], ["late", "늦은 시간순"]] as const).map(([k, label]) => (
+                  <Link
+                    key={k}
+                    href={`/admin/dispatch?date=${date}&run=${run.id}${k === "plate" ? "" : `&sort=${k}`}`}
+                    scroll={false}
+                    className={`px-3 py-1.5 ${sort === k ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+                    aria-current={sort === k ? "true" : undefined}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
               <a className="btn-secondary" href={`/admin/dispatch/export?run=${run.id}`}>엑셀(CSV) 다운로드</a>
               {editable ? (
                 <form action={confirmRun}>
@@ -324,7 +349,7 @@ export default async function DispatchPage({
             </p>
           )}
 
-          <div className="space-y-4">
+          <div id="routes" className="scroll-mt-4 space-y-4">
             {routes.map((r) => {
               const d = driverLabel(r.vehicleId);
               return (
