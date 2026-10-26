@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { fmtTime, isMonth, todayKst, tripLabel, won } from "@/lib/format";
 import { loadExternalCalls, type InCall, type OutCall } from "@/lib/settlement/externalCalls";
 import { StatementUpload } from "./StatementUpload";
+import { InCallChart, type InCallDay, type InCallDriver } from "./InCallChart";
 
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const dayLabel = (date: string) => {
@@ -41,6 +42,18 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
     const k = [c.plate, c.driverName].filter(Boolean).join(" ") || "(차량 없음)";
     inByVehicle.set(k, [...(inByVehicle.get(k) ?? []), c]);
   }
+
+  // 그래프: 날짜별 / 기사별 건수와 별도 수금액
+  const dayMap = new Map<string, InCallDay>();
+  for (const c of inCalls) {
+    const d = dayMap.get(c.date) ?? { date: c.date, count: 0, amount: 0 };
+    d.count++;
+    d.amount += c.settleAmount;
+    dayMap.set(c.date, d);
+  }
+  const driverChart: InCallDriver[] = [...inByVehicle].map(([name, list]) => ({
+    name, count: list.length, amount: list.reduce((s, c) => s + c.settleAmount, 0),
+  }));
 
   return (
     <div className="space-y-6">
@@ -145,6 +158,13 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
           </>
         ) : <p className="text-sm text-gray-500">{mon}월에 외부에서 받은 콜이 없습니다.</p>}
       </section>
+
+      {/* 외부에서 받은 콜 그래프 (맨 아래) */}
+      {inCalls.length > 0 && (
+        <section className="card">
+          <InCallChart month={month} days={[...dayMap.values()]} drivers={driverChart} />
+        </section>
+      )}
     </div>
   );
 }
