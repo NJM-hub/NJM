@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#121827;--navy2:#1b2338;--gold:#c9a14a;--gold2:#e6c878;--ink:#f4efe3;--mute:#a9a49a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#555;font-family:"Noto Sans KR",sans-serif}
+.card{width:1080px;height:1080px;position:relative;overflow:hidden;background:radial-gradient(120% 90% at 85% 0%,#26304a 0%,var(--navy) 55%,#0c1019 100%);color:var(--ink);display:flex;flex-direction:column;padding:84px 88px 80px;margin-bottom:40px}
+.card::after{content:"";position:absolute;inset:28px;border:1.5px solid rgba(201,161,74,.35);border-radius:6px;pointer-events:none}
+.brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.brand b{font-family:Cinzel,serif;font-weight:700;font-size:40px;letter-spacing:.12em;color:var(--gold)}
+.brand span{font-family:Cinzel,serif;font-size:15px;letter-spacing:.42em;color:var(--mute)}
+.eyebrow{font-size:30px;font-weight:500;color:var(--gold2);letter-spacing:.06em}
+.big{font-weight:900;line-height:1.12;letter-spacing:-.02em}
+.search{margin-top:auto;display:flex;flex-direction:column;gap:16px}
+.bar{display:flex;align-items:center;height:104px;background:#fff;border-radius:52px;padding:0 14px 0 40px;gap:22px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.bar svg{flex:none}
+.bar .q{flex:1;font-size:46px;font-weight:700;color:#141414;letter-spacing:-.01em}
+.bar .q i{display:inline-block;width:3px;height:44px;background:#141414;margin-left:6px;vertical-align:-6px}
+.bar .btn{height:76px;padding:0 40px;border-radius:38px;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#1a1407;font-size:32px;font-weight:900;display:flex;align-items:center}
+.cap{font-size:28px;color:var(--ink);text-align:center}
+.cap em{font-style:normal;color:var(--gold2);font-weight:700}
+.url{font-size:22px;color:var(--mute);text-align:center;letter-spacing:.04em}
+/* card 1 */
+.kw{display:flex;flex-direction:column;gap:18px;margin-top:70px}
+.kw div{font-size:118px}
+.kw div:nth-child(2){color:var(--gold2)}
+.rule{width:120px;height:4px;background:var(--gold);margin:44px 0 0}
+/* card 2 */
+.t2{font-size:84px;margin-top:56px}
+.t2 small{display:block;font-size:30px;font-weight:500;color:var(--mute);margin-top:14px;letter-spacing:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:52px}
+.col{border-radius:14px;padding:38px 36px;display:flex;flex-direction:column;gap:18px}
+.col.a{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.14)}
+.col.b{background:linear-gradient(160deg,rgba(201,161,74,.28),rgba(201,161,74,.08));border:1.5px solid var(--gold)}
+.col h3{font-size:56px;font-weight:900}
+.col.b h3{color:var(--gold2)}
+.col p{font-size:29px;line-height:1.5;color:#e9e4d8}
+.col .tag{font-size:24px;font-weight:700;color:var(--mute);letter-spacing:.08em}
+/* card 3 */
+.t3{font-size:76px;margin-top:56px}
+.t3 span{color:var(--gold2)}
+.list{list-style:none;display:flex;flex-direction:column;gap:22px;margin-top:46px}
+.list li{display:flex;gap:22px;align-items:baseline;font-size:36px;font-weight:500}
+.list li b{flex:none;width:52px;height:52px;border-radius:50%;border:2px solid var(--gold);color:var(--gold2);font-size:28px;display:flex;align-items:center;justify-content:center;transform:translateY(8px)}
+.list li small{display:block;font-size:26px;color:var(--mute);font-weight:400;margin-top:4px}
+</style></head><body>
+
+<section class="card" id="c1">
+  <div class="brand"><b>GOLDENCAR</b><span>FROM WOOJUNG</span></div>
+  <div class="rule"></div>
+  <p class="eyebrow" style="margin-top:40px">인천공항 · 김포공항</p>
+  <div class="kw big"><div>공항의전</div><div>의전서비스</div><div>공항픽업</div></div>
+  <div class="search">
+    <div class="bar">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#141414" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <div class="q">골든카<i></i></div><div class="btn">검색</div>
+    </div>
+    <p class="cap">검색창에 <em>골든카</em>를 검색하세요</p>
+  </div>
+</section>
+
+<section class="card" id="c2">
+  <div class="brand"><b>GOLDENCAR</b><span>FROM WOOJUNG</span></div>
+  <h2 class="t2 big">공항픽업 vs 공항의전<small>손님에 맞게 고르세요</small></h2>
+  <div class="cols">
+    <div class="col a"><span class="tag">AIRPORT PICKUP</span><h3>공항픽업</h3><p>공항 → 목적지<br>편안한 이동 중심</p><p>가족 · 단체<br>짐 많은 여행객</p></div>
+    <div class="col b"><span class="tag">AIRPORT PROTOCOL</span><h3>공항의전</h3><p>의전 차량 + 수행<br>도착부터 응대까지</p><p>해외 바이어<br>VIP 손님</p></div>
+  </div>
+  <div class="search">
+    <div class="bar">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#141414" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <div class="q">골든카 의전서비스<i></i></div><div class="btn">검색</div>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="c3">
+  <div class="brand"><b>GOLDENCAR</b><span>FROM WOOJUNG</span></div>
+  <h2 class="t3 big">예약 전 <span>체크리스트</span></h2>
+  <ul class="list">
+    <li><b>1</b><div>도착 공항 · 터미널<small>인천 T1 · 인천 T2 · 김포</small></div></li>
+    <li><b>2</b><div>항공편명 · 도착 시간</div></li>
+    <li><b>3</b><div>인원 · 수하물 개수</div></li>
+    <li><b>4</b><div>목적지 주소 · 경유지</div></li>
+    <li><b>5</b><div>대기 조건<small>골든카 공항픽업 60분 무료 대기</small></div></li>
+  </ul>
+  <div class="search">
+    <div class="bar">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#141414" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <div class="q">골든카 공항픽업<i></i></div><div class="btn">검색</div>
+    </div>
+    <p class="url">goldencar.co.kr</p>
+  </div>
+</section>
+</body></html>

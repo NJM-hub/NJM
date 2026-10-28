@@ -92,6 +92,14 @@ Playbook: v1.x
 ## Notes
 ```
 
+## 본문 이미지 (요청 시)
+
+`templates/keyword-cards.html`(1080×1080 카드 3장: 키워드 표지 / 비교 / 체크리스트)을 복사해 문구만 바꾸고
+`node templates/render-cards.js <html 절대경로>`로 PNG를 만든다. 결과는 `drafts/images/{큐ID}/`에 저장한다.
+- 카드 하단 검색창에 `골든카` 또는 `골든카 + 핵심 키워드`를 넣어 브랜드 검색을 유도한다.
+- 카드 문구도 `facts.md`의 사실만. 파일명은 `번호_키워드_골든카.png`.
+- 네이버·구글 로고나 화면을 흉내 내지 않는다 (일반 검색창 모양만).
+
 ## 상태 관리
 
 - `status`: Draft → Reviewed(`검수`) → Approved(`승인`) → Published(`게시 완료`)
