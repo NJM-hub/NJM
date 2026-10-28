@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#121827;--gold:#c9a14a;--gold2:#e6c878;--ink:#f4efe3;--mute:#a9a49a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#555;font-family:Montserrat,sans-serif}
+.card{width:1920px;height:1080px;position:relative;overflow:hidden;background:radial-gradient(90% 110% at 90% 0%,#26304a 0%,var(--navy) 55%,#0c1019 100%);color:var(--ink);display:grid;grid-template-columns:1.25fr 1fr;gap:80px;padding:110px 130px}
+.card::after{content:"";position:absolute;inset:36px;border:2px solid rgba(201,161,74,.35);border-radius:8px;pointer-events:none}
+.left{display:flex;flex-direction:column}
+.logo{display:flex;flex-direction:column;gap:10px}
+.logo b{font-family:Cinzel,serif;font-weight:700;font-size:58px;letter-spacing:.14em;color:var(--gold);line-height:1}
+.logo span{font-weight:700;font-size:19px;letter-spacing:.4em;opacity:.85}
+.logo i{display:block;width:96px;height:3px;background:var(--gold);margin-top:22px}
+.eyebrow{font-size:36px;font-weight:600;color:var(--gold2);margin-top:84px;letter-spacing:.04em}
+h1{font-size:118px;font-weight:800;line-height:1.04;letter-spacing:-.02em;margin-top:18px}
+h1 em{font-style:normal;color:var(--gold2)}
+.sub{font-size:38px;color:#ddd6c8;margin-top:34px;font-weight:500}
+.right{display:flex;flex-direction:column;justify-content:flex-end;gap:26px}
+.list{list-style:none;display:flex;flex-direction:column;gap:22px;margin-bottom:auto;margin-top:150px}
+.list li{font-size:36px;font-weight:600;display:flex;gap:20px;align-items:center}
+.list li b{flex:none;width:54px;height:54px;border-radius:50%;border:2px solid var(--gold);color:var(--gold2);font-size:26px;display:flex;align-items:center;justify-content:center}
+.bar{display:flex;align-items:center;height:112px;background:#fff;border-radius:56px;padding:0 16px 0 42px;gap:24px;box-shadow:0 12px 34px rgba(0,0,0,.35)}
+.bar .q{flex:1;font-size:46px;font-weight:700;color:#141414;letter-spacing:.04em}
+.bar .q i{display:inline-block;width:3px;height:46px;background:#141414;margin-left:6px;vertical-align:-6px}
+.bar .btn{height:82px;padding:0 42px;border-radius:41px;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#1a1407;font-size:32px;font-weight:800;display:flex;align-items:center}
+.url{font-size:26px;color:var(--mute);text-align:center;letter-spacing:.06em}
+</style></head><body>
+<section class="card" id="cover">
+  <div class="left">
+    <div class="logo"><b>GOLDENCAR</b><span>FROM WOOJUNG</span><i></i></div>
+    <p class="eyebrow">INCHEON T1 · T2 · GIMPO</p>
+    <h1>Seoul Airport<br><em>Transfer</em> Planning</h1>
+    <p class="sub">for business travelers and visiting teams</p>
+  </div>
+  <div class="right">
+    <ul class="list">
+      <li><b>1</b>Airport &amp; terminal</li>
+      <li><b>2</b>Passengers &amp; luggage</li>
+      <li><b>3</b>Waiting time</li>
+      <li><b>4</b>Stops &amp; return trip</li>
+    </ul>
+    <div class="bar">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#141414" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <div class="q">GOLDENCAR<i></i></div><div class="btn">Search</div>
+    </div>
+    <p class="url">goldencar.co.kr/en</p>
+  </div>
+</section>
+</body></html>
