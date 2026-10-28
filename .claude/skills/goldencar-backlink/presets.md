@@ -16,6 +16,18 @@
 `{locale}`: TW=`zh-TW`, HK=`zh-HK`, CN=`zh-CN`, JA=`ja`, TH=`th`, VI=`vi`, EN=`en`.
 개발 수정 후에도 위 경로는 그대로 쓴다 (백링크 주소는 바꾸지 않는다).
 
+## 언어별 기본 플랫폼 세트 (`○○ 큐`)
+
+| 언어 | 기본 세트 | 추가 가능 |
+|---|---|---|
+| EN 영어 | Medium, LinkedIn, Tumblr | Facebook, Blogger, Pinterest |
+| JA 일본어 | Medium, LinkedIn, Tumblr | note, Hatena, Facebook |
+| TW 대만 / HK 홍콩 | Medium, Facebook | Blogger, PIXNET(TW) |
+| CN 간체 | Medium, Facebook | Blogger |
+| TH 태국어 | Facebook, Medium | Blogger, Pinterest |
+| VI 베트남어 | Facebook, Medium | Blogger |
+| KO 한국어 | 네이버 블로그, 네이버 카페 | LinkedIn |
+
 ## 요일 로테이션 (`오늘 큐`)
 
 1단계 (초기 4주): 번체 중국어 + 영어 우선
@@ -85,6 +97,15 @@
 - 의전: chauffeur service Seoul →protocol
 - 렌터카: car rental Seoul →rentcar
 - 일반 앵커: learn more · booking details · GoldenCar website
+
+### KO 한국어 (`/ko`)
+- 플랫폼: 네이버 블로그, 네이버 카페
+- 공항: 인천공항 픽업 →airport · 인천공항 샌딩 →airport · 김포공항 픽업 →airport · 공항 픽업 샌딩 →airport · 공항 밴 예약 →airport
+- 투어: 서울 프라이빗 투어 →tour · 서울 근교 원데이 투어 →tour
+- 의전: 기업 의전 차량 →protocol · VIP 의전 서비스 →protocol
+- 렌터카: 우정 렌트카 →rentcar
+- 일반 앵커: 자세히 보기 · 예약 페이지 · 서비스 안내
+- 대상: 외국인 가족·손님의 공항 이동을 준비하는 한국 사용자, 여행사·기업 담당자
 
 ## 앵커 유형
 
