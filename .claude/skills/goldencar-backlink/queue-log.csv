@@ -1,1 +1,2 @@
 queue_id,created_at,lang,country,platform,target_url,main_keyword,related_keywords,anchor_type,anchor_text,title,status,post_url,published_at,public_check,link_present,link_clickable,link_rel,link_target_ok,verified_at,index_status,index_checked_at,notes,playbook_version
+GC-20261028-JA-NOTE,2026-10-28,ja,JP,NOTE,https://goldencar.co.kr/ja/airport,仁川空港 送迎,金浦空港 送迎;ソウル 空港送迎;韓国 空港送迎,부분 일치,仁川空港・金浦空港の送迎予約ページ,仁川空港からソウル市内へ｜家族・グループ旅行の移動手段の選び方と空港送迎の予約ガイド,작성완료,,,,,,,,,,,"테스트 실행. 끝 링크 브랜드 앵커 GOLDENCAR → /ja. note 플랫폼 검증 필요",v1.0
