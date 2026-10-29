@@ -259,7 +259,7 @@ export default async function DispatchPage({
             <span className="text-gray-500">아래 표에서 예약을 체크한 뒤</span>
             <select name="vehicleId" className="input !w-56 !py-1" defaultValue="">
               <option value="">배차 해제 (미배정으로)</option>
-              <option value="__external">외부콜 (기본 55,000원)</option>
+              <option value="__external">외부콜</option>
               {vehicleOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
             <SubmitButton className="btn !py-1" pendingText="옮기는 중...">선택한 예약 옮기기</SubmitButton>
@@ -525,7 +525,7 @@ function AssignmentTable({
                       {showReason && <input type="hidden" name="anchor" value="unassigned" />}
                       <select name="vehicleId" defaultValue={a.unassigned_reason === "EXTERNAL" ? "__external" : a.vehicle_id ?? ""} className="input !w-44 !py-1 text-xs">
                         <option value="">배차 해제</option>
-                        <option value="__external">외부콜 (55,000원)</option>
+                        <option value="__external">외부콜</option>
                         {vehicleOptions.map((v) => (
                           <option key={v.id} value={v.id}>{v.label}</option>
                         ))}
