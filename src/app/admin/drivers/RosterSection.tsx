@@ -51,6 +51,9 @@ function RosterRow({ r, vehicles }: { r?: Roster; vehicles: Vehicle[] }) {
   );
 }
 
+/** 메모에 "지입"이라고 적힌 기사는 지입 기사 명단으로 따로 */
+const isJiip = (r: Roster) => /지입/.test(r.memo ?? "");
+
 /** 소속 기사 명단 + 월별 지급표 바로가기 (관리자만 수정, 관리자 회원·직원은 보기만. 지급표는 직원 제외) */
 export async function RosterSection({ db, vehicles, readOnly = false, showPay = true }: { db: SupabaseClient; vehicles: Vehicle[]; readOnly?: boolean; showPay?: boolean }) {
   const [{ data }, months] = await Promise.all([
@@ -70,25 +73,33 @@ export async function RosterSection({ db, vehicles, readOnly = false, showPay = 
       </form>}
 
       <ReadOnly on={readOnly}>
-      <div className="card overflow-x-auto !p-0">
-        <div className="px-4 pt-4">
-          <div className="font-semibold">소속 기사 명단 ({roster.filter((r) => r.active).length}명)</div>
-          <p className="mt-1 text-xs text-gray-500">
-            {readOnly
-              ? "보기 전용입니다 (명단 수정은 관리자만). 주민번호·계좌번호는 일부만 보입니다."
-              : "주민번호·계좌번호는 암호화해서 저장되고 목록에는 일부만 보입니다. 바꿀 때만 새로 입력하세요 (비워 두면 기존 값 유지)."}
-          </p>
+      {([
+        ["소속 기사 명단", roster.filter((r) => !isJiip(r)), true],
+        ["지입 기사 명단", roster.filter(isJiip), false],
+      ] as const).map(([title, list, withNew]) => (
+        <div key={title} className="card overflow-x-auto !p-0">
+          <div className="px-4 pt-4">
+            <div className="font-semibold">{title} ({list.filter((r) => r.active).length}명)</div>
+            <p className="mt-1 text-xs text-gray-500">
+              {withNew
+                ? readOnly
+                  ? "보기 전용입니다 (명단 수정은 관리자만). 주민번호·계좌번호는 일부만 보입니다."
+                  : "주민번호·계좌번호는 암호화해서 저장되고 목록에는 일부만 보입니다. 바꿀 때만 새로 입력하세요 (비워 두면 기존 값 유지)."
+                : "메모에 \"지입\"이라고 적힌 기사입니다. 메모에서 지우면 소속 기사 명단으로 옮겨집니다."}
+            </p>
+          </div>
+          <table className="table mt-2">
+            <thead>
+              <tr><th>이름</th><th>중국어 이름</th><th>차량</th><th>연락처</th><th>주민번호</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th /></tr>
+            </thead>
+            <tbody>
+              {list.map((r) => <RosterRow key={r.id} r={r} vehicles={vehicles} />)}
+              {withNew && !readOnly && <RosterRow vehicles={vehicles} />}
+              {!list.length && !withNew && <tr><td colSpan={10} className="text-gray-500">지입 기사가 없습니다.</td></tr>}
+            </tbody>
+          </table>
         </div>
-        <table className="table mt-2">
-          <thead>
-            <tr><th>이름</th><th>중국어 이름</th><th>차량</th><th>연락처</th><th>주민번호</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th /></tr>
-          </thead>
-          <tbody>
-            {roster.map((r) => <RosterRow key={r.id} r={r} vehicles={vehicles} />)}
-            {!readOnly && <RosterRow vehicles={vehicles} />}
-          </tbody>
-        </table>
-      </div>
+      ))}
       </ReadOnly>
     </>
   );
