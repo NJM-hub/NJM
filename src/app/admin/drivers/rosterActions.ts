@@ -20,7 +20,10 @@ export async function saveRosterDriver(formData: FormData) {
     name_zh: text(formData.get("name_zh")),
     bank_name: text(formData.get("bank_name")),
     account_holder: text(formData.get("account_holder")),
-    memo: text(formData.get("memo")),
+    // 지입 기사 명단에서 추가하면 메모에 "지입"이 꼭 들어가게
+    memo: formData.get("jiip") === "1" && !/지입/.test(text(formData.get("memo")) ?? "")
+      ? ["지입", text(formData.get("memo"))].filter(Boolean).join(" ")
+      : text(formData.get("memo")),
     active: formData.get("active") !== "off",
     updated_at: new Date().toISOString(),
   };
