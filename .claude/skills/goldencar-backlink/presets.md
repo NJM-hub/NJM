@@ -8,7 +8,7 @@
 
 | 서비스 | 경로 | 상태 |
 |---|---|---|
-| 공항 픽업·샌딩 | `/{locale}/airport` | 200. 단 canonical이 `/{locale}`로 잘못됨 (개발 수정 대기). `/en/airport`는 307 → `/airport` |
+| 공항 픽업·샌딩 | `/{locale}/airport` | 200, canonical 자기 주소로 수정됨. `/en/airport`도 200 (2026-11-02 확인) |
 | 프라이빗 투어 | `/{locale}/tour` | 200. 상품 목록이 HTML에 안 나옴 (개발 수정 대기) |
 | 프리미엄 기사·의전 | `/{locale}/protocol` | 200 |
 | 렌터카 | `/{locale}/rentcar` | 200 |
