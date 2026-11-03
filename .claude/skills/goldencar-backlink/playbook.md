@@ -125,6 +125,7 @@ How do you usually plan airport transportation when traveling abroad?
 - 사업 실적·고객 경험을 확인 없이 사례처럼 쓰지 않는다.
 - 일반 텍스트만 (마크다운 없음). 길이 600~1,300자 안팎.
 - 본문 링크가 노출에 미치는 영향은 검증 필요. 가끔 "첫 댓글 링크"와 비교해 notes에 기록.
+- **아티클(linkedin.com/article/new) 말고 일반 게시물(피드 "게시물 작성")로 올린다.** 2026-11 확인: 아티클 페이지는 비로그인 기준 meta robots에 noindex, 일반 게시물은 noindex 없음.
 
 ## 3. NBL — 네이버 블로그 (한국어 여행 정보용)
 
@@ -266,5 +267,5 @@ South Korea
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | v1.0 | 2026-10-28 | 최초 작성. 운영 4개 + 추천 6개 플랫폼 |
-| v1.2 | 2026-11-03 | UTM 사용 중단(소셜 편집기가 ?에서 URL을 끊음), Tumblr 텍스트 링크 규칙, Medium 토픽 칸 규칙 |
+| v1.2 | 2026-11-03 | UTM 사용 중단(소셜 편집기가 ?에서 URL을 끊음), Tumblr 텍스트 링크 규칙, Medium 토픽 칸 규칙, LinkedIn은 아티클 대신 일반 게시물 |
 | v1.1 | 2026-10-28 | 사용자 제공 양식 반영: Medium·LinkedIn·네이버 블로그·네이버 카페·Tumblr 게시 양식과 예시. 네이버 블로그·카페 추가. 링크 1개 기본, 언어·주제에 맞는 URL 원칙. 상태값 Draft/Reviewed/Approved/Published 도입 |
