@@ -1,6 +1,6 @@
 # Platform Playbook
 
-버전: **v1.2 (2026-11-03)** — 규칙을 바꾸면 아래 변경 이력에 한 줄 추가하고, 로그의 `playbook_version`에 반영한다.
+버전: **v1.3 (2026-11-03)** — 규칙을 바꾸면 아래 변경 이력에 한 줄 추가하고, 로그의 `playbook_version`에 반영한다.
 
 이 문서의 양식은 GOLDENCAR용 초기 템플릿이다. 각 플랫폼의 현재 게시 정책과 허용 링크 형식은 게시 전에 확인한다.
 백링크 개수보다 콘텐츠 관련성, 실제 공개 여부, 링크 정상 작동, 유입 성과를 기준으로 관리한다.
@@ -204,12 +204,15 @@ https://goldencar.co.kr/ko/airport
 
 양식:
 ```
+[IMAGE]  골든카 키워드 이미지 1장 (본문 맨 위, 이미지에도 같은 URL 링크)
 [TITLE]
 [BODY]
   짧은 도입 질문 1줄
   체크 목록 4~6개
   한 줄 정리
-  링크 안내 문장 + URL
+  ▶ 키워드 링크 문구 (따로 한 줄, 이 글자에 텍스트 링크)
+[LINK URL]  링크 문구와 이미지에 걸 주소 (본문에 붙여 넣지 않음)
+[ALT]  이미지 설명 (키워드 + GOLDENCAR)
 [TAGS]  5~10개, 일반 텍스트, # 없음, 중요한 것부터
 ```
 
@@ -230,8 +233,13 @@ Before you arrive, make sure you have checked:
 
 A little preparation can make airport arrival smoother, especially when traveling with family or a group.
 
-Korea airport transportation information:
+▶ Incheon & Gimpo airport transfer booking
+
+[LINK URL]  (위 ▶ 문구와 이미지에 링크)
 https://goldencar.co.kr/en/airport
+
+[ALT]
+Seoul airport transfer checklist - GOLDENCAR
 
 [TAGS]
 Korea Travel
@@ -243,7 +251,12 @@ South Korea
 
 규칙:
 - 짧은 문단, 목록, 이미지와 함께 읽기 쉽게. 영어 150~400단어 / 일본어 400~1,000자.
-- 태그는 `#` 없이.
+- 태그는 `#` 없이, 본문이 아니라 태그 칸에.
+- **링크는 URL을 붙여 넣지 않고 글자에 텍스트 링크로 건다.** 붙여 넣으면 Tumblr가 링크 카드로 바꾸면서 연결 주소가 언어 홈(`/ja/`)으로 바뀐 사례가 있다(2026-11, JA-TUM).
+- **링크 문구는 키워드 문구로, 따로 한 줄에 `▶`를 붙여 쓴다.** Tumblr는 글자 링크를 밑줄로만 표시해서 문장 속에 섞이면 잘 안 보인다. 예: `▶ ソウル 貸切チャーター・プレミアム送迎の詳細はこちら`. 「詳しくはこちら」 같은 일반 문구만 쓰지 않는다.
+- **골든카 키워드 이미지 1장을 본문 맨 위에 넣고, 이미지에도 같은 URL 링크를 건다.** 카드 대신 사람 눈을 끄는 역할. 이미지는 `templates/`의 카드·커버 템플릿으로 만들고 설명(alt)에 키워드와 GOLDENCAR를 넣는다.
+- 링크 카드는 사이트의 페이지별 og:title·og:url이 고쳐진 뒤에만 텍스트 링크와 함께 쓴다(지금은 모든 페이지가 공항 제목으로 나옴).
+- 게시 후 글 페이지 HTML로 연결 주소를 확인한다. 블로그 RSS는 수정 내용이 늦게 반영된다.
 - 이미지는 권리와 출처 확인.
 
 ## 6. 기타 플랫폼 (v1.0 규칙 유지)
@@ -267,5 +280,6 @@ South Korea
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | v1.0 | 2026-10-28 | 최초 작성. 운영 4개 + 추천 6개 플랫폼 |
-| v1.2 | 2026-11-03 | UTM 사용 중단(소셜 편집기가 ?에서 URL을 끊음), Tumblr 텍스트 링크 규칙, Medium 토픽 칸 규칙, LinkedIn은 아티클 대신 일반 게시물 |
 | v1.1 | 2026-10-28 | 사용자 제공 양식 반영: Medium·LinkedIn·네이버 블로그·네이버 카페·Tumblr 게시 양식과 예시. 네이버 블로그·카페 추가. 링크 1개 기본, 언어·주제에 맞는 URL 원칙. 상태값 Draft/Reviewed/Approved/Published 도입 |
+| v1.2 | 2026-11-03 | UTM 사용 중단(소셜 편집기가 ?에서 URL을 끊음), Tumblr 텍스트 링크 규칙, Medium 토픽 칸 규칙, LinkedIn은 아티클 대신 일반 게시물 |
+| v1.3 | 2026-11-03 | Tumblr: 키워드 링크 문구를 ▶로 따로 한 줄, 키워드 이미지 1장(이미지에도 링크), 링크 카드는 og 수정 후에만, 게시 후 글 페이지로 확인 |

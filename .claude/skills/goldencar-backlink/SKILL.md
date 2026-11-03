@@ -68,6 +68,8 @@ metadata:
 
 모든 플랫폼 뒤에 짧은 게시 체크리스트와 `게시 완료 {큐ID} {URL}` 명령 예시.
 
+Tumblr는 playbook 양식대로 IMAGE(키워드 이미지 생성) · TITLE · BODY(▶ 키워드 링크 문구 포함) · LINK URL · ALT · TAGS 칸을 각각 박스로 주고, "URL을 붙여 넣지 말고 ▶ 문구와 이미지에 링크를 걸 것"을 안내한다.
+
 큐 ID: `GC-YYYYMMDD-{언어코드}-{플랫폼코드}` (날짜는 한국 시간). 언어코드 TW HK CN JA TH VI EN KO. 플랫폼코드는 `playbook.md` 표.
 
 ## 원고 파일 형식 (`drafts/{큐ID}.md`)
