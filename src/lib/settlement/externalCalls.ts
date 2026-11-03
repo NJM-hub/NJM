@@ -8,7 +8,7 @@ import { ko } from "@/lib/ko";
 import { operatorOf } from "./vehicleMonthlyLoad";
 import { loadSettings } from "@/lib/settings";
 import { normalizeTripType } from "@/lib/trip";
-import { OWN_CALL, ownCallAmount } from "./vehicleMonthly";
+import { cashOrderAmount, OWN_CALL, ownCallAmount } from "./vehicleMonthly";
 
 /** 외부(타업체)로 준 콜: 시트 기사 칸에 금액만 적힌 건 */
 export type OutCall = {
@@ -47,6 +47,8 @@ export type InCall = {
   /** 정산 금액 (시트 금액이 있으면 −그 금액, 없으면 −차감액, 정산 화면에서 고친 값이 있으면 그 값) */
   settleAmount: number;
   paid: boolean;
+  /** 회사가 현금으로 받은 외부 오더 (시트 예약번호 칸 "＋55000"): 별도 수금 = 받은 금액 */
+  cash?: boolean;
 };
 
 type Row = {
@@ -129,10 +131,10 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
   }
 
   const inCalls: InCall[] = rows
-    .filter((r) => r.bookings?.source === OWN_CALL)
+    .filter((r) => r.bookings?.source === OWN_CALL || (r.vehicle_id && cashOrderAmount(r.bookings?.booking_no) != null))
     .map((r) => {
       const b = r.bookings!;
-      return {
+      const base: InCall = {
         id: r.id,
         date: r.dispatch_runs.service_date,
         pickupAt: b.pickup_at,
@@ -145,6 +147,17 @@ export async function loadExternalCalls(db: SupabaseClient, month: string) {
         charterFare: b.fare,
         settleAmount: r.settle_amount ?? ownCallAmount(b.fare, ownCallFee),
         paid: b.raw?.["입금"] === "확인",
+      };
+      const cash = b.source !== OWN_CALL ? cashOrderAmount(b.booking_no) : null;
+      // 회사가 현금으로 받은 외부 오더: 기사는 일반 콜처럼 지급, 받은 금액을 별도 수금으로 표시
+      return cash == null ? base : {
+        ...base,
+        tripType: normalizeTripType(b.trip_type, b.pickup_address, b.dropoff_address),
+        content: ["회사 현금 오더", b.flight_no, [b.pickup_place ?? b.pickup_address, b.dropoff_place ?? b.dropoff_address].filter(Boolean).join(" → ")].filter(Boolean).join(" · "),
+        charterFare: null,
+        settleAmount: cash,
+        paid: false,
+        cash: true,
       };
     })
     // 날짜(·시간)순, 같은 시각이면 차량순

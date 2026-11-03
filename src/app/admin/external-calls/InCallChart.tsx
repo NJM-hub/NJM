@@ -1,4 +1,4 @@
-export type InCallDriver = { name: string; count: number; amount: number };
+export type InCallDriver = { name: string; count: number; amount: number; cash?: number };
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 /** 막대 색 (단일 계열) */
@@ -33,7 +33,7 @@ function DriverChart({ drivers }: { drivers: InCallDriver[] }) {
           </div>
           <div className="pointer-events-none absolute left-40 top-full z-10 mt-0.5 hidden whitespace-nowrap rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 shadow-md group-hover:block">
             <div className="font-semibold">{d.name}</div>
-            <div>{d.count}건 · 별도 수금 {won(d.amount)}</div>
+            <div>{d.count}건 · 별도 수금 {won(d.amount)}{d.cash ? ` · 회사 현금 오더 ${won(d.cash)}` : ""}</div>
           </div>
         </div>
       ))}

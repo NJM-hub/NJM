@@ -27,8 +27,6 @@ export type MonthLedger = {
   kkdayStatement: number;
   kkdayAdjust: number;
   kkdayNet: number;
-  /** 회사가 현금으로 받은 외부 오더 매출 (시트 예약번호 칸 "＋55000"). KKday 이외 매출, 부가세 빼지 않음 */
-  cashOrders: number;
   /** 차량 정산에 입력한 비용 (주유·과태료·통행료·엔진오일·기타) */
   vehicleExpenses: number;
   cost: number;
@@ -93,15 +91,14 @@ export async function loadMonthLedger(db: SupabaseClient, month: string): Promis
   // 지난달 굿리뷰는 회사 비용이 아니라 기사에게 더 주는 돈이므로 비용에서 뺀다 (기사 지급에 들어감)
   const vehicleExpenses = report.vehicles.reduce((s, v) => s + v.payout.expenses - (v.expenses?.prev_review ?? 0), 0);
   const driverPayAuto = report.vehicles.reduce((s, v) => s + v.payout.diff, 0);
-  const cashOrders = report.vehicles.reduce((s, v) => s + v.rows.reduce((t, r) => t + (r.cashAmount ?? 0), 0), 0);
   const costAuto = vehicleExpenses;
   const costOverridden = led?.cost_override != null;
   const driverPayOverridden = led?.driver_pay_override != null;
   const cost = costOverridden ? (led!.cost_override as number) : costAuto;
   const driverPay = driverPayOverridden ? (led!.driver_pay_override as number) : driverPayAuto;
   return {
-    month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, cashOrders, vehicleExpenses, cost, driverPay, costAuto, driverPayAuto, costOverridden, driverPayOverridden,
+    month, kkdayAmount, kkdayStatement, kkdayAdjust, kkdayNet, vehicleExpenses, cost, driverPay, costAuto, driverPayAuto, costOverridden, driverPayOverridden,
     installment, cashExpense, cashSpend, officeExpense, memo: led?.memo ?? null, itemized, items,
-    remain: kkdayNet + cashOrders - cost - driverPay - installment - cashExpense - cashSpend - officeExpense,
+    remain: kkdayNet - cost - driverPay - installment - cashExpense - cashSpend - officeExpense,
   };
 }

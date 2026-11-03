@@ -32,7 +32,12 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
   const diffTotal = out.reduce((s, c) => s + (c.diff ?? 0), 0);
   const kkdayTotal = out.reduce((s, c) => s + (c.kkdayAmount ?? 0), 0);
   const netTotal = out.reduce((s, c) => s + (c.kkdayNet ?? 0), 0);
-  const inTotal = inCalls.reduce((s, c) => s + c.settleAmount, 0);
+  // 기사 자체 콜(기사가 받은 돈, 지급액에서 차감)과 회사 현금 오더(회사가 받은 돈)는 합계를 따로
+  const ownSum = (list: InCall[]) => list.filter((c) => !c.cash).reduce((s, c) => s + c.settleAmount, 0);
+  const cashSum = (list: InCall[]) => list.filter((c) => c.cash).reduce((s, c) => s + c.settleAmount, 0);
+  const inTotal = ownSum(inCalls);
+  const cashTotal = cashSum(inCalls);
+  const cashCount = inCalls.filter((c) => c.cash).length;
   // 금액 칸: 정산내역서에 없으면 "-", 마이너스는 -로
   const money = (n: number | null) => (n == null ? <span className="text-gray-400">-</span> : <span className={amountColor(n)}>{won(n)}</span>);
 
@@ -45,7 +50,7 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
 
   // 그래프: 기사별 건수와 별도 수금액
   const driverChart: InCallDriver[] = [...inByVehicle].map(([name, list]) => ({
-    name, count: list.length, amount: list.reduce((s, c) => s + c.settleAmount, 0),
+    name, count: list.length, amount: ownSum(list), cash: cashSum(list),
   }));
 
   return (
@@ -113,19 +118,21 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
       {/* 외부에서 받은 콜 */}
       <section className="card space-y-3">
         <h2 className="text-lg font-semibold">
-          {mon}월 외부에서 받은 콜 (기사 자체 콜) <span className="text-base font-normal text-gray-600">{inCalls.length}건 · <span className={amountColor(inTotal)}>{won(inTotal)}</span></span>
+          {mon}월 외부에서 받은 콜 (기사 자체 콜) <span className="text-base font-normal text-gray-600">{inCalls.length}건 · <span className={amountColor(inTotal)}>{won(inTotal)}</span>
+            {cashCount > 0 && <> · 회사 현금 오더 {cashCount}건 <span className="text-green-700">{won(cashTotal)}</span></>}</span>
         </h2>
         {inCalls.length ? (
           <>
             <table className="table">
-              <thead><tr><th>차량 · 기사</th><th className="text-right">건수</th><th className="text-right">시트 요금 합계</th><th className="text-right">별도 수금 합계</th></tr></thead>
+              <thead><tr><th>차량 · 기사</th><th className="text-right">건수</th><th className="text-right">시트 요금 합계</th><th className="text-right">별도 수금 합계</th>{cashCount > 0 && <th className="text-right">회사 현금 오더</th>}</tr></thead>
               <tbody>
                 {[...inByVehicle].map(([k, list]) => (
                   <tr key={k}>
                     <td>{k}</td>
                     <td className="text-right">{list.length}</td>
                     <td className="text-right">{won(list.reduce((s, c) => s + (c.charterFare ?? 0), 0))}</td>
-                    <td className={`text-right ${amountColor(list.reduce((s, c) => s + c.settleAmount, 0))}`}>{won(list.reduce((s, c) => s + c.settleAmount, 0))}</td>
+                    <td className={`text-right ${amountColor(ownSum(list))}`}>{won(ownSum(list))}</td>
+                    {cashCount > 0 && <td className="text-right text-green-700">{cashSum(list) ? won(cashSum(list)) : ""}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -135,14 +142,14 @@ export default async function ExternalCallsPage({ searchParams }: { searchParams
                 <thead><tr><th>날짜</th><th>시간</th><th>차량 · 기사</th><th>구분</th><th>내용 (시트 그대로)</th><th className="text-right">시트 요금</th><th className="text-right">별도 수금</th></tr></thead>
                 <tbody>
                   {inCalls.map((c) => (
-                    <tr key={c.id} className="bg-violet-50/40">
+                    <tr key={c.id} className={c.cash ? "bg-green-50/60" : "bg-violet-50/40"}>
                       <td className="whitespace-nowrap">{dayLabel(c.date)}</td>
                       <td>{c.pickupAt ? fmtTime(c.pickupAt) : ""}</td>
                       <td className="whitespace-nowrap text-xs">{[c.plate, c.driverName].filter(Boolean).join(" ")}</td>
                       <td><TripBadge t={c.tripType} /></td>
-                      <td className="text-xs">{c.content}{c.paid && <span className="badge ml-1 bg-green-100 text-green-800">입금 확인</span>}</td>
+                      <td className="text-xs">{c.cash && <span className="badge mr-1 bg-green-100 text-green-800">회사 현금 오더</span>}{c.content}{c.paid && <span className="badge ml-1 bg-green-100 text-green-800">입금 확인</span>}</td>
                       <td className="text-right">{c.charterFare != null ? won(c.charterFare) : ""}</td>
-                      <td className={`text-right ${amountColor(c.settleAmount)}`}>{won(c.settleAmount)}</td>
+                      <td className={`text-right ${c.cash ? "text-green-700" : amountColor(c.settleAmount)}`} title={c.cash ? "회사가 현금으로 받은 금액 (기사는 일반 콜처럼 지급)" : undefined}>{won(c.settleAmount)}</td>
                     </tr>
                   ))}
                 </tbody>
