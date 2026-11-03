@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WITHHOLDING } from "@/lib/tax";
-import { assignSettleOperators, computePayout, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
+import { assignSettleOperators, cashOrderAmount, computePayout, kkdayDiffOf, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
 
 let n = 0;
 const row = (date: string, plate: string, tripType: string | null, extra: Partial<VehicleMonthRow> = {}): VehicleMonthRow => ({
@@ -97,5 +97,15 @@ describe("KKday 차액", () => {
       { ...base, id: "1", amount: 45000, kkdayAmount: 60000 },
       { ...base, id: "2", amount: 40000, kkdayAmount: null },
     ])).toEqual({ count: 1, amount: 60000, net: 54545, paid: 45000, diff: 9545 });
+  });
+});
+
+describe("현금 외부 오더 (예약번호 칸 ＋금액)", () => {
+  it("＋금액을 읽고, 부가세 없이 그 금액에서 기사 금액을 뺀다", () => {
+    expect(cashOrderAmount("＋55000-2026-10-04-1615-9761")).toBe(55000);
+    expect(cashOrderAmount("+60,000")).toBe(60000);
+    expect(cashOrderAmount("26KK255204783")).toBeNull();
+    expect(kkdayDiffOf({ cashAmount: 55000, amount: 40000, source: null, kkdayAmount: null })).toEqual({ net: 55000, diff: 15000 });
+    expect(kkdayDiffOf({ cashAmount: null, amount: 40000, source: null, kkdayAmount: 55000 })).toEqual({ net: 50000, diff: 10000 });
   });
 });

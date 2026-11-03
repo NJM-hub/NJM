@@ -134,7 +134,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
       <p className="text-sm text-gray-500">
         <b>확정된 배차</b>만 셉니다. 차량을 누르면 날짜별 건수, 건별 금액, 비용 입력 화면이 나옵니다.
         배차 금액은 전부 지급하고(비용·원천세 3.3%만 뺌), 외부오더(기사 자체 콜)의 −금액(건당 {won(report.ownCallFee)}, 시트에 금액이 적혀 있으면 그 금액)은
-        지급액에서 빼지 않습니다 (차량을 누르면 상세에서 확인). KKday 차액은 KKday 정산액에서 부가세를 빼고 그 건들 기사 지급액을 뺀 금액입니다.
+        지급액에서 빼지 않습니다 (차량을 누르면 상세에서 확인). KKday 차액은 KKday 정산액에서 부가세를 빼고 그 건들 기사 지급액을 뺀 금액입니다. 시트 예약번호 칸에 ＋55000처럼 적힌 현금 외부 오더는 그 금액을 부가세 없이 그대로 넣습니다.
       </p>
       <div className="card overflow-x-auto !p-0">
         <table className="table">
@@ -474,7 +474,10 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                       const k = kkdayDiffOf(r);
                       return (
                         <>
-                          <td className="whitespace-nowrap text-right text-gray-600" title={r.kkdayAmount != null ? `KKday 정산 ${won(r.kkdayAmount)} (부가세 포함)` : undefined}>{k ? won(k.net) : <span className="text-gray-400">-</span>}</td>
+                          <td className="whitespace-nowrap text-right text-gray-600" title={r.cashAmount != null ? `회사가 현금으로 받은 외부 오더 ${won(r.cashAmount)} (부가세 빼지 않음)` : r.kkdayAmount != null ? `KKday 정산 ${won(r.kkdayAmount)} (부가세 포함)` : undefined}>
+                            {k ? won(k.net) : <span className="text-gray-400">-</span>}
+                            {r.cashAmount != null && <span className="badge ml-1 bg-amber-100 text-amber-800">현금</span>}
+                          </td>
                           <td className="whitespace-nowrap text-right font-semibold">{diffCell(k?.diff)}</td>
                         </>
                       );

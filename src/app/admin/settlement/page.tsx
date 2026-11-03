@@ -69,6 +69,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
               <th>월</th>
               <th className="text-right">KKday 정산 합계</th>
               <th className="text-right">KKday 부가세 제외</th>
+              <th className="text-right" title="시트 예약번호 칸에 ＋금액으로 적힌, 회사가 현금으로 받은 외부 오더 (부가세 빼지 않음)">외부 현금 오더</th>
               <th className="text-right">비용</th>
               <th className="text-right">기사 지급(세액포함)</th>
               <th className="text-right">차량 할부금</th>
@@ -89,6 +90,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                   </td>
                   <td className="text-right">{won(r.kkdayAmount)}</td>
                   <td className="text-right">{won(r.kkdayNet)}</td>
+                  <td className="text-right">{r.cashOrders ? won(r.cashOrders) : <span className="text-gray-400">-</span>}</td>
                   <td className="text-right">{won(r.cost)}</td>
                   <td className="text-right">{won(r.driverPay)}</td>
                   <LedgerCell r={r} form={f} name="vehicle_installment" value={r.installment} itemized={r.itemized.installment} />
@@ -106,7 +108,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={11} className="text-gray-500">정산할 달이 없습니다.</td></tr>}
+            {!rows.length && <tr><td colSpan={12} className="text-gray-500">정산할 달이 없습니다.</td></tr>}
           </tbody>
           {rows.length > 1 && (
             <tfoot>
@@ -114,6 +116,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
                 <td className="px-3 py-2">합계</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.kkdayAmount))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.kkdayNet))}</td>
+                <td className="px-3 py-2 text-right">{won(sum((r) => r.cashOrders))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.cost))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.driverPay))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((r) => r.installment))}</td>

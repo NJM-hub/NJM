@@ -39,11 +39,22 @@ export type VehicleMonthRow = {
   kkdayAmount?: number | null;
   /** 굿리뷰 추가 금액 (amount 에 이미 포함) */
   reviewBonus?: number;
+  /** 회사가 현금으로 받은 외부 오더 금액 (시트 예약번호 칸에 "＋55000"처럼 적힌 건). KKday 이외 매출, 부가세 빼지 않음 */
+  cashAmount?: number | null;
 };
 
+/** 예약번호 칸의 "＋55000", "+60,000" → 회사가 현금으로 받은 외부 오더 금액 */
+export function cashOrderAmount(bookingNo: string | null | undefined): number | null {
+  const m = (bookingNo ?? "").match(/^\s*[+＋]\s*(\d[\d,]*)/);
+  return m ? Number(m[1].replace(/,/g, "")) : null;
+}
+
 /** KKday 차액 = 정산 금액(부가세 포함)에서 부가세 뺀 금액 − 기사에게 준 금액. 내역서에 없거나 외부오더면 null */
-export function kkdayDiffOf(r: Pick<VehicleMonthRow, "kkdayAmount" | "amount" | "source">): { net: number; diff: number } | null {
-  if (r.kkdayAmount == null || r.source === OWN_CALL) return null;
+export function kkdayDiffOf(r: Pick<VehicleMonthRow, "kkdayAmount" | "amount" | "source" | "cashAmount">): { net: number; diff: number } | null {
+  if (r.source === OWN_CALL) return null;
+  // 현금 외부 오더: 받은 금액 그대로 (부가세 빼지 않음)
+  if (r.cashAmount != null) return { net: r.cashAmount, diff: r.cashAmount - r.amount };
+  if (r.kkdayAmount == null) return null;
   const net = Math.round(r.kkdayAmount / 1.1);
   return { net, diff: net - r.amount };
 }
@@ -55,7 +66,7 @@ export function kkdayTotals(rows: VehicleMonthRow[]) {
     const d = kkdayDiffOf(r);
     if (!d) continue;
     t.count++;
-    t.amount += r.kkdayAmount!;
+    t.amount += r.kkdayAmount ?? r.cashAmount ?? 0;
     t.net += d.net;
     t.paid += r.amount;
     t.diff += d.diff;

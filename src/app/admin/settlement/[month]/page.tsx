@@ -92,6 +92,7 @@ export default async function MonthLedgerPage({ params }: { params: Promise<{ mo
 
       <div className="card grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><div className="text-gray-500">KKday 부가세 제외</div><b>{won(r.kkdayNet)}</b></div>
+        {!!r.cashOrders && <div><div className="text-gray-500">외부 현금 오더</div><b>{won(r.cashOrders)}</b></div>}
         <div><div className="text-gray-500">비용</div><b>{won(r.cost)}</b></div>
         <div><div className="text-gray-500">기사 지급(세액포함)</div><b>{won(r.driverPay)}</b></div>
         {LEDGER_CATEGORIES.map((c) => (
