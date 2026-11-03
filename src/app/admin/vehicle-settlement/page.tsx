@@ -70,6 +70,14 @@ const COUNT_HEAD = (
   </>
 );
 
+/** 굿리뷰 합계: 이번 달 운행 예약 줄에 붙은 것 + 지난달 이전 운행분(지난달 굿리뷰 비용) */
+function reviewStats(v: { rows: { reviewBonus?: number }[]; prevReviews: { amount: number }[] }) {
+  const cur = v.rows.filter((r) => r.reviewBonus);
+  const curAmount = cur.reduce((s, r) => s + (r.reviewBonus ?? 0), 0);
+  const prevAmount = v.prevReviews.reduce((s, x) => s + x.amount, 0);
+  return { count: cur.length + v.prevReviews.length, amount: curAmount + prevAmount, cur: cur.length, curAmount, prev: v.prevReviews.length, prevAmount };
+}
+
 export default async function VehicleSettlementPage({ searchParams }: { searchParams: Promise<{ month?: string; v?: string; msg?: string }> }) {
   const sp = await searchParams;
   const month = isMonth(sp.month) ? sp.month : todayKst().slice(0, 7);
@@ -142,7 +150,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
             <tr>
               <th>차량 · 기사</th><th className="text-right">운행일</th>{COUNT_HEAD}
               <th className="text-right">금액 합계</th><th className="text-right">비용</th><th className="text-right">차액</th>
-              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right" title="KKday 정산내역서에서 이 기사가 운행한 건들의 정산 금액 합계 (부가세 포함)">KKday 정산액</th><th className="text-right" title="KKday 정산액 ÷ 1.1">부가세 제외</th><th className="text-right" title="부가세 제외 금액 − 그 건들에 기사에게 준 금액 (정산내역서에 있는 건만)">KKday 차액</th><th>삭제</th>
+              <th className="text-right">세액</th><th className="text-right">지급액</th><th className="text-right" title="이번 달 시트의 굿리뷰 (지난달 운행분 포함, 건당 3,000원)">굿리뷰</th><th className="text-right" title="KKday 정산내역서에서 이 기사가 운행한 건들의 정산 금액 합계 (부가세 포함)">KKday 정산액</th><th className="text-right" title="KKday 정산액 ÷ 1.1">부가세 제외</th><th className="text-right" title="부가세 제외 금액 − 그 건들에 기사에게 준 금액 (정산내역서에 있는 건만)">KKday 차액</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -161,6 +169,14 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="text-right">{won(v.payout.diff)}</td>
                 <td className="text-right">{won(v.payout.tax)}</td>
                 <td className="text-right font-semibold">{won(v.payout.pay)}</td>
+                {(() => {
+                  const g = reviewStats(v);
+                  return (
+                    <td className="whitespace-nowrap text-right text-green-700" title={g.count ? `이번 달 운행 ${g.cur}건 ${won(g.curAmount)} · 지난달 운행 ${g.prev}건 ${won(g.prevAmount)}` : undefined}>
+                      {g.count ? <>{won(g.amount)} <span className="text-xs text-gray-500">({g.count}건)</span></> : <span className="text-gray-400">-</span>}
+                    </td>
+                  );
+                })()}
                 {(() => {
                   const k = kkdayTotals(v.rows);
                   return k.count ? (
@@ -188,7 +204,7 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 </td>
               </tr>
             ))}
-            {!report.vehicles.length && <tr><td colSpan={16} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
+            {!report.vehicles.length && <tr><td colSpan={17} className="text-gray-500">{mon}월에 확정된 배차가 없습니다.</td></tr>}
           </tbody>
           {report.vehicles.length > 0 && (
             <tfoot>
@@ -205,6 +221,9 @@ function Overview({ report }: { report: VehicleMonthReport }) {
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.diff))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.tax))}</td>
                 <td className="px-3 py-2 text-right">{won(sum((v) => v.payout.pay))}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-green-700">
+                  {won(sum((v) => reviewStats(v).amount))} <span className="text-xs font-normal text-gray-500">({num(sum((v) => reviewStats(v).count))}건)</span>
+                </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{won(sum((v) => kkdayTotals(v.rows).amount))}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{won(sum((v) => kkdayTotals(v.rows).net))}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">{diffCell(sum((v) => kkdayTotals(v.rows).diff))}</td>
@@ -318,6 +337,15 @@ function VehicleDetail({ report, v }: { report: VehicleMonthReport; v: VehicleMo
                   </tbody>
                 </table>
               </div>
+            ) : null;
+          })()}
+          {(() => {
+            const g = reviewStats(v);
+            return g.count > 0 ? (
+              <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+                굿리뷰 <b>{g.count}건 {won(g.amount)}</b>
+                {" "}(이번 달 운행 {g.cur}건 {won(g.curAmount)}은 금액 합계에, 지난달 운행 {g.prev}건 {won(g.prevAmount)}은 비용의 &quot;지난달 굿리뷰&quot;에 들어 있습니다)
+              </p>
             ) : null;
           })()}
           {v.total.own > 0 && (
