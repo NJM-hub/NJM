@@ -22,9 +22,9 @@
 
 | 언어 | 기본 세트 | 추가 가능 |
 |---|---|---|
-| EN 영어 | Medium, LinkedIn, Tumblr | Facebook, Blogger, Pinterest |
-| JA 일본어 | Medium, LinkedIn, Tumblr | note, Hatena, Facebook |
-| TW 대만 / HK 홍콩 | Medium, Facebook | Blogger, PIXNET(TW) |
+| EN 영어 | Facebook, LinkedIn, Medium, Tumblr, Instagram | Facebook, Blogger, Pinterest |
+| JA 일본어 | Facebook, LinkedIn, Medium, Tumblr, Instagram | note, Hatena, Facebook |
+| TW 대만 / HK 홍콩 | Facebook, LinkedIn, Medium, Tumblr, Instagram | Blogger, PIXNET(TW) |
 | CN 간체 | Medium, Facebook | Blogger |
 | TH 태국어 | Facebook, Medium | Blogger, Pinterest |
 | VI 베트남어 | Facebook, Medium | Blogger |
