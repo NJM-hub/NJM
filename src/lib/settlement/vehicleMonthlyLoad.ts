@@ -9,7 +9,7 @@ import { normalizeTripType } from "@/lib/trip";
 import { parseDriverCell } from "@/lib/kkday/sheet";
 import { vehicleFare } from "./fare";
 import {
-  OWN_CALL, assignSettleOperators, cashOrderAmount, computePayout, ownCallAmount, settleKey, summarizeVehicleMonth, tripKind,
+  MERGE_HOME_FROM, mergeIntoHomeVehicle, OWN_CALL, assignSettleOperators, cashOrderAmount, computePayout, ownCallAmount, settleKey, summarizeVehicleMonth, tripKind,
   type Expenses, type Payout, type VehicleMonth, type VehicleMonthRow,
 } from "./vehicleMonthly";
 
@@ -217,6 +217,8 @@ export async function loadVehicleMonth(db: SupabaseClient, month: string): Promi
     r.kkdayAmount = r.bookingNo ? kkdayOf.get(r.bookingNo) ?? null : null;
     r.cashAmount = r.source === OWN_CALL ? null : cashOrderAmount(r.bookingNo);
   }
+
+  if (month >= MERGE_HOME_FROM) mergeIntoHomeVehicle(vehicleRows);
 
   const tax = withholdingOf(settings);
 

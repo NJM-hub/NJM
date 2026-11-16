@@ -160,6 +160,33 @@ export function assignSettleOperators(rows: VehicleMonthRow[]) {
   }
 }
 
+/** 이 달부터: 다른 차량의 담당 기사가 잠깐 다른 차량으로 운행한 건은 그 기사의 담당 차량 정산으로 합친다 (그 전 달 정산은 그대로) */
+export const MERGE_HOME_FROM = "2026-10";
+
+/**
+ * 따로 정산되는 줄(settleOperator)인데 그 기사가 같은 달 다른 차량의 담당 기사이면, 그 담당 차량 정산으로 옮긴다.
+ * 예) 임걸이 9914 담당인데 10/1에 9860으로 3건 운행 → 9914 임걸 정산에 합침. 담당 차량이 둘 이상이면 그대로 둔다.
+ */
+export function mergeIntoHomeVehicle(rows: VehicleMonthRow[]) {
+  const home = new Map<string, Set<string>>();
+  const plateOf = new Map<string, string>();
+  for (const r of rows) {
+    if (r.settleOperator || !r.driverName) continue;
+    home.set(r.driverName, (home.get(r.driverName) ?? new Set()).add(r.vehicleId));
+    plateOf.set(r.vehicleId, r.plate);
+  }
+  for (const r of rows) {
+    if (!r.settleOperator || r.manualSource) continue;
+    const vs = home.get(r.settleOperator);
+    if (!vs || vs.size !== 1) continue;
+    const w = [...vs][0];
+    if (w === r.vehicleId) continue;
+    r.vehicleId = w;
+    r.plate = plateOf.get(w) ?? r.plate;
+    r.settleOperator = "";
+  }
+}
+
 /** 정산 단위 키 (URL·선택 값에 쓴다) */
 export const settleKey = (vehicleId: string, operator = "") => (operator ? `${vehicleId}~${operator}` : vehicleId);
 

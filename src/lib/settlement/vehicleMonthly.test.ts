@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WITHHOLDING } from "@/lib/tax";
-import { assignSettleOperators, cashOrderAmount, computePayout, kkdayDiffOf, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
+import { assignSettleOperators, cashOrderAmount, mergeIntoHomeVehicle, computePayout, kkdayDiffOf, inOutLabel, OWN_CALL, summarizeOperators, summarizeVehicleMonth, type VehicleMonthRow } from "./vehicleMonthly";
 
 let n = 0;
 const row = (date: string, plate: string, tripType: string | null, extra: Partial<VehicleMonthRow> = {}): VehicleMonthRow => ({
@@ -107,5 +107,21 @@ describe("현금 외부 오더 (예약번호 칸 ＋금액)", () => {
     expect(cashOrderAmount("26KK255204783")).toBeNull();
     expect(kkdayDiffOf({ cashAmount: 55000, amount: 40000, source: null, kkdayAmount: null })).toEqual({ net: 55000, diff: 15000 });
     expect(kkdayDiffOf({ cashAmount: null, amount: 40000, source: null, kkdayAmount: 55000 })).toEqual({ net: 50000, diff: 10000 });
+  });
+});
+
+describe("다른 차량 담당 기사의 운행은 담당 차량 정산으로", () => {
+  const row = (vehicleId: string, plate: string, driverName: string, settleOperator = ""): VehicleMonthRow =>
+    ({ id: `${vehicleId}-${driverName}-${Math.random()}`, serviceDate: "2026-10-01", vehicleId, plate, driverName, tripType: "공항 픽업", source: null, amount: 40000, settleOperator, operator: settleOperator || null });
+  it("임걸(9914 담당)이 9860으로 운행한 건은 9914 임걸 정산으로", () => {
+    const rows = [row("v9914", "161하9914", "임걸"), row("v9860", "720호9860", "김세곤"), row("v9860", "720호9860", "임걸", "임걸")];
+    mergeIntoHomeVehicle(rows);
+    expect(rows[2]).toMatchObject({ vehicleId: "v9914", plate: "161하9914", settleOperator: "" });
+    expect(rows[1]).toMatchObject({ vehicleId: "v9860", settleOperator: "" });
+  });
+  it("담당 차량이 없는 기사는 그대로 따로", () => {
+    const rows = [row("v9756", "161하9756", "박성걸"), row("v9756", "161하9756", "차종산", "차종산")];
+    mergeIntoHomeVehicle(rows);
+    expect(rows[1]).toMatchObject({ vehicleId: "v9756", settleOperator: "차종산" });
   });
 });
