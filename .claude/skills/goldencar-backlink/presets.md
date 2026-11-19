@@ -20,14 +20,16 @@
 
 ## 언어별 기본 플랫폼 세트 (`○○ 큐`)
 
+Instagram은 2026-11-19 사용자 요청으로 당분간 기본 세트에서 제외한다(다시 하자고 할 때까지).
+
 | 언어 | 기본 세트 | 추가 가능 |
 |---|---|---|
-| EN 영어 | Facebook, LinkedIn, Medium, Tumblr, Instagram | Facebook, Blogger, Pinterest |
-| JA 일본어 | Facebook, LinkedIn, Medium, Tumblr, Instagram | note, Hatena, Facebook |
-| TW 대만 / HK 홍콩 | Facebook, LinkedIn, Medium, Tumblr, Instagram | Blogger, PIXNET(TW) |
-| CN 간체 | Medium, Facebook | Blogger |
-| TH 태국어 | Facebook, Medium | Blogger, Pinterest |
-| VI 베트남어 | Facebook, Medium | Blogger |
+| EN 영어 | Facebook, LinkedIn, Medium, Tumblr | Blogger, Pinterest |
+| JA 일본어 | Facebook, LinkedIn, Medium, Tumblr | note, Hatena |
+| TW 대만 / HK 홍콩 | Facebook, LinkedIn, Medium, Tumblr | Blogger, PIXNET(TW) |
+| CN 간체 | Facebook, LinkedIn, Medium, Tumblr | Blogger |
+| TH 태국어 | Facebook, LinkedIn, Medium, Tumblr | Blogger, Pinterest |
+| VI 베트남어 | Facebook, LinkedIn, Medium, Tumblr | Blogger |
 | KO 한국어 | 네이버 블로그, 네이버 카페 | LinkedIn |
 
 ## 요일 로테이션 (`오늘 큐`)
