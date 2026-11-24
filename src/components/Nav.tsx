@@ -14,6 +14,7 @@ export function Nav({ links, email, title }: { links: { href: string; label: str
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm text-gray-500">
           <span className="hidden sm:inline">{email}</span>
+          <Link href="/account/password" className="text-gray-600 hover:text-blue-700 hover:underline">비밀번호 변경</Link>
           <form action="/auth/signout" method="post">
             <button className="btn-secondary !px-3 !py-1.5">로그아웃</button>
           </form>
