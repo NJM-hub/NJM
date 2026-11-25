@@ -5,6 +5,17 @@
 이 문서의 양식은 GOLDENCAR용 초기 템플릿이다. 각 플랫폼의 현재 게시 정책과 허용 링크 형식은 게시 전에 확인한다.
 백링크 개수보다 콘텐츠 관련성, 실제 공개 여부, 링크 정상 작동, 유입 성과를 기준으로 관리한다.
 
+## 운영 계정 (2026-11-25부터 기준)
+
+| 플랫폼 | 계정 | 확인 방법 |
+|---|---|---|
+| Facebook | 노지만 (개인 프로필) | 비로그인 확인 불가 → 사용자에게 공개 범위·링크 확인 |
+| LinkedIn | 에쿠스 (dldntjd0542 Gmail 계정) | 게시물 주소(`feed/update/urn:li:activity:…`) 또는 lnkd.in 단축 주소를 비로그인으로 열어 확인 |
+| Medium | @dldntjd0542 | RSS `https://medium.com/feed/@dldntjd0542` |
+| Tumblr | goldencar138 | 글 페이지 `https://www.tumblr.com/goldencar138/{id}` |
+
+2026-11-24까지의 Medium 글은 이전 계정(@njm260600)에 있다. 재확인 시 해당 계정 RSS를 본다.
+
 ## 공통 규칙
 
 - 플랫폼마다 제목·본문·링크·태그 형식을 따로 지킨다 (아래 플랫폼별 양식).
